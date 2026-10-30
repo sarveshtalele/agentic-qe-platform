@@ -5,6 +5,7 @@ Autonomous Feature Builder, Interactive Error Chat, and File Exporters.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import os
 import re
@@ -364,6 +365,157 @@ async def ba_export_md(project_id: str, request: Request):
         media_type="text/markdown",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@router.get("/api/projects/{project_id}/ba/export/feature")
+@router.get("/api/projects/{project_id}/ba/export-feature")
+async def ba_export_feature(project_id: str, request: Request):
+    """Generates and downloads executable Gherkin (.feature) BDD specification."""
+    active_docs = getattr(request.app.state, "active_documents", {})
+    doc = active_docs.get(project_id)
+    if not doc:
+        with request.app.state.db_factory() as con:
+            row = con.execute("SELECT name, description FROM projects WHERE id = ?", (project_id,)).fetchone()
+            name = row["name"] if row else "Platform Project"
+            desc = row["description"] if row and row["description"] else "Core functional requirements"
+        doc = BADocumentGenerator.generate_brd(name, desc)
+
+    gherkin_text = BADocumentGenerator.to_gherkin(doc)
+    filename = f"{project_id}_{doc.get('document_type', 'spec').lower()}.feature"
+
+    return Response(
+        content=gherkin_text.encode("utf-8"),
+        media_type="text/x-gherkin",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post("/api/projects/{project_id}/ba/save-document")
+async def ba_save_document(project_id: str, payload: Dict[str, Any], request: Request):
+    """
+    Saves user-edited document (sections, Gherkin, metadata) into project SQLite database,
+    increments or applies semantic versioning, records to SHA-256 audit ledger, and updates active state.
+    """
+    doc = payload.get("document") or payload
+    if not doc or not isinstance(doc, dict):
+        raise HTTPException(status_code=400, detail="Invalid document payload.")
+
+    curr_ver = doc.get("version", "1.0.0")
+    parts = curr_ver.split(".")
+    if len(parts) == 3 and parts[1].isdigit():
+        new_ver = f"{parts[0]}.{int(parts[1]) + 1}.0"
+    else:
+        new_ver = f"{curr_ver}.1"
+
+    user_ver = payload.get("new_version")
+    if user_ver and str(user_ver).strip():
+        new_ver = str(user_ver).strip()
+
+    doc["version"] = new_ver
+    doc["status"] = payload.get("status") or "APPROVED"
+    doc["author"] = payload.get("author") or doc.get("author") or "Lead Business Analyst"
+    doc["updated_at"] = now_iso()
+
+    if "gherkin" in payload and payload["gherkin"].strip():
+        doc["gherkin"] = payload["gherkin"].strip()
+    else:
+        doc["gherkin"] = BADocumentGenerator.to_gherkin(doc)
+
+    doc_json_str = json.dumps(doc, sort_keys=True)
+    doc_sha = hashlib.sha256(doc_json_str.encode("utf-8")).hexdigest()
+
+    doc_id = f"DOC-{str(uuid.uuid4())[:8]}"
+    filename = f"{project_id}_{doc.get('document_type', 'BRD').lower()}_v{new_ver}.json"
+
+    try:
+        from backend.app import DATA_DIR
+        docs_dir = DATA_DIR / "documents"
+        docs_dir.mkdir(parents=True, exist_ok=True)
+        doc_file = docs_dir / filename
+        doc_file.write_text(doc_json_str, encoding="utf-8")
+        doc_path = str(doc_file)
+    except Exception:
+        doc_path = filename
+
+    with request.app.state.db_factory() as con:
+        con.execute(
+            """
+            INSERT OR REPLACE INTO documents (
+                id, project_id, filename, stored_path, file_type, size_bytes,
+                sha256, version, status, extracted_text, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                doc_id,
+                project_id,
+                filename,
+                doc_path,
+                doc.get("document_type", "BRD").lower(),
+                len(doc_json_str.encode("utf-8")),
+                doc_sha,
+                int(parts[1]) + 1 if len(parts) >= 2 and parts[1].isdigit() else 1,
+                doc["status"],
+                doc_json_str,
+                now_iso(),
+            ),
+        )
+        con.commit()
+
+    if hasattr(request.app.state, "ledger"):
+        request.app.state.ledger.append(
+            project_id=project_id,
+            actor="BusinessAnalyst",
+            action="DOCUMENT_SAVED_AND_VERSIONED",
+            control_id="CTL-DOC-04",
+            details={
+                "version": new_ver,
+                "document_type": doc.get("document_type", "BRD"),
+                "title": doc.get("title"),
+                "sha256": doc_sha,
+                "filename": filename,
+            },
+        )
+
+    if not hasattr(request.app.state, "active_documents"):
+        request.app.state.active_documents = {}
+    request.app.state.active_documents[project_id] = doc
+
+    return {
+        "status": "SAVED",
+        "version": new_ver,
+        "sha256": doc_sha,
+        "message": f"Document saved as Version {new_ver} and recorded to SHA-256 Ledger.",
+        "document": doc,
+    }
+
+
+@router.get("/api/projects/{project_id}/ba/versions")
+async def ba_get_versions(project_id: str, request: Request):
+    """Returns all saved document versions for this project."""
+    versions = []
+    with request.app.state.db_factory() as con:
+        rows = con.execute(
+            """
+            SELECT id, filename, file_type, version, status, sha256, created_at, size_bytes
+            FROM documents
+            WHERE project_id = ?
+            ORDER BY created_at DESC
+            """,
+            (project_id,),
+        ).fetchall()
+        for r in rows:
+            versions.append({
+                "id": r["id"],
+                "filename": r["filename"],
+                "file_type": r["file_type"],
+                "version": f"v1.{r['version']}.0",
+                "status": r["status"],
+                "sha256": r["sha256"][:12] + "...",
+                "full_sha256": r["sha256"],
+                "created_at": r["created_at"],
+                "size_bytes": r["size_bytes"],
+            })
+    return {"versions": versions, "total": len(versions)}
 
 
 # ---------------------------------------------------------------------------

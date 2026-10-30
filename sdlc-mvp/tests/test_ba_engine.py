@@ -127,3 +127,30 @@ def test_ba_studio_api_lifecycle():
     assert md_res.status_code == 200
     assert "text/markdown" in md_res.headers["content-type"]
     assert b"# Business Requirements Document" in md_res.content
+
+    # Export .feature (Gherkin BDD)
+    feat_res = client.get(f"/api/projects/{pid}/ba/export/feature")
+    assert feat_res.status_code == 200
+    assert "text/x-gherkin" in feat_res.headers["content-type"]
+    assert b"Feature:" in feat_res.content
+    assert b"@enterprise" in feat_res.content
+    assert b"@governed" in feat_res.content
+
+    # Save & Version Document
+    save_res = client.post(
+        f"/api/projects/{pid}/ba/save-document",
+        json={
+            "document": {
+                **refine_res.json()["refined_document"],
+                "title": "Custom Edited BRD",
+            }
+        },
+    )
+    assert save_res.status_code == 200
+    assert save_res.json()["status"] == "SAVED"
+    assert save_res.json()["version"] == "1.2.0"
+
+    # Get Versions
+    vers_res = client.get(f"/api/projects/{pid}/ba/versions")
+    assert vers_res.status_code == 200
+    assert vers_res.json()["total"] >= 1

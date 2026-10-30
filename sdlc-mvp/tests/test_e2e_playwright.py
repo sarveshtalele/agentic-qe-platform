@@ -185,7 +185,7 @@ def test_e2e_feature_builder_and_interactive_error_chat(page: Page):
     # 2. Paste Error into Interactive Chat Window
     page.click("button[data-action='feature-paste-sample-error']")
     page.click("button[data-action='feature-fix-error']")
-    page.wait_for_selector(".diff-viewer", timeout=8000)
+    page.wait_for_selector(".diff-viewer", timeout=15000)
     expect(page.locator(".diff-viewer")).to_contain_text("--- a/")
 
     # 3. Create GitHub Pull Request

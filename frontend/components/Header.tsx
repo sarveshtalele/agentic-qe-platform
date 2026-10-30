@@ -78,7 +78,7 @@ export function Header({
       <header className="h-16 px-6 flex items-center justify-between border-b bg-[#060a17]/90 dark:bg-[#060a17]/90 bg-white/95 backdrop-blur-md border-slate-200 dark:border-slate-800">
         <div className="flex items-center gap-4">
           <div>
-            <div className="text-[10px] uppercase font-bold tracking-wider text-indigo-400 font-mono">
+            <div className="text-[10px] uppercase font-bold tracking-wider text-indigo-600 dark:text-indigo-400 font-mono">
               {currentInfo.subtitle}
             </div>
             <div className="font-bold text-slate-900 dark:text-slate-100 text-sm">
@@ -91,14 +91,14 @@ export function Header({
           {/* Active Model Indicator Pill */}
           <button
             onClick={onOpenSettings}
-            className="hidden md:flex items-center gap-1.5 text-[11px] px-2.5 py-1.5 rounded-lg transition border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:border-slate-700"
+            className="hidden md:flex items-center gap-1.5 text-[11px] px-2.5 py-1.5 rounded-lg transition border border-slate-300 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:border-slate-400 dark:hover:border-slate-700 shadow-sm"
             title="Configured model: deepseek-v4-flash-global via LiteLLM Azure proxy"
           >
-            <Cpu className="w-3.5 h-3.5 text-indigo-400" />
-            <span className="font-mono text-indigo-400 dark:text-indigo-300 text-indigo-600 font-semibold">
+            <Cpu className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+            <span className="font-mono text-indigo-600 dark:text-indigo-400 font-semibold">
               {settingsCustomModel || "deepseek-v4-flash-global"}
             </span>
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse ml-0.5" />
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse ml-0.5" />
           </button>
 
           {/* Workspace Project Selector */}

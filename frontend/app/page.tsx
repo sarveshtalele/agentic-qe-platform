@@ -63,6 +63,8 @@ export default function AgenticQEPlatform() {
   const [activeDoc, setActiveDoc] = useState<any>(null);
   const [docReview, setDocReview] = useState<any>(null);
   const [docLoading, setDocLoading] = useState(false);
+  const [docSaving, setDocSaving] = useState(false);
+  const [docVersions, setDocVersions] = useState<any[]>([]);
 
   // Feature Builder State
   const [featureName, setFeatureName] = useState("");
@@ -154,6 +156,7 @@ export default function AgenticQEPlatform() {
       ]);
       setGates(Array.isArray(gRes) ? gRes : []);
       setAuditTrail(Array.isArray(lRes) ? lRes : []);
+      loadDocVersions(projId);
     } catch {
       // Ignore
     }
@@ -386,8 +389,50 @@ export default function AgenticQEPlatform() {
       setActiveDoc(data.refined_document);
       setDocReview((prev: any) => ({ ...prev, total_score: 96, verdict: "APPROVED" }));
       notify("Document refined with feedback incorporated (Version 1.1.0)!", "success");
+      loadDocVersions(currentProjectId);
     } catch (err: any) {
       notify(`Error: ${err.message}`, "error");
+    }
+  };
+
+  const handleSaveDocument = async (updatedDoc: any) => {
+    if (!currentProjectId) {
+      notify("Please select an active project workspace first.", "error");
+      return;
+    }
+    setDocSaving(true);
+    try {
+      const res = await fetch(`/api/projects/${currentProjectId}/ba/save-document`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ document: updatedDoc }),
+      });
+      const data = await res.json();
+      if (res.ok && data.status === "SAVED") {
+        setActiveDoc(data.document);
+        notify(`Document saved as Version ${data.version} and recorded to SHA-256 Ledger!`, "success");
+        loadDocVersions(currentProjectId);
+        loadProjectDetails(currentProjectId);
+      } else {
+        notify(`Failed to save document: ${data.detail || "Server error"}`, "error");
+      }
+    } catch (err: any) {
+      notify(`Save error: ${err.message}`, "error");
+    } finally {
+      setDocSaving(false);
+    }
+  };
+
+  const loadDocVersions = async (projId: string) => {
+    if (!projId) return;
+    try {
+      const res = await fetch(`/api/projects/${projId}/ba/versions`);
+      if (res.ok) {
+        const data = await res.json();
+        setDocVersions(data.versions || []);
+      }
+    } catch {
+      // Ignore
     }
   };
 
@@ -764,6 +809,9 @@ export default function AgenticQEPlatform() {
               onReviewDocument={handleReviewDocument}
               onRefineDocument={handleRefineDocument}
               currentProjectId={currentProjectId}
+              onSaveDocument={handleSaveDocument}
+              docSaving={docSaving}
+              docVersions={docVersions}
             />
           )}
 

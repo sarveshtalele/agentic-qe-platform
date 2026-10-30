@@ -151,6 +151,7 @@ The output must be a single JSON object with this exact structure:
                     doc["version"] = doc.get("version", "1.0.0")
                     doc["status"] = "DRAFT"
                     doc["author"] = author
+                    doc["gherkin"] = cls.to_gherkin(doc)
                     logger.info(f"Successfully generated dynamic BRD with {len(doc['sections'])} sections.")
                     return doc
             except Exception as e:
@@ -263,6 +264,7 @@ The output must be a single JSON object with this exact structure:
                     doc["version"] = doc.get("version", "1.0.0")
                     doc["status"] = "APPROVED"
                     doc["author"] = author
+                    doc["gherkin"] = cls.to_gherkin(doc)
                     logger.info(f"Successfully generated dynamic PRD with {len(doc['sections'])} sections.")
                     return doc
             except Exception as e:
@@ -435,6 +437,7 @@ The output must be a single JSON object with this exact structure:
                 },
             ],
         }
+        brd["gherkin"] = cls.to_gherkin(brd)
         return brd
 
     @classmethod
@@ -553,6 +556,7 @@ The output must be a single JSON object with this exact structure:
                 },
             ],
         }
+        prd["gherkin"] = cls.to_gherkin(prd)
         return prd
 
     @staticmethod
@@ -583,6 +587,86 @@ The output must be a single JSON object with this exact structure:
                 for r in t.get("rows", []):
                     lines.append("| " + " | ".join(str(cell) for cell in r) + " |")
                 lines.append("")
+
+        return "\n".join(lines)
+
+    @staticmethod
+    def to_gherkin(doc_dict: Dict[str, Any]) -> str:
+        """Converts structured document specification into executable Gherkin feature syntax."""
+        if doc_dict.get("gherkin") and isinstance(doc_dict["gherkin"], str) and len(doc_dict["gherkin"].strip()) > 30:
+            return doc_dict["gherkin"].strip()
+
+        proj_name = doc_dict.get("project_name", "Enterprise Platform")
+        title = doc_dict.get("title", f"Specification for {proj_name}")
+        feature_slug = re.sub(r"[^\w\s-]", "", title.replace("Business Requirements Document (BRD):", "")).strip()
+
+        persona = "Enterprise Operator"
+        goal = f"orchestrate and verify features for {proj_name}"
+        value = "deterministic quality gates and cryptographic audit trails are enforced"
+
+        for sec in doc_dict.get("sections", []):
+            if sec.get("section_id") == "SEC-02" and sec.get("table"):
+                rows = sec["table"].get("rows", [])
+                if rows and len(rows[0]) >= 3:
+                    persona = str(rows[0][0])
+                    goal = str(rows[0][2]).lower()
+                    break
+
+        lines = [
+            f"# Auto-generated BDD Gherkin Specification for {proj_name}",
+            f"# Document: {title}",
+            f"# Version: {doc_dict.get('version', '1.0.0')} | Status: {doc_dict.get('status', 'DRAFT')}",
+            f"# Governed under Agentic-QE Protocol & Microsoft Agent Framework",
+            "",
+            "@enterprise @specification @governed",
+            f"Feature: {feature_slug or proj_name}",
+            f"  As a {persona}",
+            f"  I want to {goal}",
+            f"  So that {value}",
+            "",
+            "  Background:",
+            "    Given the platform runtime environment is initialized",
+            "    And the SHA-256 audit ledger is online and tamper-evident",
+            "",
+        ]
+
+        # Extract Business Rules into Gherkin Scenarios
+        rules_found = False
+        for sec in doc_dict.get("sections", []):
+            if "business rule" in sec.get("title", "").lower() and sec.get("table"):
+                for row in sec["table"].get("rows", []):
+                    if len(row) >= 4:
+                        rules_found = True
+                        r_id, r_stmt, r_enf, r_viol = str(row[0]), str(row[1]), str(row[2]), str(row[3])
+                        clean_name = r_stmt.split(".")[0].strip()
+                        lines.append(f"  @rule({r_id})")
+                        lines.append(f"  Scenario: {r_id} - {clean_name}")
+                        lines.append(f'    Given the enforcement point "{r_enf}" is active')
+                        lines.append(f"    When a transaction or state mutation is evaluated under {r_id}")
+                        lines.append(f'    Then the system enforces: "{r_stmt}"')
+                        lines.append(f'    And on any violation, the consequence is: "{r_viol}"')
+                        lines.append("")
+
+        if not rules_found:
+            lines.append(f"  Scenario: Nominal Execution for {proj_name}")
+            lines.append("    Given nominal system input parameters")
+            lines.append("    When the service workflow processes the payload")
+            lines.append("    Then HTTP 200 OK is returned with deterministic state update")
+            lines.append("    And a SHA-256 audit entry is appended to the ledger")
+            lines.append("")
+
+        lines.append(f"  Scenario Outline: Invariant and Boundary Matrix for {proj_name}")
+        lines.append("    Given an incoming request with payload <test_case_type>")
+        lines.append("    When the agentic mesh executes validation rules")
+        lines.append("    Then the response status should be <expected_status>")
+        lines.append("    And the audit ledger proof should be <audit_proof>")
+        lines.append("")
+        lines.append("    Examples:")
+        lines.append("      | test_case_type          | expected_status | audit_proof |")
+        lines.append("      | nominal_valid_payload   | 200_OK          | VERIFIED    |")
+        lines.append("      | boundary_limit_payload  | 200_OK          | VERIFIED    |")
+        lines.append("      | missing_or_faulty_input | 400_BAD_REQUEST | REJECTED    |")
+        lines.append("")
 
         return "\n".join(lines)
 

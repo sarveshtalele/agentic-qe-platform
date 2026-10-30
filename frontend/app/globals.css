@@ -52,6 +52,23 @@ html.light {
   box-sizing: border-box;
 }
 
+/* Universal High-Contrast Selection (Guarantees zero hidden text) */
+::selection {
+  background-color: #2563eb !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+::-moz-selection {
+  background-color: #2563eb !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+input::selection, textarea::selection {
+  background-color: #2563eb !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
 html, body {
   margin: 0;
   padding: 0;
