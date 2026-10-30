@@ -7,6 +7,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -19,6 +20,7 @@ from .ba.doc_generator import BADocumentGenerator, now_iso
 from .maf.core import AgentSession, Message
 from .maf.agents.doc_reviewer import DocumentReviewerAgent
 from .maf.agents.feature_builder import FeatureBuilderAgent, InteractiveDebuggerAgent
+from backend.logger import logger
 
 router = APIRouter()
 
@@ -185,7 +187,7 @@ async def ba_generate_brd(project_id: str, payload: Dict[str, Any], request: Req
         try:
             brd = await asyncio.wait_for(
                 BADocumentGenerator.generate_brd_async(proj_name, prompt, author, llm=llm),
-                timeout=12.0,
+                timeout=4.0,
             )
         except Exception as exc:
             logger.warning(f"BRD synthesis timed out or failed ({exc}). Using instant contextual generator.")
@@ -229,7 +231,7 @@ async def ba_generate_prd(project_id: str, payload: Dict[str, Any], request: Req
         try:
             prd = await asyncio.wait_for(
                 BADocumentGenerator.generate_prd_async(proj_name, prompt, author=author, llm=llm),
-                timeout=12.0,
+                timeout=4.0,
             )
         except Exception as exc:
             logger.warning(f"PRD synthesis timed out or failed ({exc}). Using instant contextual generator.")

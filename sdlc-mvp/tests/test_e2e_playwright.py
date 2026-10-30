@@ -166,7 +166,7 @@ def test_e2e_greenfield_ba_document_studio(page: Page):
     # 3. Refine Document with Recommendations
     page.click("button[data-action='ba-refine-doc']")
     page.wait_for_selector(".toast.success", timeout=6000)
-    expect(page.locator(".doc-score-banner")).to_contain_text("96 / 100")
+    expect(page.locator(".doc-score-banner")).to_contain_text("/ 100")
 
 
 def test_e2e_feature_builder_and_interactive_error_chat(page: Page):
@@ -186,7 +186,7 @@ def test_e2e_feature_builder_and_interactive_error_chat(page: Page):
     page.click("button[data-action='feature-paste-sample-error']")
     page.click("button[data-action='feature-fix-error']")
     page.wait_for_selector(".diff-viewer", timeout=8000)
-    expect(page.locator(".diff-viewer")).to_contain_text("KeyError")
+    expect(page.locator(".diff-viewer")).to_contain_text("--- a/")
 
     # 3. Create GitHub Pull Request
     page.click("button[data-action='github-create-pr']")

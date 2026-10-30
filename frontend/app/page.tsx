@@ -65,8 +65,8 @@ export default function AgenticQEPlatform() {
   const [docLoading, setDocLoading] = useState(false);
 
   // Feature Builder State
-  const [featureName, setFeatureName] = useState("Order Processing Retry with Exponential Backoff");
-  const [featureSpec, setFeatureSpec] = useState("Implement exponential backoff retry for failed order transactions with validation and idempotent caching.");
+  const [featureName, setFeatureName] = useState("");
+  const [featureSpec, setFeatureSpec] = useState("");
   const [featureBranch, setFeatureBranch] = useState("");
   const [featureFiles, setFeatureFiles] = useState<string[]>([]);
   const [featureTestRes, setFeatureTestRes] = useState<any>(null);
@@ -418,6 +418,10 @@ export default function AgenticQEPlatform() {
   };
 
   const handleDiagnoseError = async () => {
+    if (!currentProjectId) {
+      notify("Please select an active project workspace first.", "error");
+      return;
+    }
     if (!errorTraceInput.trim()) return;
     setErrorDiagnosing(true);
     try {
@@ -433,7 +437,7 @@ export default function AgenticQEPlatform() {
         { sender: "USER", text: `Pasted Traceback: ${errorTraceInput.substring(0, 100)}...`, time: "now" },
         { sender: "INTERACTIVEDEBUGGER", text: `Diagnosed ${data.patch?.error_type || "Fault"}. Patch applied and verified.`, time: "now" },
       ]);
-      notify(`Error diagnosed! Patch applied to ${data.patch?.file}.`, "success");
+      notify(`Error diagnosed! Patch applied to ${data.patch?.patched_file || data.patch?.file || "file"}.`, "success");
     } catch (err: any) {
       notify(`Diagnostic error: ${err.message}`, "error");
     } finally {

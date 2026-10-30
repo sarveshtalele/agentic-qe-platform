@@ -182,6 +182,38 @@ app.state.ledger = AuditLedger(shared_con, LEDGER_PATH)
 app.state.gate_controller = GateController(shared_con, app.state.ledger)
 app.state.hitl_manager = HITLManager(shared_con, app.state.ledger)
 
+
+def ensure_default_project() -> None:
+    with db() as con:
+        count = con.execute("SELECT COUNT(*) FROM projects").fetchone()[0]
+        if count == 0:
+            stamp = now_iso()
+            pid = "PRJ-001"
+            con.execute(
+                "INSERT INTO projects(id,name,description,project_type,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?)",
+                (
+                    pid,
+                    "Agentic QE Core Platform",
+                    "Autonomous Multi-Agent SDLC & Quality Engineering Workspace",
+                    "software",
+                    "active",
+                    stamp,
+                    stamp,
+                ),
+            )
+            con.commit()
+            app.state.gate_controller.initialize_project_gates(pid)
+            app.state.ledger.append(
+                project_id=pid,
+                actor="GenesisSystem",
+                action="WORKSPACE_INITIALIZED",
+                control_id="CTL-INIT-01",
+                details={"name": "Agentic QE Core Platform", "version": "2.0.0", "governance": "MAF 6-Gate"},
+            )
+
+
+ensure_default_project()
+
 app.include_router(maf_gov_router)
 app.include_router(agentic_qe_router)
 

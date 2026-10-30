@@ -214,10 +214,13 @@ Respond STRICTLY with a valid JSON object in this format:
 
             try:
                 logger.info(f"Synthesizing feature files for '{feat_name}' via LLM...")
-                resp = await llm.chat_completion(
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=0.2,
-                    max_tokens=4096,
+                resp = await asyncio.wait_for(
+                    llm.chat_completion(
+                        messages=[{"role": "user", "content": prompt}],
+                        temperature=0.2,
+                        max_tokens=2048,
+                    ),
+                    timeout=3.5,
                 )
                 clean_json = resp.strip()
                 if clean_json.startswith("```"):
@@ -336,18 +339,22 @@ def test_{slug}_invalid():
                         errors.append(f"JSON parse error in {rel_path}: {je}")
 
         if errors:
+            summary = f"FAILED: Verification detected {len(errors)} errors:\n" + "\n".join(errors)
             return {
                 "exit_code": 1,
                 "passed": False,
                 "tests_run": checked,
-                "summary": f"FAILED: Verification detected {len(errors)} errors:\n" + "\n".join(errors),
+                "summary": summary,
+                "output": summary,
             }
 
+        summary = f"PASSED: {checked} framework files syntax-validated and verified with zero errors."
         return {
             "exit_code": 0,
             "passed": True,
             "tests_run": checked,
-            "summary": f"PASSED: {checked} framework files syntax-validated and verified with zero errors.",
+            "summary": summary,
+            "output": summary,
         }
 
 
