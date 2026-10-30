@@ -1,0 +1,53 @@
+# Dependencies
+node_modules/
+.venv/
+venv/
+env/
+
+# Next.js & Frontend Build
+frontend/.next/
+frontend/out/
+frontend/dist/
+frontend/build/
+.next/
+
+# Python Cache & Testing
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Local databases and logs
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+*.db
+sdlc-mvp/data/sdlc.sqlite3*
+sdlc-mvp/data/*.log
+sdlc-mvp/data/ledger.jsonl
+sdlc-mvp/data/projects/
+sdlc-mvp/data/audit/
+sdlc-mvp/workspaces/
+sdlc-mvp/data/settings.json
+
+# Environment & Credentials
+.env
+.env.local
+*.env
+
+# Operating System
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Large archive files
+*.zip
+agent-framework.pdf
