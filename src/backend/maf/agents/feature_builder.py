@@ -8,6 +8,7 @@ via LLM using actual repository context, and performs real syntax/AST validation
 from __future__ import annotations
 
 import ast
+import asyncio
 import json
 import os
 import re

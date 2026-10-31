@@ -628,22 +628,56 @@ async def bugs_scan(project_id: str, request: Request):
     """Scans repository code for anti-patterns, resource leaks, and vulnerabilities using AST analysis."""
     from backend.qe.scanner import RepoASTScanner
     repo_data = {}
+    repo_url = ""
     if hasattr(request.app.state, "db_factory"):
         with request.app.state.db_factory() as con:
-            row = con.execute("SELECT repo_analysis FROM projects WHERE id = ?", (project_id,)).fetchone()
-            if row and row["repo_analysis"]:
+            row = con.execute("SELECT repo_url, repo_path, repo_analysis FROM projects WHERE id = ?", (project_id,)).fetchone()
+            if row:
+                repo_url = row["repo_url"] or ""
+                if row["repo_analysis"]:
+                    try:
+                        repo_data = json.loads(row["repo_analysis"])
+                    except Exception:
+                        pass
+
+    from backend.app import WORKSPACE_ROOT
+    ws_dir = WORKSPACE_ROOT / project_id
+    ws_dir.mkdir(parents=True, exist_ok=True)
+
+    # If workspace has no cloned code yet and repo_url exists, auto-clone it for deep static AST inspection
+    if repo_url and not any(ws_dir.iterdir()):
+        try:
+            settings = _load_settings()
+            token = settings.get("github_token", "")
+            clone_target = repo_url
+            if token and not token.startswith("ghp_simulated"):
+                clone_target = repo_url.replace("https://", f"https://x-access-token:{token}@")
+            subprocess.run(["git", "clone", "--depth", "1", clone_target, str(ws_dir / "repo")], capture_output=True, timeout=20)
+        except Exception as e:
+            logger.warning(f"Could not auto-clone {repo_url} for AST scan: {e}")
+
+    # Discover real repository directory (either ws_dir itself or cloned subdirectory)
+    actual_dir = ws_dir
+    sub_repos = [d for d in ws_dir.iterdir() if d.is_dir() and ((d / ".git").exists() or (d / "package.json").exists())]
+    if sub_repos:
+        actual_dir = sub_repos[0]
+
+    # Gather real files from the filesystem
+    real_files = []
+    if actual_dir.exists():
+        for p in actual_dir.rglob("*"):
+            if p.is_file() and not any(part.startswith((".", "node_modules", ".venv", "__pycache__", "dist")) for part in p.parts):
                 try:
-                    repo_data = json.loads(row["repo_analysis"])
+                    rel = str(p.relative_to(actual_dir))
+                    real_files.append(rel)
                 except Exception:
                     pass
 
-    files = repo_data.get("files_sample", [])
+    files = real_files or repo_data.get("files_sample", [])
     languages = repo_data.get("languages", {})
-    from backend.app import WORKSPACE_ROOT
-    ws_dir = WORKSPACE_ROOT / project_id
 
     findings = RepoASTScanner.scan_workspace_or_tree(
-        workspace_dir=ws_dir if ws_dir.exists() else None,
+        workspace_dir=actual_dir if actual_dir.exists() else None,
         tree_files=files,
         languages=languages,
     )
@@ -658,7 +692,7 @@ async def bugs_scan(project_id: str, request: Request):
             actor="RepoIntelligenceAnalyst",
             action="BUG_DIAGNOSTIC_SCANNED",
             control_id="CTL-GATE-00",
-            details={"findings_count": len(findings)},
+            details={"findings_count": len(findings), "real_files_scanned": len(files)},
         )
 
     return {"findings": findings, "count": len(findings), "status": "COMPLETED"}
@@ -965,9 +999,7 @@ def get_observability_traces(request: Request, project_id: Optional[str] = None)
     
     # Enrich from persistent audit ledger if needed
     if len(traces) < 5 and hasattr(request.app.state, "ledger"):
-        ledger_entries = request.app.state.ledger.entries
-        if project_id:
-            ledger_entries = [e for e in ledger_entries if e.get("project_id") == project_id]
+        ledger_entries = request.app.state.ledger.get_entries(project_id or "GLOBAL", limit=20)
         for e in reversed(ledger_entries[-10:]):
             actor = e.get("actor", "Agent")
             action = e.get("action", "STATE_MUTATION")
@@ -1001,9 +1033,10 @@ def get_observability_metrics(request: Request):
 
     if hasattr(request.app.state, "ledger"):
         ledger = request.app.state.ledger
-        total_invocations += len(ledger.entries)
-        verification = ledger.verify_chain()
-        ledger_tamper_count = verification.get("tampered_entries_count", 0)
+        entries = ledger.get_entries("GLOBAL", limit=100)
+        total_invocations += len(entries)
+        verification = ledger.verify_integrity("GLOBAL")
+        ledger_tamper_count = 0 if verification.get("verified") else 1
 
     # Dynamic gate pass rate from sqlite
     if hasattr(request.app.state, "db_factory"):

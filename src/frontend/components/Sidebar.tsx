@@ -44,17 +44,34 @@ export function Sidebar({
 
   return (
     <aside
-      className={`border-r flex flex-col transition-all duration-200 sticky top-0 h-screen select-none z-30 ${
+      className={`border-r flex flex-col transition-all duration-300 ease-in-out sticky top-0 h-screen select-none z-30 ${
         collapsed ? "w-16 p-2 items-center" : "w-60 p-4"
-      } bg-white dark:bg-[#060a17] border-slate-200 dark:border-slate-800/80`}
+      } bg-white dark:bg-[#060a17] border-slate-200 dark:border-slate-800/80 overflow-x-hidden`}
     >
       {/* Brand & Collapse Header */}
-      <div className="flex items-center justify-between pb-5 border-b border-slate-200 dark:border-slate-800/80 mb-3 w-full">
-        <div className="flex items-center gap-2.5 overflow-hidden">
-          <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white font-bold flex items-center justify-center shrink-0 shadow-lg shadow-indigo-600/30">
-            <ShieldCheck className="w-4 h-4" />
+      {collapsed ? (
+        <div className="flex flex-col items-center gap-2.5 pb-4 border-b border-slate-200 dark:border-slate-800/80 mb-3 w-full">
+          <div
+            className="w-9 h-9 rounded-xl bg-indigo-600 text-white font-bold flex items-center justify-center shrink-0 shadow-lg shadow-indigo-600/30 cursor-pointer hover:bg-indigo-500 transition"
+            onClick={onToggleCollapse}
+            title="Expand Sidebar (Agentic QE Platform)"
+          >
+            <ShieldCheck className="w-5 h-5" />
           </div>
-          {!collapsed && (
+          <button
+            onClick={onToggleCollapse}
+            className="w-7 h-7 rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800/80 flex items-center justify-center text-slate-400 hover:text-slate-900 dark:hover:text-white transition"
+            title="Expand sidebar"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+      ) : (
+        <div className="flex items-center justify-between pb-5 border-b border-slate-200 dark:border-slate-800/80 mb-3 w-full">
+          <div className="flex items-center gap-2.5 overflow-hidden">
+            <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white font-bold flex items-center justify-center shrink-0 shadow-lg shadow-indigo-600/30">
+              <ShieldCheck className="w-4 h-4" />
+            </div>
             <div>
               <div className="font-bold text-sm tracking-tight text-slate-900 dark:text-white flex items-center gap-1.5">
                 Agentic QE
@@ -66,16 +83,16 @@ export function Sidebar({
                 Platform
               </div>
             </div>
-          )}
+          </div>
+          <button
+            onClick={onToggleCollapse}
+            className="w-7 h-7 rounded-md border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800/80 flex items-center justify-center text-slate-400 hover:text-slate-900 dark:hover:text-white transition shrink-0"
+            title="Collapse sidebar"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
         </div>
-        <button
-          onClick={onToggleCollapse}
-          className="w-7 h-7 rounded-md border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800/80 flex items-center justify-center text-slate-400 hover:text-slate-900 dark:hover:text-white transition shrink-0"
-          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        >
-          {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-        </button>
-      </div>
+      )}
 
       {/* Navigation Categories */}
       <div className="space-y-1 flex-1 overflow-y-auto w-full">
@@ -101,7 +118,18 @@ export function Sidebar({
       </div>
 
       {/* Active Project Footer Card */}
-      {!collapsed && (
+      {collapsed ? (
+        <div
+          className="pt-3 border-t border-slate-200 dark:border-slate-800/80 flex flex-col items-center gap-1.5 w-full cursor-pointer py-1"
+          onClick={onToggleCollapse}
+          title={currentProject ? `Active: ${currentProject.name} (${currentProject.id}) - Click to expand` : "No active workspace - Click to expand"}
+        >
+          <div className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center text-[9px] font-mono font-bold text-indigo-500">
+            {currentProject?.id ? currentProject.id.replace("PRJ-", "#") : "Ø"}
+          </div>
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block animate-pulse" />
+        </div>
+      ) : (
         <div className="pt-3 border-t border-slate-200 dark:border-slate-800/80 w-full">
           {currentProject ? (
             <div className="p-2.5 bg-slate-50 dark:bg-slate-900/80 rounded-lg border border-slate-200 dark:border-slate-800 text-[11px]">
