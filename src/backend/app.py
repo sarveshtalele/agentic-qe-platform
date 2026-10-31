@@ -307,18 +307,19 @@ def next_id(project_id: str, prefix: str, table: str | None = None) -> str:
     """Allocate a globally unique, monotonically increasing artefact ID for a prefix."""
     scope = "_GLOBAL"
     with db() as con:
+        max_val = 0
+        if table:
+            existing = con.execute(f"SELECT id FROM {table} WHERE id LIKE ?", (f"{prefix}-%",)).fetchall()
+            for item in existing:
+                match = re.search(r"-(\d+)$", item["id"])
+                if match:
+                    max_val = max(max_val, int(match.group(1)))
+
         row = con.execute("SELECT next_value FROM counters WHERE project_id=? AND prefix=?", (scope, prefix)).fetchone()
         if row:
-            value = int(row["next_value"])
+            value = max(int(row["next_value"]), max_val + 1)
             con.execute("UPDATE counters SET next_value=? WHERE project_id=? AND prefix=?", (value + 1, scope, prefix))
         else:
-            max_val = 0
-            if table:
-                existing = con.execute(f"SELECT id FROM {table} WHERE id LIKE ?", (f"{prefix}-%",)).fetchall()
-                for item in existing:
-                    match = re.search(r"-(\d+)$", item["id"])
-                    if match:
-                        max_val = max(max_val, int(match.group(1)))
             value = max_val + 1
             con.execute("INSERT INTO counters(project_id,prefix,next_value) VALUES(?,?,?)", (scope, prefix, value + 1))
         return f"{prefix}-{value:03d}"
@@ -1266,7 +1267,8 @@ def connect_repository(project_id: str, payload: RepositoryConnect) -> dict[str,
         try:
             Path(git_root).resolve().relative_to(WORKSPACE_ROOT.resolve())
         except ValueError:
-            raise HTTPException(400, "Git repository root resolves outside the configured workspace")
+            if not Path(root).resolve().is_relative_to(WORKSPACE_ROOT.resolve()):
+                raise HTTPException(400, "Git repository root resolves outside the configured workspace")
     commit = git_read(root, ["rev-parse", "--short", "HEAD"])
     branch = payload.branch.strip() or git_read(root, ["branch", "--show-current"])
     with db() as con:

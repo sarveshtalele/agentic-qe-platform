@@ -13,6 +13,7 @@ import { QETestStudio } from "../components/views/QETestStudio";
 import { HITLGovernance } from "../components/views/HITLGovernance";
 import { Observability } from "../components/views/Observability";
 import { PlatformSettings } from "../components/views/PlatformSettings";
+import { InteractiveCopilotView } from "../components/views/InteractiveCopilotView";
 
 export default function AgenticQEPlatform() {
   // Theme state: dark / light
@@ -111,9 +112,46 @@ export default function AgenticQEPlatform() {
 
   // Copilot Live Stream Drawer
   const [copilotOpen, setCopilotOpen] = useState(false);
+  const [copilotLoading, setCopilotLoading] = useState(false);
   const [copilotMessages, setCopilotMessages] = useState<any[]>([
     { sender: "SYSTEM", text: "MAF Multi-Agent Copilot connected. Orchestration mesh active.", time: "12:00" },
   ]);
+
+  const handleSendCopilotMessage = async (text: string) => {
+    setCopilotMessages((prev) => [
+      ...prev,
+      { sender: "OPERATOR", text, time: "now" },
+    ]);
+    setCopilotLoading(true);
+    try {
+      const projId = currentProjectId || "GLOBAL";
+      const res = await fetch(`/api/projects/${projId}/copilot/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: text }),
+      });
+      const data = await res.json();
+      if (data.text) {
+        setCopilotMessages((prev) => [
+          ...prev,
+          {
+            sender: data.sender || "COPILOT",
+            text: data.text,
+            time: "now",
+            action: data.action,
+            data: data.data,
+          },
+        ]);
+      }
+    } catch (err: any) {
+      setCopilotMessages((prev) => [
+        ...prev,
+        { sender: "SYSTEM", text: `Chat Error: ${err.message}`, time: "now" },
+      ]);
+    } finally {
+      setCopilotLoading(false);
+    }
+  };
 
   const notify = (message: string, type: "success" | "error" | "info" = "info") => {
     setToast({ message, type });
@@ -898,6 +936,16 @@ export default function AgenticQEPlatform() {
               settingsStatus={settingsStatus}
             />
           )}
+
+          {activeView === "chat" && (
+            <InteractiveCopilotView
+              currentProjectId={currentProjectId}
+              currentProjectName={currentProject?.name}
+              messages={copilotMessages}
+              onSendMessage={handleSendCopilotMessage}
+              loading={copilotLoading}
+            />
+          )}
         </main>
       </div>
 
@@ -906,32 +954,7 @@ export default function AgenticQEPlatform() {
         open={copilotOpen}
         onClose={() => setCopilotOpen(false)}
         messages={copilotMessages}
-        onSendMessage={async (text) => {
-          setCopilotMessages((prev) => [
-            ...prev,
-            { sender: "OPERATOR", text, time: "now" },
-          ]);
-          try {
-            const projId = currentProjectId || "GLOBAL";
-            const res = await fetch(`/api/projects/${projId}/copilot/chat`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ message: text }),
-            });
-            const data = await res.json();
-            if (data.text) {
-              setCopilotMessages((prev) => [
-                ...prev,
-                { sender: data.sender || "COPILOT", text: data.text, time: "now" },
-              ]);
-            }
-          } catch (err: any) {
-            setCopilotMessages((prev) => [
-              ...prev,
-              { sender: "SYSTEM", text: `Chat Error: ${err.message}`, time: "now" },
-            ]);
-          }
-        }}
+        onSendMessage={handleSendCopilotMessage}
       />
 
       {/* Create Project Modal */}

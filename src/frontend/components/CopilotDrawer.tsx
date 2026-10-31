@@ -62,6 +62,25 @@ export function CopilotDrawer({ open, onClose, messages, onSendMessage }: Copilo
         ))}
       </div>
 
+      {/* Quick Directive Chips */}
+      <div className="px-3 py-2 border-t border-slate-200 dark:border-slate-800 flex flex-wrap gap-1 bg-slate-50/50 dark:bg-slate-900/50">
+        {[
+          { label: "🔍 /scan", cmd: "/scan" },
+          { label: "🧪 /test", cmd: "/test" },
+          { label: "🛡️ /verify", cmd: "/verify" },
+          { label: "🚦 /gates", cmd: "/gates" },
+        ].map((c) => (
+          <button
+            key={c.cmd}
+            type="button"
+            onClick={() => onSendMessage(c.cmd)}
+            className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-indigo-500 text-slate-700 dark:text-slate-300 transition"
+          >
+            {c.label}
+          </button>
+        ))}
+      </div>
+
       <form
         onSubmit={handleSubmit}
         className="p-3 border-t flex items-center gap-2 border-slate-200 dark:border-slate-800"

@@ -385,3 +385,26 @@ def test_nextjs_copilot_stream_drawer(page: Page):
     # Verify directive appears in chat stream
     page.wait_for_selector("text=Verify all quality gates before release", timeout=5000)
     expect(page.locator("text=Verify all quality gates before release")).to_be_visible()
+
+
+def test_nextjs_interactive_copilot_centralized_view(page: Page):
+    """
+    Test 12: Verifies centralized Interactive Copilot view with autonomous directives (/gates, /scan).
+    """
+    page.goto(NEXTJS_URL)
+    page.wait_for_selector("header select option:not([value=''])", state="attached", timeout=8000)
+    page.wait_for_selector("aside button:has-text('Interactive Copilot')", timeout=10000)
+    page.click("aside button:has-text('Interactive Copilot')")
+    page.wait_for_selector("text=Centralized Autonomous Copilot", timeout=10000)
+    expect(page.locator("text=Centralized Autonomous Copilot")).to_be_visible()
+
+    # Click Quality Gates quick directive button
+    page.click("button:has-text('Quality Gates')")
+    page.wait_for_selector("text=Quality Gates Status", timeout=8000)
+    expect(page.locator("text=Quality Gates Status")).to_be_visible()
+
+    # Click Verify Ledger quick directive button
+    page.click("button:has-text('Verify Ledger')")
+    page.wait_for_selector("text=Cryptographic Audit Ledger Verification", timeout=8000)
+    expect(page.locator("text=Cryptographic Audit Ledger Verification")).to_be_visible()
+

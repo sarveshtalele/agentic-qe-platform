@@ -53,17 +53,31 @@ class FeatureBuilderAgent(AIAgent):
         spec_text = inbound_msg.payload.get("spec_text", inbound_msg.content)
         branch_name = f"feature/{re.sub(r'[^a-zA-Z0-9]+', '-', feat_name).strip('-').lower()}"
 
-        # 1. Fetch repository context from database
+        # 1. Fetch repository context from database and scan workspace directory
         repo_info = self._get_project_repo_context(session.project_id)
+        proj_dir = Path(self.workspace_root) / session.project_id
+        proj_dir.mkdir(parents=True, exist_ok=True)
 
-        # 2. Synthesize code and test files matching project language
+        # Scan existing files in workspace to detect conventions and layout
+        discovered_files = []
+        if proj_dir.exists():
+            for p in proj_dir.rglob("*"):
+                if p.is_file() and not any(part.startswith((".", "node_modules", ".venv", "__pycache__")) for part in p.parts):
+                    try:
+                        rel = str(p.relative_to(proj_dir))
+                        discovered_files.append(rel)
+                    except Exception:
+                        pass
+        if discovered_files:
+            repo_info.setdefault("analysis", {})["workspace_files"] = discovered_files[:30]
+            logger.info(f"FeatureBuilder scanned {len(discovered_files)} repository files in {proj_dir}")
+
+        # 2. Synthesize code and test files matching project language and real repository layout
         files = await self._synthesize_feature_code_async(feat_name, spec_text, session.project_id, repo_info)
         session.set_state("feature_files", files)
         session.set_state("feature_branch", branch_name)
 
         # 3. Apply files within workspace boundary respecting guard_write
-        proj_dir = Path(self.workspace_root) / session.project_id
-        proj_dir.mkdir(parents=True, exist_ok=True)
 
         for rel_path, content in files.items():
             full_path = proj_dir / rel_path
@@ -194,13 +208,19 @@ def test_{slug}_nominal_execution():
                 if is_astro
                 else ("Python 3.12 / pytest service" if is_python else "Modern software repository")
             )
-            prompt = f"""You are the Feature Builder Agent.
+            workspace_files = analysis.get("workspace_files", [])
+            scanned_context = ""
+            if workspace_files:
+                scanned_context = "\nExisting Scanned Repository Files (follow layout & import conventions):\n" + "\n".join(f"- {f}" for f in workspace_files[:15])
+
+            prompt = f"""You are the Feature Builder Agent in Agentic QE Platform.
 Project: {repo_info.get('name', project_id)}
 Repository Tech Stack: {stack_desc}
+{scanned_context}
 Feature Name: {feat_name}
 Specification: {spec_text}
 
-Generate 2 production-grade files for this feature strictly matching the tech stack:
+Generate 2 production-grade files for this feature strictly matching the tech stack and existing repo architecture:
 1. Core implementation file (e.g. for Astro: `src/pages/...astro` or `src/components/...astro` or `src/content/...mdx`; for Python: `app/...py`).
 2. Test or validation file (e.g. for Astro: `tests/...test.ts` or `scripts/verify-...js`; for Python: `tests/test_...py`).
 

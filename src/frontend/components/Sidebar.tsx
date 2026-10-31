@@ -12,6 +12,7 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
+  Bot,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -37,6 +38,7 @@ export function Sidebar({
     { id: "testing_hub", label: "QE Test Studio", icon: ShieldCheck, badge: "ISTQB" },
     { id: "governance", label: "HITL Governance", icon: Lock, badge: "Gates" },
     { id: "observability", label: "Observability & MAF", icon: Activity, badge: "Traces" },
+    { id: "chat", label: "Interactive Copilot", icon: Bot, badge: "AI" },
     { id: "settings", label: "Platform Settings", icon: Settings, badge: "LLM" },
   ];
 

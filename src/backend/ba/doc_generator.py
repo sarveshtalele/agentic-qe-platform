@@ -588,7 +588,10 @@ The output must be a single JSON object with this exact structure:
                     lines.append("| " + " | ".join(str(cell) for cell in r) + " |")
                 lines.append("")
 
-        return "\n".join(lines)
+        raw_md = "\n".join(lines)
+        doc_id = doc_dict.get("id") or f"{doc_dict.get('document_type', 'doc').lower()}-{doc_dict.get('version', '1.0.0')}"
+        from backend.governance.stamp import MetadataStamper
+        return MetadataStamper.stamp_markdown(raw_md, doc_id=doc_id)
 
     @staticmethod
     def to_gherkin(doc_dict: Dict[str, Any]) -> str:
@@ -668,7 +671,10 @@ The output must be a single JSON object with this exact structure:
         lines.append("      | missing_or_faulty_input | 400_BAD_REQUEST | REJECTED    |")
         lines.append("")
 
-        return "\n".join(lines)
+        raw_md = "\n".join(lines)
+        doc_id = doc_dict.get("id") or f"{doc_dict.get('document_type', 'doc').lower()}-{doc_dict.get('version', '1.0.0')}"
+        from backend.governance.stamp import MetadataStamper
+        return MetadataStamper.stamp_markdown(raw_md, doc_id=doc_id)
 
     @staticmethod
     def to_docx_bytes(doc_dict: Dict[str, Any]) -> bytes:
