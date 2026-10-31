@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-LOGS_DIR = Path(__file__).resolve().parents[1] / "data"
+LOGS_DIR = Path(__file__).resolve().parents[2] / "data"
 LOGS_DIR.mkdir(parents=True, exist_ok=True)
 LOG_FILE = LOGS_DIR / "sdlc.log"
 

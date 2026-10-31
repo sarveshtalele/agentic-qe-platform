@@ -5,10 +5,10 @@ venv/
 env/
 
 # Next.js & Frontend Build
-frontend/.next/
-frontend/out/
-frontend/dist/
-frontend/build/
+src/frontend/.next/
+src/frontend/out/
+src/frontend/dist/
+src/frontend/build/
 .next/
 
 # Python Cache & Testing
@@ -26,13 +26,9 @@ htmlcov/
 *.sqlite3-wal
 *.sqlite3-shm
 *.db
-sdlc-mvp/data/sdlc.sqlite3*
-sdlc-mvp/data/*.log
-sdlc-mvp/data/ledger.jsonl
-sdlc-mvp/data/projects/
-sdlc-mvp/data/audit/
-sdlc-mvp/workspaces/
-sdlc-mvp/data/settings.json
+data/
+workspaces/
+*.zip
 
 # Environment & Credentials
 .env

@@ -2,71 +2,104 @@
 
 An enterprise-grade, autonomous software development lifecycle (SDLC) platform powered by **Microsoft Agent Framework (MAF)** and **Agentic Quality Engineering (QE)**.
 
-The platform coordinates specialized autonomous AI agents across 6 strict quality gates, from greenfield business requirements synthesis to brownfield repository ingestion, autonomous feature engineering, runtime debugging, and tamper-evident SHA-256 governance.
+The platform coordinates specialized autonomous AI agents across 6 strict quality gates, from greenfield business requirements synthesis to brownfield repository ingestion, autonomous feature engineering, runtime debugging, Gherkin BDD specifications, and tamper-evident SHA-256 governance.
 
 ---
 
-## 🏛️ Core Architectural Components
+## 🏛️ Modular Repository Architecture
 
-### 1. Microsoft Agent Framework (MAF) Multi-Agent Mesh
-- **Repository Ingestion Agent**: Inspects GitHub REST API v3 trees, commits, branches, and detects language stacks (Astro, TypeScript, Python, etc.).
-- **Greenfield BA Document Studio**: Synthesizes 7-section Enterprise BRDs, 6-section PRDs, and User Stories dynamically tailored to specific domains (calculators, websites, enterprise APIs) with zero canned mock leakage.
-- **Document Reviewer Agent**: Evaluates specifications across 5 quality dimensions (Completeness, Clarity, Testability, Edge Cases, Security Constraints) and proposes automated document refinements.
-- **Feature Builder Agent**: Scaffolds isolated feature branches, writes framework-accurate code, and executes syntax and AST verification.
-- **Interactive Debugger Agent**: Ingests runtime tracebacks and error logs, diagnoses root causes, and generates verified unified diff patches.
-- **MAF Composite Evaluator**: Evaluates multi-agent performance across 4 standard dimensions (Faithfulness, Completeness, Context Relevancy, Groundedness) with aggregate quality scoring.
+The platform is organized with clean separation between frontend, backend, tests, and documentation:
 
-### 2. Six-Gate Governance & Audit Ledger
-- **Gate 0 (Repo Ingested)**: AST parsed, complexity mapped, zero high-entropy secrets.
-- **Gate 1 (Requirements Baseline)**: BRD/PRD reviewed by Document Reviewer Agent (Score ≥ 80).
-- **Gate 2 (Test Design Sign-off)**: Risk analysis, boundary test cases generated.
-- **Gate 3 (Test Execution Passed)**: Verification passes with zero regressions.
-- **Gate 4 (Static Analysis / AST Clean)**: Zero syntax or structural AST violations.
-- **Gate 5 (HITL Authorization)**: Human-in-the-Loop cryptographic non-repudiation sign-off.
-- **Dual-Write Cryptographic Ledger**: SHA-256 hash chains (`prev_hash` -> `entry_hash`) recorded simultaneously to SQLite and append-only `ledger.jsonl`.
-
-### 3. Real GitHub Integration
-- Live authentication with GitHub Personal Access Tokens (`gho_...`).
-- Automated branch creation (`create_branch_and_commit_files`).
-- Direct file commits via GitHub Contents API.
-- Pull request opening and mainline merge automation.
-
-### 4. End-to-End Structured Logging & Observability
-- Dual-logging file handler (`sdlc.log`) and in-memory ring buffer (1000 items).
-- Monospace terminal log viewer with real-time polling, level filtering (ALL, INFO, WARNING, ERROR), and clipboard copy.
-- Request-level timing, LLM request/response token tracking, and GitHub API auditing.
+```
+atlas-ba-mvp/
+├── src/
+│   ├── frontend/         # Next.js 16 + React 19 + Tailwind CSS v4 Web Application
+│   │   ├── app/          # App router, page layouts, global styling (high contrast)
+│   │   └── components/   # Views: BA Studio, Feature Studio, QE Hub, Settings, etc.
+│   └── backend/          # FastAPI + Microsoft Agent Framework (MAF)
+│       ├── app.py        # Main API entrypoint & static mounting
+│       ├── maf/          # MAF Core, Pregel Engine, Agents, Workflows & Evaluators
+│       ├── governance/   # SHA-256 Cryptographic Audit Ledger, Gates G0-G5, HITL
+│       ├── ba/           # Greenfield Requirements Generator & Gherkin BDD Engine
+│       ├── qe/           # Quality Engineering Runner & ISTQB Oracles
+│       ├── github/       # Real Octokit-compatible GitHub Client
+│       └── llm/          # Multi-provider LLM Client (LiteLLM, Azure, Anthropic)
+├── tests/                # Comprehensive Pytest Suite (Unit, Integration, E2E)
+├── docs/                 # System Architecture, File Guide & MAF Reference
+│   ├── ARCHITECTURE.md   # System architecture and agent topology
+│   ├── FILES_AND_MODULES.md # Line-by-line guide to every file in the codebase
+│   └── AMBITION_CHECKLIST.md# Felix Rieseberg Ambition Framework (Altitude, Depth, Range)
+├── data/                 # SQLite database, cryptographic audit ledger, documents
+├── workspaces/           # Isolated sandbox environments for feature code & git repos
+├── package.json          # Root orchestration runner for frontend, backend, and tests
+├── pytest.ini            # Pytest configuration with pythonpath = ["src"]
+└── requirements.txt      # Python dependencies for backend and MAF agents
+```
 
 ---
 
-## 🚀 Getting Started
+## 🚀 Quickstart & Execution
 
-### Prerequisites
+### 1. Prerequisites
 - Python 3.11+
 - Node.js 18+ (Next.js 16)
-- GitHub CLI (`gh`) or GitHub Personal Access Token
+- GitHub Personal Access Token (for repository ingestion & PR creation)
 
-### Backend Setup (FastAPI + MAF)
+### 2. Environment Setup
 ```bash
-cd sdlc-mvp
+# Clone the repository
+git clone https://github.com/sarveshtalele/agentic-qe-platform.git
+cd agentic-qe-platform
+
+# Setup Python virtual environment
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-python -m uvicorn backend.app:app --host 127.0.0.1 --port 8000 --reload
+
+# Setup Frontend dependencies
+cd src/frontend && npm install && cd ../..
 ```
 
-### Frontend Setup (Next.js 16 + React 19 + TailwindCSS)
+### 3. Running the Platform
+Using root orchestration scripts:
 ```bash
-cd frontend
-npm install
-npm run dev
-# Open http://localhost:3000
+# Terminal 1: Start Backend (FastAPI on Port 8000)
+npm run start:backend
+# Or: PYTHONPATH=src .venv/bin/python -m uvicorn backend.app:app --host 127.0.0.1 --port 8000
+
+# Terminal 2: Start Frontend (Next.js on Port 3000)
+npm run start:frontend
+# Or: cd src/frontend && npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000) to access the platform.
+
+---
+
+## 🧪 Comprehensive Verification & Test Suite
+
+The test suite covers unit tests, MAF agent evaluation suites, governance gates, and Playwright end-to-end scenarios:
+
+```bash
+# Run full test suite (70 tests)
+npm run test
+# Or: .venv/bin/pytest tests/ -v
+
+# Run MAF unit & evaluation tests
+npm run test:unit
+# Or: .venv/bin/pytest tests/test_maf_unit.py tests/test_maf_governance.py tests/test_maf_evaluation.py -v
+
+# Run Playwright E2E browser tests (Next.js & static fallback)
+npm run test:e2e
+# Or: .venv/bin/pytest tests/test_nextjs_e2e_playwright.py tests/test_e2e_playwright.py -v
 ```
 
 ---
 
-## 🧪 Testing & Verification
-```bash
-cd sdlc-mvp
-.venv/bin/pytest tests/ -v
-```
-All unit tests, MAF agent evaluation suites, and Playwright end-to-end scenarios run with 100% pass rates.
+## 🛡️ Enterprise Governance & Security Controls
+
+- **CTL-DOC-04**: Immutable versioning of all business specifications with incremental SHA-256 ledger chaining.
+- **CTL-SEC-01**: Shannon entropy secret scanning before database or log persistence.
+- **CTL-SEC-02**: Subprocess command whitelist blocking destructive shell operations (`rm -rf`, `sudo`).
+- **CTL-SEC-04**: Path traversal boundary guards preventing directory escape outside project workspaces.
+- **CTL-GATE-05**: Human-in-the-Loop (HITL) cryptographic nonce authorization required before production cutover.

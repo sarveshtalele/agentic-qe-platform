@@ -30,10 +30,12 @@ from backend.governance import AuditLedger, GateController, HITLManager
 from backend.routes_maf_governance import router as maf_gov_router
 from backend.routes_agentic_qe import router as agentic_qe_router
 
-APP_DIR = Path(__file__).resolve().parents[1]
-load_dotenv(APP_DIR / ".env", override=False)
-DATA_DIR = Path(os.getenv("SDLC_DATA_DIR", str(APP_DIR / "data"))).expanduser().resolve()
-WORKSPACE_ROOT = Path(os.getenv("SDLC_WORKSPACE_ROOT", str(APP_DIR / "workspaces"))).expanduser().resolve()
+APP_DIR = Path(__file__).resolve().parent
+ROOT_DIR = Path(__file__).resolve().parents[2]
+load_dotenv(ROOT_DIR / ".env", override=False)
+DATA_DIR = Path(os.getenv("SDLC_DATA_DIR", str(ROOT_DIR / "data"))).expanduser().resolve()
+WORKSPACE_ROOT = Path(os.getenv("SDLC_WORKSPACE_ROOT", str(ROOT_DIR / "workspaces"))).expanduser().resolve()
+STATIC_DIR = APP_DIR / "static"
 UPLOAD_DIR = DATA_DIR / "uploads"
 EXPORT_DIR = DATA_DIR / "exports"
 DB_PATH = DATA_DIR / "sdlc.sqlite3"
@@ -1743,12 +1745,16 @@ def export_backlog_csv(project_id: str) -> StreamingResponse:
 
 
 # Serve the bundled UI after API route registration. This keeps the MVP single-process and local-first.
-app.mount("/static", StaticFiles(directory=str(APP_DIR / "frontend")), name="static")
+if STATIC_DIR.exists():
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
 @app.get("/", response_class=HTMLResponse)
 def index() -> HTMLResponse:
-    return HTMLResponse((APP_DIR / "frontend" / "index.html").read_text(encoding="utf-8"))
+    idx_file = STATIC_DIR / "index.html"
+    if idx_file.exists():
+        return HTMLResponse(idx_file.read_text(encoding="utf-8"))
+    return HTMLResponse("<h1>Agentic QE Platform Backend Online</h1><p>Visit <a href='http://localhost:3000'>http://localhost:3000</a> for Next.js UI.</p>")
 
 
 if __name__ == "__main__":

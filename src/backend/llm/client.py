@@ -16,7 +16,7 @@ from typing import Any, Dict, List, Optional
 import httpx
 from backend.logger import logger
 
-SETTINGS_FILE = Path(__file__).resolve().parents[2] / "data" / "settings.json"
+SETTINGS_FILE = Path(__file__).resolve().parents[3] / "data" / "settings.json"
 
 
 class LLMNotConfiguredError(Exception):

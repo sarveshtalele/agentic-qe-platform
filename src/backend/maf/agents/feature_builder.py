@@ -20,7 +20,7 @@ from backend.governance import guard_write
 from backend.llm.client import LLMClient
 from backend.logger import logger
 
-DB_PATH = Path(__file__).resolve().parents[3] / "data" / "sdlc.sqlite3"
+DB_PATH = Path(__file__).resolve().parents[4] / "data" / "sdlc.sqlite3"
 
 
 class FeatureBuilderAgent(AIAgent):
