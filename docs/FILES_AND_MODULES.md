@@ -52,6 +52,27 @@ atlas-ba-mvp/
 
 ---
 
+## 2.1 MAF Executable Agent Skills (`src/backend/maf/skills/`)
+
+All 11 skills ported from `sarveshtalele/agentic-qe` into Python adhering to Microsoft Agent Framework:
+
+| Skill Class & File | Registered Skill Name | Category | Core Mechanics |
+|---|---|---|---|
+| `RepoAnalysisSkill` ([`repo_analysis.py`](file:///Users/sarveshtalele/Downloads/atlas-ba-mvp/src/backend/maf/skills/repo_analysis.py)) | `analyzing_repositories` | `Discovery` | Deep filesystem traversal detecting Astro, Node, Python, .NET stack signals and test file ratios. |
+| `RequirementsContractSkill` ([`requirements.py`](file:///Users/sarveshtalele/Downloads/atlas-ba-mvp/src/backend/maf/skills/requirements.py)) | `extracting_requirements` | `Requirements` | Parses briefs into atomic verifiable requirements with line numbers and ground-truth evidence quotes. |
+| `RiskCalculationSkill` ([`risk_planning.py`](file:///Users/sarveshtalele/Downloads/atlas-ba-mvp/src/backend/maf/skills/risk_planning.py)) | `planning_tests` | `TestPlanning` | Computes ISO 25010 risk profile, controls covered (0-40), level fit (0-30), scenarios derivable (0-30). |
+| `TestCaseDesignSkill` ([`test_design.py`](file:///Users/sarveshtalele/Downloads/atlas-ba-mvp/src/backend/maf/skills/test_design.py)) | `designing_test_cases` | `TestDesign` | Designs ISTQB test cases declaring deterministic oracles and Gherkin Given/When/Then scenarios. |
+| `TestCodeEmissionSkill` ([`test_code_emission.py`](file:///Users/sarveshtalele/Downloads/atlas-ba-mvp/src/backend/maf/skills/test_code_emission.py)) | `generating_test_code` | `TestAutomation` | Emits syntax-verified executable Pytest and Playwright test source code. |
+| `IsolatedTestExecutionSkill` ([`isolated_execution.py`](file:///Users/sarveshtalele/Downloads/atlas-ba-mvp/src/backend/maf/skills/isolated_execution.py)) | `executing_tests` | `TestExecution` | Spawns sandboxed subprocess with timeout, parsing pass/fail counts and terminal logs. |
+| `TestHealingSkill` ([`test_healing.py`](file:///Users/sarveshtalele/Downloads/atlas-ba-mvp/src/backend/maf/skills/test_healing.py)) | `healing_tests` | `TestHealing` | Enforces Assertion Preservation Rule: repairs selector drift while preserving test integrity. |
+| `TraceabilityMatrixSkill` ([`traceability.py`](file:///Users/sarveshtalele/Downloads/atlas-ba-mvp/src/backend/maf/skills/traceability.py)) | `tracing_coverage` | `Traceability` | Constructs bidirectional requirement-to-testcase matrix and computes coverage percentage. |
+| `TestDataSynthesisSkill` ([`test_data.py`](file:///Users/sarveshtalele/Downloads/atlas-ba-mvp/src/backend/maf/skills/test_data.py)) | `generating_test_data` | `TestData` | Synthesizes deterministic persona fixtures (valid/invalid tokens, user payloads). |
+| `UserStoryAuthoringSkill` ([`user_stories.py`](file:///Users/sarveshtalele/Downloads/atlas-ba-mvp/src/backend/maf/skills/user_stories.py)) | `authoring_user_stories` | `Agile` | Generates INVEST-compliant user stories in Role-Action-Benefit format with acceptance criteria. |
+| `QEDashboardSkill` ([`qe_dashboard.py`](file:///Users/sarveshtalele/Downloads/atlas-ba-mvp/src/backend/maf/skills/qe_dashboard.py)) | `building_qe_dashboard` | `Reporting` | Generates stamped Quality Gate markdown compliance reports with SHA-256 ledger proof. |
+
+
+---
+
 ## 3. Governance, Security & Audit Ledger (`src/backend/governance/`)
 
 | File / Module | Purpose | How It Works & Key Mechanisms |

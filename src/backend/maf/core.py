@@ -89,11 +89,37 @@ class AgentSession:
 class AIAgent:
     """Base class for specialist AI Agents conforming to MAF specs."""
 
-    def __init__(self, name: str, role: str, description: str, system_prompt: str):
+    def __init__(
+        self,
+        name: str,
+        role: str,
+        description: str,
+        system_prompt: str,
+        skills: Optional[List[Any]] = None,
+    ):
         self.name = name
         self.role = role
         self.description = description
         self.system_prompt = system_prompt
+        self.skills: List[Any] = list(skills) if skills else []
+
+    def add_skill(self, skill: Any) -> None:
+        """Attaches an executable MAF AgentSkill or AITool to the agent."""
+        self.skills.append(skill)
+
+    def get_skill(self, name: str) -> Optional[Any]:
+        """Resolves an attached skill by its registered name."""
+        for s in self.skills:
+            if getattr(s, "name", "") == name:
+                return s
+        return None
+
+    def list_skills(self) -> List[Dict[str, Any]]:
+        """Returns descriptors for all skills attached to this agent."""
+        return [
+            s.to_descriptor() if hasattr(s, "to_descriptor") else {"name": getattr(s, "name", str(s))}
+            for s in self.skills
+        ]
 
     async def process(self, session: AgentSession, inbound_msg: Message) -> List[Message]:
         """Processes an incoming message and returns response messages."""
@@ -161,6 +187,31 @@ class PregelEngine:
 
     def add_edge(self, source: str, target: str, condition: Optional[Callable[[AgentSession, Message], bool]] = None) -> None:
         self.edges.append(Edge(source, target, condition))
+
+    async def step(self) -> bool:
+        """Executes a single Pregel superstep across active executors with barrier sync."""
+        active_executors = [ex for ex in self.executors.values() if ex.inbox]
+        if not active_executors:
+            self.session.status = "COMPLETED"
+            return False
+
+        self.session.superstep_index += 1
+        current_step = self.session.superstep_index
+        outbox: List[Tuple[str, Message]] = []
+
+        for executor in active_executors:
+            msgs = await executor.execute(self.session)
+            for m in msgs:
+                m.superstep = current_step
+                self.session.add_message(m)
+                outbox.append((executor.name, m))
+
+        for src_name, msg in outbox:
+            for edge in self.edges:
+                if edge.source == src_name and edge.should_route(self.session, msg):
+                    if edge.target in self.executors:
+                        self.executors[edge.target].inbox.append(msg)
+        return True
 
     async def run(self, initial_node: str, initial_msg: Message) -> None:
         """Runs the Pregel execution loop."""

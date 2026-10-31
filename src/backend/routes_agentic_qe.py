@@ -721,7 +721,9 @@ async def bugs_fix(project_id: str, request: Request, bug_id: str = None, payloa
         }
     target_file = target_finding["file"]
 
-    diff, regression_test = RepoASTScanner.generate_unified_diff(target_file, target_finding)
+    from backend.app import WORKSPACE_ROOT
+    ws_dir = WORKSPACE_ROOT / project_id
+    diff, regression_test = RepoASTScanner.generate_unified_diff(target_file, target_finding, ws_dir)
 
     # Execute generated regression test in sandbox to verify fix
     from backend.maf.agents.qe import QAExecutionEngineerAgent

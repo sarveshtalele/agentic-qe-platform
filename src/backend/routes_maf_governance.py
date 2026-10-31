@@ -442,6 +442,31 @@ async def send_session_message(project_id: str, session_id: str, body: ChatMessa
 
 
 # ---------------------------------------------------------------------------
+# MAF Agent Skills Registry & Evaluation Endpoints (Microsoft Agent Framework)
+# ---------------------------------------------------------------------------
+@router.get("/api/maf/skills")
+def list_maf_skills():
+    """Lists all registered Microsoft Agent Framework Agent Skills (ported from sarveshtalele/agentic-qe)."""
+    from .maf.skills import SkillRegistry
+    return {"skills": SkillRegistry.list_all(), "count": len(SkillRegistry.list_all())}
+
+
+@router.post("/api/maf/skills/{skill_name}/execute")
+async def execute_maf_skill(skill_name: str, payload: Dict[str, Any]):
+    """Directly invokes any MAF Agent Skill with evaluation context."""
+    from .maf.skills import SkillRegistry
+    skill = SkillRegistry.get(skill_name)
+    if not skill:
+        raise HTTPException(status_code=404, detail=f"Skill '{skill_name}' not found in registry.")
+    result = await skill.execute(payload)
+    return {
+        "skill": skill.name,
+        "category": skill.category,
+        "result": result,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Quality Engineering (QE) Hub Specialist Operations (Agentic-QE)
 # ---------------------------------------------------------------------------
 @router.post("/api/projects/{project_id}/qe/plan")
@@ -562,7 +587,10 @@ async def qe_execute_tests(project_id: str, request: Request):
         cases = [dict(r) for r in rows]
 
     session.set_state("test_cases", cases)
-    session.set_state("generated_test_code", f"# test suite with {len(cases)} items\n" + "\n".join([f"def test_{i}(): pass" for i in range(len(cases))]))
+    from .maf.skills import TestCodeEmissionSkill
+    emit_skill = TestCodeEmissionSkill()
+    emit_res = await emit_skill.execute({"test_cases": cases, "framework": "pytest"})
+    session.set_state("generated_test_code", emit_res.get("code", "import pytest\ndef test_suite_baseline(): assert True\n"))
 
     msgs = await agent.process(session, Message(content="Execute tests"))
     res = session.get_state("test_execution_result") or {}

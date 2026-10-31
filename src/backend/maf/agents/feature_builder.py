@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from ..core import AIAgent, AgentSession, Message
+from ..skills import TestHealingSkill
 from backend.governance import guard_write
 from backend.llm.client import LLMClient
 from backend.logger import logger
@@ -241,7 +242,7 @@ Respond STRICTLY with a valid JSON object in this format:
                         temperature=0.2,
                         max_tokens=2048,
                     ),
-                    timeout=3.5,
+                    timeout=15.0,
                 )
                 clean_json = resp.strip()
                 if clean_json.startswith("```"):
@@ -397,6 +398,7 @@ Developers paste raw runtime error logs or failing test outputs to you.
 2. Determine root cause (KeyError, ZeroDivisionError, TypeError, off-by-one, NoneType attribute).
 3. Apply targeted, clean fix in the workspace code.
 4. Execute test runner and report before/after status.""",
+            skills=[TestHealingSkill()],
         )
         self.workspace_root = workspace_root or os.environ.get("SDLC_WORKSPACE_ROOT", "/tmp/sdlc_workspaces")
 
@@ -405,10 +407,18 @@ Developers paste raw runtime error logs or failing test outputs to you.
 
         await session.emit_event("thought_step", {
             "agent": self.name,
-            "thought": "Parsing runtime error traceback, inspecting stack frames, and diagnosing faulting line...",
+            "thought": "Executing TestHealingSkill to classify failure category and applying surgical patch...",
         })
 
+        # Execute MAF Skill: healing_tests
+        healing_skill = self.get_skill("healing_tests") or TestHealingSkill()
+        healing_res = await healing_skill.execute({"error_message": error_log, "stack_trace": error_log})
+
         diagnosis = await self.diagnose_error_async(error_log)
+        diagnosis["healing_category"] = healing_res.get("category", "APPLICATION_DEFECT")
+        diagnosis["can_heal"] = healing_res.get("can_heal", False)
+        diagnosis["assertion_preservation_verified"] = healing_res.get("assertion_preservation_verified", True)
+
         patch_res = self.apply_patch(session.project_id, diagnosis)
         session.set_state("latest_debug_diagnosis", diagnosis)
         session.set_state("latest_patch_result", patch_res)

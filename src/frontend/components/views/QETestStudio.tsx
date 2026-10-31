@@ -140,25 +140,37 @@ export function QETestStudio({
               <div className="space-y-2">
                 {designedCases.map((tc) => (
                   <div
-                    key={tc.id || tc.case_id}
-                    className="p-3 bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-lg text-xs space-y-1"
+                    key={tc.id || tc.caseId || tc.case_id}
+                    className="p-3 bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-lg text-xs space-y-1.5"
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className="font-mono font-bold text-indigo-400">
-                          {tc.id || tc.case_id || "TC-001"}
+                        <span className="font-mono font-bold text-indigo-500 dark:text-indigo-400">
+                          {tc.id || tc.caseId || tc.case_id || "TC-001"}
                         </span>
                         <span className="font-semibold text-slate-800 dark:text-slate-200">
-                          {tc.title}
+                          {tc.title || tc.scenario}
                         </span>
                       </div>
-                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                        {tc.oracle_type || "Equivalence"}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                          Oracle: {tc.oracle_type || tc.type || "Equivalence"}
+                        </span>
+                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 font-bold">
+                          {tc.priority || "P0"}
+                        </span>
+                      </div>
                     </div>
                     <p className="text-slate-600 dark:text-slate-400 text-[11px]">
-                      {tc.description}
+                      {tc.oracle_statement || tc.expected_result || tc.expectedResult || tc.description}
                     </p>
+                    {tc.bdd && (
+                      <div className="mt-1 p-2 rounded bg-slate-100 dark:bg-slate-950/70 text-[10px] font-mono text-slate-600 dark:text-slate-400 space-y-0.5">
+                        <div><span className="text-indigo-500 font-bold">Given</span> {tc.bdd.given}</div>
+                        <div><span className="text-indigo-500 font-bold">When</span> {tc.bdd.when}</div>
+                        <div><span className="text-emerald-500 font-bold">Then</span> {tc.bdd.then}</div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

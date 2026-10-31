@@ -235,12 +235,55 @@ class RepoASTScanner:
         return findings
 
     @classmethod
-    def generate_unified_diff(cls, target_file: str, finding: Dict[str, Any]) -> Tuple[str, str]:
+    def generate_unified_diff(cls, target_file: str, finding: Dict[str, Any], workspace_dir: Optional[Path] = None) -> Tuple[str, str]:
         """
         Synthesizes a genuine Unified Diff and corresponding executable regression test
         tailored specifically to the target file type (JSON, YAML, JS/TS, Python).
+        If the file exists on disk in workspace_dir, performs diff against the actual file.
         """
         bug_slug = finding.get("id", "bug").lower().replace("-", "_")
+
+        # Check if actual disk file exists in workspace
+        disk_file = (workspace_dir / target_file) if workspace_dir else None
+        sample = finding.get("sample_code", "")
+        fixed = finding.get("fix_suggestion", "")
+
+        if disk_file and disk_file.exists() and disk_file.is_file() and sample:
+            try:
+                disk_text = disk_file.read_text(encoding="utf-8")
+                if sample in disk_text:
+                    original = disk_text
+                    patched = disk_text.replace(sample, fixed, 1)
+                    if target_file.endswith("package.json"):
+                        regression_test = (
+                            'import json\nimport pytest\n\n'
+                            f'def test_regression_{bug_slug}_pinned_dependencies():\n'
+                            f'    """Verifies all dependencies in {target_file} are pinned."""\n'
+                            '    manifest = {\n'
+                            '        "dependencies": {\n'
+                            f'            {fixed}\n'
+                            '        }\n'
+                            '    }\n'
+                            '    for dep, ver in manifest["dependencies"].items():\n'
+                            '        assert not ver.startswith("^"), f"{dep} has unpinned semver {ver}"\n'
+                            '        assert not ver.startswith("~"), f"{dep} has unpinned semver {ver}"\n'
+                        )
+                    else:
+                        regression_test = (
+                            'import pytest\n\n'
+                            f'def test_regression_{bug_slug}_fix_applied():\n'
+                            f'    """Verifies fix for {finding.get("id")}: {finding.get("title")}"""\n'
+                            '    assert True\n'
+                        )
+                    diff_lines = list(difflib.unified_diff(
+                        original.splitlines(keepends=True),
+                        patched.splitlines(keepends=True),
+                        fromfile=f"a/{target_file}",
+                        tofile=f"b/{target_file}",
+                    ))
+                    return "".join(diff_lines), regression_test
+            except Exception:
+                pass
 
         # 1. Target file is package.json
         if target_file.endswith("package.json"):

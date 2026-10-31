@@ -6,12 +6,14 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from ..core import AIAgent, AgentSession, Message
+from ..skills import RepoAnalysisSkill, RequirementsContractSkill, UserStoryAuthoringSkill
 
 
 class RequirementsAnalystAgent(AIAgent):
     """
     Reverse-engineers observable requirements and user stories from code and documentation.
     Enforces CTL-GATE-01 (Requirements Baseline).
+    Executes MAF skills: RequirementsContractSkill, UserStoryAuthoringSkill.
     """
 
     def __init__(self):
@@ -22,21 +24,31 @@ class RequirementsAnalystAgent(AIAgent):
             system_prompt="""You are the Repository Requirements Analyst for the ForgeSDLC Platform.
 Extract observable behavior proven by code or documentation. Never hallucinate boundaries or rules.
 Format requirements with verbatim quotes and user stories with structured Gherkin acceptance criteria.""",
+            skills=[RequirementsContractSkill(), UserStoryAuthoringSkill()],
         )
 
     async def process(self, session: AgentSession, inbound_msg: Message) -> List[Message]:
         await session.emit_event("thought_step", {
             "agent": self.name,
-            "thought": "Analyzing provided document text or repo context to extract observable requirements and user stories...",
+            "thought": "Executing RequirementsContractSkill & UserStoryAuthoringSkill against document context...",
         })
 
-        # Check session state for document or text
         doc_text = session.get_state("document_text") or inbound_msg.content or ""
         project_id = session.project_id
 
-        # Extract requirements heuristics or parse structured sections
-        extracted_reqs = self._extract_requirements(doc_text)
-        extracted_stories = self._generate_stories(extracted_reqs)
+        # Execute MAF Skill 1: extracting_requirements
+        req_skill = self.get_skill("extracting_requirements") or RequirementsContractSkill()
+        req_res = await req_skill.execute({"spec_text": doc_text, "source_file": "specification.md"})
+        extracted_reqs = req_res.get("requirements", [])
+        if not extracted_reqs:
+            extracted_reqs = self._extract_requirements(doc_text)
+
+        # Execute MAF Skill 2: authoring_user_stories
+        story_skill = self.get_skill("authoring_user_stories") or UserStoryAuthoringSkill()
+        story_res = await story_skill.execute({"requirements": extracted_reqs})
+        extracted_stories = story_res.get("stories", [])
+        if not extracted_stories:
+            extracted_stories = self._generate_stories(extracted_reqs)
 
         session.set_state("requirements", extracted_reqs)
         session.set_state("stories", extracted_stories)
@@ -158,6 +170,7 @@ class RepoIntelligenceAgent(AIAgent):
     """
     Analyzes codebases, detects tech stacks, frameworks, test runners, and security heuristics.
     Enforces CTL-GATE-00 (Discovery & Context).
+    Executes MAF skill: RepoAnalysisSkill.
     """
 
     def __init__(self):
@@ -167,18 +180,28 @@ class RepoIntelligenceAgent(AIAgent):
             description="Inspects repositories, detects languages and frameworks, runs heuristic vulnerability scans.",
             system_prompt="""You are the Repository Intelligence Analyst for ForgeSDLC.
 Scan the codebase accurately. Detect languages, frameworks, test directories, and security patterns.""",
+            skills=[RepoAnalysisSkill()],
         )
 
     async def process(self, session: AgentSession, inbound_msg: Message) -> List[Message]:
         await session.emit_event("thought_step", {
             "agent": self.name,
-            "thought": "Inspecting repository path, analyzing file extensions, and running security heuristics...",
+            "thought": "Executing RepoAnalysisSkill against repository tree...",
         })
 
         repo_path_str = session.get_state("repo_path") or "."
         repo_path = Path(repo_path_str).expanduser().resolve()
 
+        # Execute MAF Skill: analyzing_repositories
+        skill = self.get_skill("analyzing_repositories") or RepoAnalysisSkill()
+        skill_res = await skill.execute({"repo_dir": str(repo_path), "project_id": session.project_id})
+
         analysis = self._analyze_repository(repo_path)
+        # Merge skill results
+        analysis["frameworks"] = skill_res.get("frameworks", [])
+        analysis["source_files"] = skill_res.get("source_files", 0)
+        analysis["test_files"] = skill_res.get("test_files", 0)
+        analysis["manifests"] = skill_res.get("manifests", [])
         session.set_state("repo_analysis", analysis)
 
         findings_count = len(analysis.get("security_findings", []))

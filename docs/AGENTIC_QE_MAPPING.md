@@ -66,3 +66,24 @@ flowchart TD
 
     DiscoveryWorkflow --> RequirementsWorkflow --> QEVerificationWorkflow
 ```
+
+---
+
+## 4. Executable Python MAF Skills Implementation (`src/backend/maf/skills/`)
+
+All skills originally written in TypeScript in `sarveshtalele/agentic-qe` (`agentic-qe-plugin` branch) have been ported to native Python classes conforming to Microsoft Agent Framework (MAF, Chapter 2 & 4 of `agent-framework.pdf`):
+
+| # | TypeScript Source (`agentic-qe`) | Python Port (`src/backend/maf/skills/`) | Executable Class | MAF Skill Name | Agent Wired | API Execution Endpoint |
+|---|---|---|---|---|---|---|
+| 1 | `skills/analyzing-repositories/scripts/scan-repo.ts` | [`repo_analysis.py`](file:///Users/sarveshtalele/Downloads/atlas-ba-mvp/src/backend/maf/skills/repo_analysis.py) | `RepoAnalysisSkill` | `analyzing_repositories` | `RepoIntelligenceAgent` | `POST /api/maf/skills/analyzing_repositories/execute` |
+| 2 | `skills/extracting-requirements/scripts/extract-contracts.ts` | [`requirements.py`](file:///Users/sarveshtalele/Downloads/atlas-ba-mvp/src/backend/maf/skills/requirements.py) | `RequirementsContractSkill` | `extracting_requirements` | `RequirementsAnalystAgent` | `POST /api/maf/skills/extracting_requirements/execute` |
+| 3 | `skills/planning-tests/scripts/calculate-risk.ts` | [`risk_planning.py`](file:///Users/sarveshtalele/Downloads/atlas-ba-mvp/src/backend/maf/skills/risk_planning.py) | `RiskCalculationSkill` | `planning_tests` | `PrincipalTestArchitectAgent` | `POST /api/maf/skills/planning_tests/execute` |
+| 4 | `skills/designing-test-cases/scripts/generate-cases.ts` | [`test_design.py`](file:///Users/sarveshtalele/Downloads/atlas-ba-mvp/src/backend/maf/skills/test_design.py) | `TestCaseDesignSkill` | `designing_test_cases` | `TestDesignEngineerAgent` | `POST /api/maf/skills/designing_test_cases/execute` |
+| 5 | `skills/generating-test-code/scripts/emit-tests.ts` | [`test_code_emission.py`](file:///Users/sarveshtalele/Downloads/atlas-ba-mvp/src/backend/maf/skills/test_code_emission.py) | `TestCodeEmissionSkill` | `generating_test_code` | `TestAutomationEngineerAgent` | `POST /api/maf/skills/generating_test_code/execute` |
+| 6 | `skills/executing-tests/scripts/run-isolated.ts` | [`isolated_execution.py`](file:///Users/sarveshtalele/Downloads/atlas-ba-mvp/src/backend/maf/skills/isolated_execution.py) | `IsolatedTestExecutionSkill` | `executing_tests` | `QAExecutionEngineerAgent` | `POST /api/maf/skills/executing_tests/execute` |
+| 7 | `skills/healing-tests/scripts/diagnose-failure.ts` | [`test_healing.py`](file:///Users/sarveshtalele/Downloads/atlas-ba-mvp/src/backend/maf/skills/test_healing.py) | `TestHealingSkill` | `healing_tests` | `InteractiveDebuggerAgent` | `POST /api/maf/skills/healing_tests/execute` |
+| 8 | `skills/tracing-coverage/scripts/build-matrix.ts` | [`traceability.py`](file:///Users/sarveshtalele/Downloads/atlas-ba-mvp/src/backend/maf/skills/traceability.py) | `TraceabilityMatrixSkill` | `tracing_coverage` | `ConfidenceReviewerAgent` | `POST /api/maf/skills/tracing_coverage/execute` |
+| 9 | `skills/generating-test-data/scripts/synthesize-data.ts` | [`test_data.py`](file:///Users/sarveshtalele/Downloads/atlas-ba-mvp/src/backend/maf/skills/test_data.py) | `TestDataSynthesisSkill` | `generating_test_data` | `TestAutomationEngineerAgent` | `POST /api/maf/skills/generating_test_data/execute` |
+| 10 | `skills/authoring-user-stories/scripts/export-cases.ts` | [`user_stories.py`](file:///Users/sarveshtalele/Downloads/atlas-ba-mvp/src/backend/maf/skills/user_stories.py) | `UserStoryAuthoringSkill` | `authoring_user_stories` | `RequirementsAnalystAgent` | `POST /api/maf/skills/authoring_user_stories/execute` |
+| 11 | `skills/building-qe-dashboard/scripts/gate-report-md.ts` | [`qe_dashboard.py`](file:///Users/sarveshtalele/Downloads/atlas-ba-mvp/src/backend/maf/skills/qe_dashboard.py) | `QEDashboardSkill` | `building_qe_dashboard` | `ConfidenceReviewerAgent` | `POST /api/maf/skills/building_qe_dashboard/execute` |
+

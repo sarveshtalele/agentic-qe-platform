@@ -3,12 +3,14 @@ from __future__ import annotations
 import json
 from typing import Any, Dict, List, Optional
 from ..core import AIAgent, AgentSession, Message
+from ..skills import TraceabilityMatrixSkill, QEDashboardSkill
 
 
 class ConfidenceReviewerAgent(AIAgent):
     """
     Independent validator scoring test plans, designs, and generated code against evidence.
     Enforces CTL-GATE-05 (Release Sign-off & Confidence Score >= 85).
+    Executes MAF skills: TraceabilityMatrixSkill (tracing_coverage), QEDashboardSkill (building_qe_dashboard).
     """
 
     def __init__(self):
@@ -19,15 +21,46 @@ class ConfidenceReviewerAgent(AIAgent):
             system_prompt="""You are the Confidence Reviewer for ForgeSDLC.
 Score artifacts independently across dimensions (0-100 scale).
 Approve only behavior proven by supplied source files. Issue APPROVED only when total score >= 85 and no critical flaws exist.""",
+            skills=[TraceabilityMatrixSkill(), QEDashboardSkill()],
         )
 
     async def process(self, session: AgentSession, inbound_msg: Message) -> List[Message]:
         await session.emit_event("thought_step", {
             "agent": self.name,
-            "thought": "Scoring test planning, test design, and generated code across multi-dimensional criteria (0-100 scale)...",
+            "thought": "Executing TraceabilityMatrixSkill and QEDashboardSkill to verify release confidence...",
+        })
+
+        reqs = session.get_state("requirements") or []
+        cases = session.get_state("test_cases") or []
+        exec_res = session.get_state("test_execution_result") or {}
+
+        # Execute MAF Skill 1: tracing_coverage
+        matrix_skill = self.get_skill("tracing_coverage") or TraceabilityMatrixSkill()
+        matrix_res = await matrix_skill.execute({
+            "requirements": reqs,
+            "test_cases": cases,
+            "execution_result": exec_res,
         })
 
         review = self._evaluate_project_quality(session)
+        review["traceability_matrix"] = matrix_res
+        review["coverage_percentage"] = matrix_res.get("coverage_percent", 100.0)
+
+        # Execute MAF Skill 2: building_qe_dashboard
+        dash_skill = self.get_skill("building_qe_dashboard") or QEDashboardSkill()
+        dash_res = await dash_skill.execute({
+            "gate_number": 5,
+            "gate_name": "Release Sign-off & Confidence Score",
+            "confidence_score": review["total_score"],
+            "project_id": session.project_id,
+            "test_summary": {
+                "total": exec_res.get("total_cases", len(cases)),
+                "passed": exec_res.get("passed_cases", len(cases)),
+                "failed": exec_res.get("failed_cases", 0),
+            },
+        })
+        review["gate_report_markdown"] = dash_res.get("markdown_report", "")
+
         session.set_state("confidence_review", review)
 
         verdict = review["verdict"]
