@@ -108,7 +108,7 @@
 
 ## Next, after your approval
 
-- [ ] `docs/PLUGIN_AND_UI_PLAN.md`: 15 phases, approved 2026-11-01. Phases 1 to 3 done, phase 4 next
+- [ ] `docs/PLUGIN_AND_UI_PLAN.md`: 15 phases, approved 2026-11-01. Phases 1 to 4 done, phase 5 next
 - [x] Phase 1, agent names: agents use the plugin's hyphenated keys; `doc_reviewer` merged into `confidence-reviewer` and `gherkin_author` into `business-analyst`; migration `006_agent_plugin_names.sql` moves stored history (checked by `test_migration_006_*`)
 - [ ] Phase 1, agent names: live evals of the merged prompts on the real model not yet run
 - [ ] Phase 1, `qa-execution-engineer` arrives with phase 5
@@ -167,3 +167,18 @@
 - [ ] Not verified: browser UI, e2e
 - [ ] Cost in rupees per user, deferred until the proxy reports cost per call
 - [x] Agents page chooses a model per agent, and saving other controls keeps it
+
+## Phase 4: plugin skills on MAF (PLG), 2026-11-02
+
+- [x] specs.md PLG-1 to PLG-11, `maf-guide.md` updated first
+- [x] `core/skills.py`, `skills` field on every policy, `ATLAS_SKILLS_DIR`
+- [x] `AgentCall` skill injection, `skill` events, `agent_calls.skills`, `prompt_ref` with skill hash (migration 011)
+- [x] Chat skill pick (one call per user message) and `SkillsProvider` on models that pass the tool check
+- [x] `llm.tool_check`, `models` columns, **Check tools** button, chat warning, health
+- [x] Skill evals joined to agent evals (code checks only), Skills API and page, navigation
+- [x] `scripts/package_azure.py` includes `skills/`
+- [x] Tests: `tests/test_skills.py`
+- [x] Real tool check on `deepseek-v4-flash-global`, `kimi-k2.6`, `claude-sonnet-4-5`: all three failed. The proxy shows the model only a `read_file` tool, not the one offered
+- [ ] Not verified: e2e, a live workflow run with skills (the model SDK could not reach the proxy from the sandbox; token cost was measured with raw HTTP), the browser UI
+- [ ] 28 of 33 plugin eval cases need a grader (phase 6)
+- [ ] `qa-execution-engineer` and Skill Studio are later phases; `executing-tests` and `building-qe-dashboard` have no agent yet

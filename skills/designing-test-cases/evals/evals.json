@@ -1,0 +1,39 @@
+[
+  {
+    "skills": [
+      "designing-test-cases"
+    ],
+    "query": "Design test cases for the login requirement REQ-001.",
+    "files": [],
+    "expected_behavior": [
+      "Produces at least 1 Positive, 2 Negative and 1 Exception case",
+      "Includes boundary cases typed 'Negative (Boundary)'",
+      "Table has the 11 columns including User Story ID, Automation Candidate and Remarks",
+      "Each case names an oracle type"
+    ]
+  },
+  {
+    "skills": [
+      "designing-test-cases"
+    ],
+    "query": "Design cases for US-CALC-002 divide by zero.",
+    "files": [],
+    "expected_behavior": [
+      "Types map to Positive, Negative, Negative (Boundary), Exception",
+      "Priority uses P1-P3",
+      "Automation Candidate is 'Yes (<tool>)' or 'No'"
+    ]
+  },
+  {
+    "skills": [
+      "designing-test-cases"
+    ],
+    "query": "Write the cases to docs/qe/app/04-design/test_cases.md.",
+    "files": [],
+    "expected_behavior": [
+      "Asks for explicit approval before creating the file",
+      "Does not overwrite existing files silently",
+      "Metadata header is included in the document"
+    ]
+  }
+]

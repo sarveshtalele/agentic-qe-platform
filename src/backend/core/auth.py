@@ -389,7 +389,7 @@ OWNER_ONLY = re.compile(r"^/api/projects/[^/]+/members(/|$)")  # also the admin
 OWNER_DELETE = re.compile(r"^/api/projects/[^/]+$")
 # Signed-in users with no project in the path. A path in none of these lists is refused, so a new route has to be added here or above.
 SESSION_ONLY = re.compile(r"^(/agui/[^/]+|/api/(auth/(me|logout)|account/password|chat/agents|approvals|documents|findings|projects|observability(/errors|/export)?|templates(/upload|/[^/]+)?"
-                          r"|prompts(/[^/]+)?|agents(/[^/]+)?|evals(/[^/]+)?|settings/(llm|models|timezone|gate-roles)))$")
+                          r"|prompts(/[^/]+)?|skills(/[^/]+)?|agents(/[^/]+)?|evals(/[^/]+)?|settings/(llm|models|timezone|gate-roles)))$")
 VIEWER_MAY_WRITE = re.compile(r"^/api/(auth/logout|account/password)$")  # a viewer can still sign out and change their own password
 WRITES = {"POST", "PUT", "PATCH", "DELETE"}
 

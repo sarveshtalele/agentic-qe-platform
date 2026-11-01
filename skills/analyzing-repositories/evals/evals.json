@@ -1,0 +1,40 @@
+[
+  {
+    "skills": [
+      "analyzing-repositories"
+    ],
+    "query": "The repo is empty, this is a greenfield project using Next.js and Playwright. Run discovery.",
+    "files": [],
+    "expected_behavior": [
+      "Does not halt on the empty repository",
+      "Detects greenfield mode and skips scanning",
+      "Records the planned stack from the user's statement",
+      "Suggests /agentic-qe:qe-stories as the next step"
+    ]
+  },
+  {
+    "skills": [
+      "analyzing-repositories"
+    ],
+    "query": "Run discovery on this existing repo that has src/ and 40 tests.",
+    "files": [],
+    "expected_behavior": [
+      "Detects brownfield mode",
+      "Records the existing test count as the regression baseline",
+      "Runs no tests",
+      "Suggests /agentic-qe:qe-requirements as the next step"
+    ]
+  },
+  {
+    "skills": [
+      "analyzing-repositories"
+    ],
+    "query": "Discover the stack and save the result.",
+    "files": [],
+    "expected_behavior": [
+      "Lists every path to be created and waits for explicit approval before writing 01-discovery/architecture.json",
+      "Excludes node_modules, .git, dist, build and .venv from the scan",
+      "Flags monorepo workspace roots if present"
+    ]
+  }
+]

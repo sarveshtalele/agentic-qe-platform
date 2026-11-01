@@ -26,6 +26,8 @@ Which MAF features Agentic QE Platform uses, where, and why. Packages: `agent-fr
 | Streaming run events | `workflow.run(stream=True)` | `src/backend/maf/engine.py` `_consume` | Handles requests, outputs, and failures. Progress is stored for SSE | 121, 159 |
 | AG-UI | `AgentFrameworkAgent` | `src/backend/maf/agui.py` | Turns a project-scoped agent into an AG-UI event stream | 549, 552 |
 | Evaluation | `evaluate_agent`, `LocalEvaluator`, `evaluator` | `src/backend/maf/evals.py`, `evals/*.json` | Quality and safety cases for all 11 agents with content, JSON schema, Gherkin, and score checks. Scores are stored per prompt version | 219 |
+| Agent Skills validator | `FileSkillsSource` | `src/backend/core/skills.py` | Loads `skills/` once. A skill MAF cannot load is a startup warning and is absent. Its frontmatter gives name, description, version | 228 to 234 |
+| Agent Skills in chat | `SkillsProvider`, `FilteringSkillsSource` | `src/backend/maf/runtime.py` `build` | Only for a model that passed the live tool check (`llm.tool_check`): `disable_load_skill_approval=True`, `disable_read_skill_resource_approval=True`, no script runner, filtered to the agent's skills | 228 to 234, 248 |
 | Observability | `configure_otel_providers` | `src/backend/app.py` `lifespan` | Turns on when `OTEL_EXPORTER_OTLP_ENDPOINT` is set | 213, 590 |
 
 ## Connected to MAF
@@ -79,7 +81,6 @@ An agent key has hyphens, as in the plugin, and its policy file uses underscores
 | Declarative workflows, Functional API | Graphs are defined in Python | Non-developers must edit workflows |
 | Harness Agent (`create_harness_agent`) | Built, then tested on `personal-finance-mcp`. On the configured endpoint older tool results get lost, so it reread files, drifted to other work, and used 80k to 285k tokens per change. Not used in workflows | The endpoint keeps tool results, or a task needs open-ended exploration. Planned for Skill Studio, which would use its `skills_provider` and `skills_paths`. Not built yet |
 | `CopilotChat` prebuilt UI | Replaced by headless hooks for the reason above | CopilotKit fixes thread connect |
-| Agent Skills (`SkillsProvider`) | Rules live in prompts and code checks | Prompts grow too large, or Skill Studio is built (planned in `docs/PLUGIN_AND_UI_PLAN.md`) |
 | RAG and vector stores | Keyword search over documents | Keyword search proves too weak |
 | MCP tools | Tools run in-process | External tools are needed in agents |
 | Durable, Foundry, A2A hosting | One process with SQLite and local files | Cloud deployment at scale |
@@ -91,3 +92,12 @@ An agent key has hyphens, as in the plugin, and its policy file uses underscores
 - Provider failures reach us as `ChatClientException` with the OpenAI error as `__cause__`/`inner_exception`. `core.errors.classify` walks that chain for status, request id, timeout, and content filter.
 - `default_options["extra_body"]` is passed straight to `chat.completions.create`. Setting `{"cache": {"no-cache": True}}` stops LiteLLM answering a repeated prompt from its cache (checked live: with it, the same prompt gave different replies at about 1.5 s each; without it the second reply was identical and about 0.9 s). `ATLAS_MODEL_NO_CACHE=0` turns it off.
 - Retry of a failed run loads the latest `FileCheckpointStorage` checkpoint with `workflow.run(checkpoint_id=..., checkpoint_storage=..., stream=True)`; the failed stage's pending message is delivered again. A run that failed before its first checkpoint starts again from its input.
+
+## Skills (phase 4)
+
+Measured on the real proxy on 2026-11-01: with tools offered, every model called tools never offered (`read_file`, `list_files`, `grep`) and ignored tool results, even without MAF. Skill text in the message worked. So:
+
+- Workflows never load a skill by tool. `AgentCall` puts the skill body and references into the first message of the session (`core/skills.py` `render`). `FileSkillsSource` is used as the validator and for frontmatter only.
+- Chat picks a skill with one structured call (`maf/skill_chat.py`) and adds its text to that turn. On a model whose stored tool check passed, chat uses `SkillsProvider` instead.
+- `llm.tool_check(model)` is the live check. Its result is stored on the `models` row.
+- Skills are trusted platform text; repository and document text stays untrusted and goes through the same guardrails as before.

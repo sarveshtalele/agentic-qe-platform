@@ -1,0 +1,38 @@
+[
+  {
+    "skills": [
+      "planning-tests"
+    ],
+    "query": "Plan tests for the approved requirements of app shop.",
+    "files": [],
+    "expected_behavior": [
+      "Allocates requirements across Unit, Integration, API and UI levels",
+      "Ranks risk per area",
+      "Avoids duplicate scenarios across levels"
+    ]
+  },
+  {
+    "skills": [
+      "planning-tests"
+    ],
+    "query": "Plan tests but there are no approved requirements yet.",
+    "files": [],
+    "expected_behavior": [
+      "Stops and points to /agentic-qe:qe-requirements (or /agentic-qe:qe-stories in greenfield)",
+      "Does not fabricate requirements",
+      "Creates no files"
+    ]
+  },
+  {
+    "skills": [
+      "planning-tests"
+    ],
+    "query": "Save the test plan.",
+    "files": [],
+    "expected_behavior": [
+      "Lists paths and asks for explicit approval before writing",
+      "Includes a confidence score for the plan",
+      "Requires Gate approval before design"
+    ]
+  }
+]

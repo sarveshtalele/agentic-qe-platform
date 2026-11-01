@@ -1,0 +1,38 @@
+[
+  {
+    "skills": [
+      "extracting-requirements"
+    ],
+    "query": "Greenfield app CALC. Extract requirements from the approved user stories.",
+    "files": [],
+    "expected_behavior": [
+      "Reads docs/qe/calc/02-requirements/user_stories.md instead of code",
+      "Evidence quote cites the story ID and the acceptance criterion text",
+      "Assigns an actor to every requirement"
+    ]
+  },
+  {
+    "skills": [
+      "extracting-requirements"
+    ],
+    "query": "Brownfield: extract requirements from the Express routes in src/routes.",
+    "files": [],
+    "expected_behavior": [
+      "Every requirement has a verbatim quote with file:line",
+      "States behavior in observable terms",
+      "Does not invent behavior absent from code"
+    ]
+  },
+  {
+    "skills": [
+      "extracting-requirements"
+    ],
+    "query": "Write requirements to docs/qe/shop/ now.",
+    "files": [],
+    "expected_behavior": [
+      "Asks for approval of the file paths before creating anything",
+      "Presents the requirements for Gate 1 approval",
+      "Does not proceed to planning without sign-off"
+    ]
+  }
+]

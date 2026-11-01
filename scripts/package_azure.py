@@ -36,7 +36,7 @@ def _write(target: Path, entries: dict[str, Path]) -> None:
 
 def backend_entries() -> dict[str, Path]:
     entries = {"startup.py": ROOT / "deploy/azure/backend_startup.py", "requirements.txt": ROOT / "requirements.txt"}
-    for folder in ("src/backend", "prompts", "templates", "evals"):
+    for folder in ("src/backend", "prompts", "templates", "evals", "skills"):
         entries.update({path.relative_to(ROOT).as_posix(): path for path in _files(ROOT / folder)})
     return entries
 

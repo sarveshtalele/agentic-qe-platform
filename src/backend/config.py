@@ -17,6 +17,7 @@ RUNS = DATA_DIR / "runs"  # per run: rejected model replies under failures/, fin
 LOGS = DATA_DIR / "logs"  # app-YYYY-MM-DD.jsonl, one file per day
 LOG_RETENTION_DAYS = int(os.environ.get("ATLAS_LOG_RETENTION_DAYS", "30"))
 PROMPTS_DIR = ROOT / "prompts"
+SKILLS_DIR = Path(os.environ.get("ATLAS_SKILLS_DIR", ROOT / "skills")).resolve()  # the Azure package keeps skills/ beside prompts/
 TEMPLATES_DIR = ROOT / "templates"
 MAX_UPLOAD_BYTES = int(os.environ.get("ATLAS_MAX_UPLOAD_MB", "200")) * 1024 * 1024
 RUN_TOKEN_LIMIT = int(os.environ.get("ATLAS_RUN_TOKEN_LIMIT", "600000"))

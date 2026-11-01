@@ -44,7 +44,7 @@ def _strip_preamble(text: str) -> str:
 
 async def ba_draft(rc: RunContext, state: dict) -> dict:
     template = files.get_template(state["template_id"])
-    call = AgentCall(rc.run_id, rc.project_id, "business-analyst")
+    call = AgentCall(rc.run_id, rc.project_id, "business-analyst", refs=())
     message = (
         f"Artifact: requirements document. Write the document for this request.\n\nBRIEF:\n{state.get('brief', '')}\n\nSOURCE DOCUMENTS:\n{state.get('source_text') or '(none)'}\n\n"
         f"TEMPLATE (keep every heading exactly, in this order):\n{template['body']}\n"
@@ -71,7 +71,7 @@ async def ba_draft(rc: RunContext, state: dict) -> dict:
 
 async def ba_review(rc: RunContext, state: dict) -> dict:
     doc = documents.get(state["doc_id"])
-    review = await AgentCall(rc.run_id, rc.project_id, "confidence-reviewer").typed(
+    review = await AgentCall(rc.run_id, rc.project_id, "confidence-reviewer", skills=()).typed(
         f"Review type: requirements document. Review this document against the brief.\n\nBRIEF:\n{state.get('brief', '')}\n\nSOURCES:\n{state.get('source_text') or '(none)'}\n\nDOCUMENT:\n{doc['content']}", Review)
     # the lower of the model score and the deterministic checks wins
     combined = doc_checks.apply(review.model_dump(), doc["content"], files.get_template(state["template_id"])["body"], f"{state.get('brief', '')}\n{state.get('source_text', '')}")
@@ -86,7 +86,7 @@ async def ba_review(rc: RunContext, state: dict) -> dict:
 
 async def ba_gherkin(rc: RunContext, state: dict) -> dict:
     doc = documents.get(state["doc_id"])
-    call = AgentCall(rc.run_id, rc.project_id, "business-analyst")
+    call = AgentCall(rc.run_id, rc.project_id, "business-analyst", refs=())
     message = f"Artifact: Gherkin feature file. Convert this document's requirements into one Gherkin feature file.\n\nDOCUMENT:\n{doc['content']}"
     errors = ""
     for _ in range(3):

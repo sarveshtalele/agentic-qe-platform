@@ -1,0 +1,39 @@
+[
+  {
+    "skills": [
+      "generating-test-code"
+    ],
+    "query": "Generate Playwright tests for approved case TC-002.",
+    "files": [],
+    "expected_behavior": [
+      "One test declaration per file",
+      "First line contains '// CASE_ID: TC-002'",
+      "Reads process.env.BASE_URL and prefers getByRole/getByLabel/getByTestId",
+      "No TODO, pass or placeholder assertions"
+    ]
+  },
+  {
+    "skills": [
+      "generating-test-code"
+    ],
+    "query": "Greenfield: generate tests before the app exists.",
+    "files": [],
+    "expected_behavior": [
+      "Notes tests are test-first and expected to fail until the app exists",
+      "Does not invent selectors silently; flags assumed locators or uses Playwright MCP snapshot if connected",
+      "Hands off to /agentic-qe:qe-execute for a RED baseline"
+    ]
+  },
+  {
+    "skills": [
+      "generating-test-code"
+    ],
+    "query": "Write the generated tests into the repo.",
+    "files": [],
+    "expected_behavior": [
+      "Shows the diff and asks for explicit approval first",
+      "Lists every file path to be created",
+      "Imports only packages present in the manifest"
+    ]
+  }
+]

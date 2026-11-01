@@ -21,10 +21,11 @@ from pydantic import BaseModel, ValidationError
 
 from backend.config import MODEL_CONCURRENCY, MODEL_NO_CACHE, RUN_TOKEN_LIMIT
 from backend.core import auth, documents, ledger, prompts
+from backend.core import skills as skill_lib
 from backend.core.errors import AllowanceError, ModelJsonError, ModelSchemaError, ModelTruncated
 from backend.core.security import redact
 from backend.db import db, new_id, now, rows
-from backend.maf import governance, llm, observability, tools
+from backend.maf import governance, llm, observability, skill_chat, tools
 from backend.repos import ingest
 
 T = TypeVar("T", bound=BaseModel)
@@ -100,8 +101,11 @@ def tool_audit(agent_key: str, project_id: str, run_id: str | None, source: str)
 
 
 def build(agent_key: str, project_id: str, tool_list=None, *, root=None, chat: bool = False, run_id: str | None = None, source: str = "workflow",
-          user_id: str | None = None, model: str | None = None, choice: str = "") -> Agent:
-    """`model` and `user_id` come from the caller when it already resolved them (AgentCall does). Chat passes `choice`, the thread's picked model."""
+          user_id: str | None = None, model: str | None = None, choice: str = "", skill_set: skill_lib.Rendered | None = None) -> Agent:
+    """`model` and `user_id` come from the caller when it already resolved them (AgentCall does). Chat passes `choice`, the thread's picked model.
+
+    `skill_set` is the skill text the caller sends in its message. Its digest goes into the stored prompt reference and its names into `agent_calls.skills`.
+    """
     governance.require_enabled(agent_key)
     user_id = user_id or auth.acting_user(project_id, run_id)
     if model is None:
@@ -113,8 +117,13 @@ def build(agent_key: str, project_id: str, tool_list=None, *, root=None, chat: b
     options = {"max_tokens": governance.token_limit(agent_key)}
     if MODEL_NO_CACHE:  # LiteLLM's proxy cache would answer a retried prompt with the same bad reply
         options["extra_body"] = {"cache": {"no-cache": True}}
-    middleware = [tool_audit(agent_key, project_id, run_id, source), governance.telemetry(agent_key, project_id, run_id, source, model, user_id)]
+    ref = prompts.ref(agent_key) + (skill_lib.ref_suffix(skill_set) if skill_set else "")
+    middleware = [tool_audit(agent_key, project_id, run_id, source), governance.telemetry(agent_key, project_id, run_id, source, model, user_id, ref, json.dumps(skill_set.items) if skill_set and skill_set.items else "")]
     providers = [ProjectContext(project_id, full=chat)]
+    if chat and skill_set and skill_set.text:  # chosen by code for this turn (skill_chat.pick)
+        providers.append(skill_chat.SkillText(skill_set.text))
+    if chat and skill_chat.mode(agent_key, model) == "provider":  # this model passed the live tool check, so MAF loads skills itself
+        providers.append(skill_chat.provider(agent_key))
     return Agent(
         client=llm.client(model), name=agent_key, instructions=instructions, tools=tool_list, context_providers=providers, middleware=middleware,
         compaction_strategy=SlidingWindowStrategy(keep_last_groups=30), default_options=options,
@@ -200,12 +209,20 @@ def format_rule(schema: type[BaseModel]) -> str:
 class AgentCall:
     """One agent bound to a run: tracks tokens and records which prompt version produced an output."""
 
-    def __init__(self, run_id: str | None, project_id: str, agent_key: str, *, root: Path | None = None, tool_list=None, source: str = "workflow", chat: bool = False):
+    def __init__(self, run_id: str | None, project_id: str, agent_key: str, *, root: Path | None = None, tool_list=None, source: str = "workflow", chat: bool = False,
+                 skills: tuple[str, ...] | None = None, refs: tuple[str, ...] | None = None):
+        """`skills` picks which of the agent's plugin skills this stage sends (default all of them, () none) and `refs` which of their reference files (default all)."""
         self.run_id, self.project_id, self.key = run_id, project_id, agent_key
+        policy_skills = governance.POLICIES[agent_key].skills
+        if skills is not None and (unknown := [n for n in skills if n not in policy_skills]):
+            raise ValueError(f"{agent_key} does not use the skill {', '.join(unknown)}. Its policy lists: {', '.join(policy_skills) or 'none'}")
+        available = skill_lib.for_agent(agent_key)
+        self.skill_set = skill_lib.render([n for n in (policy_skills if skills is None else skills) if n in available], refs)
+        self._skill_sent = False
         self.user_id = auth.acting_user(project_id, run_id)
         self.model = auth.model_for(project_id, agent_key, run_id, self.user_id)  # refused here when this account may not use it
-        self.agent = build(agent_key, project_id, tool_list, root=root, run_id=run_id, source=source, chat=chat, user_id=self.user_id, model=self.model)
-        self.prompt_ref = prompts.ref(agent_key)
+        self.agent = build(agent_key, project_id, tool_list, root=root, run_id=run_id, source=source, chat=chat, user_id=self.user_id, model=self.model, skill_set=self.skill_set)
+        self.prompt_ref = prompts.ref(agent_key) + skill_lib.ref_suffix(self.skill_set)  # names the prompt version and the skill text sent
         # one session per call, so retries keep the conversation
         self.session = self.agent.create_session()
         self.has_tools = bool(self.agent.default_options.get("tools"))
@@ -228,6 +245,15 @@ class AgentCall:
         if emit:
             emit("agent_call", f"{self.key} is working, waiting for the model", {"agent": self.key})
         message = governance.guard_text(self.key, message, "input", self.project_id, self.run_id)
+        if self.skill_set.text and not self._skill_sent:
+            # trusted platform text goes after the guard, which is for untrusted text. It comes first, so the stable part leads the message
+            message = f"{self.skill_set.text}\n\nTASK:\n{message}"
+            self._skill_sent = True  # the session keeps it, so a retry does not send it again
+            if emit:
+                for item in self.skill_set.items:
+                    emit("skill", f"Skill {item['name']} v{item['version']} is in use by {self.key}", {"agent": self.key, "skill": item["name"], "version": item["version"], "refs": item["refs"], "sha256": item["sha256"][:12]})
+                for left_out in self.skill_set.skipped:
+                    emit("warning", f"Reference {left_out} was left out: over the size limit", {"agent": self.key})
         started = time.perf_counter()
         try:
             async with _model_gate():

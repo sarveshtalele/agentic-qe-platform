@@ -406,7 +406,7 @@ def test_15_prompt_version_and_real_eval(page):
     page.goto(f"{state['base']}/prompts")
     page.get_by_role("button", name=re.compile("business.analyst", re.I)).click()
     page.get_by_role("button", name="Run with the real model").click()
-    expect(page.get_by_text(re.compile(r"\d/5 passed"))).to_be_visible(timeout=180_000)
+    expect(page.get_by_text(re.compile(r"\d/6 passed"))).to_be_visible(timeout=180_000)
     box = page.get_by_label("Prompt body")
     box.fill(box.input_value() + "\nPrefer short scenario names.")
     page.get_by_label("Reason for change").fill("Shorter names")

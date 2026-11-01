@@ -148,12 +148,12 @@ def _number_cases(cases: list[dict]) -> None:
 
 
 async def qe_design(rc: RunContext, state: dict) -> dict:
-    call = AgentCall(rc.run_id, rc.project_id, "test-design-architect")
+    call = AgentCall(rc.run_id, rc.project_id, "test-design-architect", skills=("designing-test-cases",))
     feedback = f"\nFEEDBACK:\n{state['feedback']}" if state.get("feedback") else ""
 
     async def design(requirements: list[dict], note: str = "") -> list[dict]:
         # each batch has its own conversation, so batches can run together
-        batch_call = AgentCall(rc.run_id, rc.project_id, "test-design-architect")
+        batch_call = AgentCall(rc.run_id, rc.project_id, "test-design-architect", skills=("designing-test-cases",))
         try:
             result = await batch_call.typed(f"Design test cases for only these requirements.\nREQUIREMENTS:\n{json.dumps(requirements)}\nPLAN:\n{json.dumps(state['plan'])}{feedback}{note}", model.CaseSet, attempts=2)
         except AllowanceError:

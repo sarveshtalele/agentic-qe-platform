@@ -776,6 +776,7 @@ These throwaway tests used one small skill on `deepseek-v4-flash-global`, so the
 | Same, with 2 near-miss prompts | **4 of 6 wrongly used the skill** | The test finds a description that is too broad, which is its purpose |
 | Same prompt sent twice | Identical reply, in 0.36s | Repeated runs need the cache turned off, or spread figures mean nothing |
 | **Harness with a skill, on 7 models** (DeepSeek, Claude Sonnet, Haiku, and Opus, GPT-5 mini, Kimi, Gemini) | **None used the skill's facts.** 6 of 7 called `read_file`, `list_files`, or `grep`, which were never offered | The problem is not the model or MAF |
+| **Built-in tool check, offering one uniquely named tool**, on DeepSeek, Kimi, and Claude Sonnet, 2,000 output tokens | All 3 failed. Each said its only tool is `read_file` | Workflows and chat inject skills. Settings shows each model's result |
 | **Direct call with no MAF**, offering only `load_skill` | DeepSeek called `read_file`, and ignored the tool result. Claude Sonnet and GPT-5 mini used all 400 output tokens and returned nothing | **Your proxy appears to add its own tools and instructions.** I cannot prove this from outside, so please ask whoever runs it |
 
 ### Mapping to MAF

@@ -77,6 +77,27 @@ def agent_model(agent: str) -> str:
     return found[0] if found else ""
 
 
+def set_tool_check(name: str, passed: bool, reason: str, max_tokens: int) -> dict:
+    """The result of the live tool check, kept on the model row with its time. `reason` is why it failed, or what was seen when it passed."""
+    get(name)
+    with db() as con:
+        con.execute("UPDATE models SET tools_status=?, tools_reason=?, tools_checked_at=?, tools_max_tokens=? WHERE name=?", ("passed" if passed else "failed", reason[:500], now(), max_tokens, name))
+    return get(name)
+
+
+def tool_status(name: str) -> str:
+    """'passed', 'failed', or '' when this model was never checked (or is not in the list)."""
+    with db() as con:
+        found = con.execute("SELECT tools_status FROM models WHERE name=?", (name,)).fetchone()
+    return found[0] if found else ""
+
+
+def tool_checks() -> dict[str, dict]:
+    with db() as con:
+        return {r["name"]: {"status": r["tools_status"], "reason": r["tools_reason"], "checked_at": r["tools_checked_at"], "max_tokens": r["tools_max_tokens"]}
+                for r in rows(con.execute("SELECT name, tools_status, tools_reason, tools_checked_at, tools_max_tokens FROM models"))}
+
+
 def seed_from_config(configured: str) -> None:
     """A setup that has its model only in .env gets it as the default once, and its users keep access (as migration 009 does for saved settings)."""
     if not configured:

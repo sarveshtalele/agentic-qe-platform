@@ -77,6 +77,7 @@ def flag(agent: str, kind: str, action: str, detail: str, project_id: str | None
                     (agent, project_id, run_id, kind, action, redact(detail)[:500], now()))
 
 
+SKILL_TOOLS = {"load_skill", "read_skill_resource"}  # MAF SkillsProvider tools, offered only on a model that passed the tool check
 REMOVED = "[removed by Agentic QE Platform: possible prompt injection]"
 
 
@@ -121,15 +122,17 @@ def guard_tool_result(agent: str, tool: str, result, project_id: str | None, run
     return result
 
 
-def record_call(agent: str, project_id: str | None, run_id: str | None, source: str, usage: dict, latency_ms: int, tool_calls: int, status: str, error: str = "", model: str = "", user_id: str | None = None) -> None:
+def record_call(agent: str, project_id: str | None, run_id: str | None, source: str, usage: dict, latency_ms: int, tool_calls: int, status: str, error: str = "", model: str = "", user_id: str | None = None,
+                prompt_ref: str = "", skills: str = "") -> None:
+    """`prompt_ref` names the prompt and the skill text actually sent; `skills` is the JSON list of skills used (see core/skills.py)."""
     with db() as con:
         con.execute(
-            "INSERT INTO agent_calls (agent, project_id, run_id, source, prompt_ref, tokens_in, tokens_out, latency_ms, tool_calls, status, error, created_at, model, user_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-            (agent, project_id, run_id, source, prompts.ref(agent), usage.get("input_token_count") or 0, usage.get("output_token_count") or 0, latency_ms, tool_calls, status, redact(error)[:400], now(), model, user_id),
+            "INSERT INTO agent_calls (agent, project_id, run_id, source, prompt_ref, tokens_in, tokens_out, latency_ms, tool_calls, status, error, created_at, model, user_id, skills) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (agent, project_id, run_id, source, prompt_ref or prompts.ref(agent), usage.get("input_token_count") or 0, usage.get("output_token_count") or 0, latency_ms, tool_calls, status, redact(error)[:400], now(), model, user_id, skills),
         )
 
 
-def telemetry(agent: str, project_id: str | None, run_id: str | None, source: str, model: str = "", user_id: str | None = None):
+def telemetry(agent: str, project_id: str | None, run_id: str | None, source: str, model: str = "", user_id: str | None = None, prompt_ref: str = "", skills: str = ""):
     """MAF chat middleware: stops a round when a limit is reached, and records each model round, streamed or not, with the model and account."""
 
     @chat_middleware
@@ -139,19 +142,19 @@ def telemetry(agent: str, project_id: str | None, run_id: str | None, source: st
         try:
             await call_next()
         except Exception as exc:
-            record_call(agent, project_id, run_id, source, {}, int((time.perf_counter() - started) * 1000), 0, "error", str(exc), model, user_id)
+            record_call(agent, project_id, run_id, source, {}, int((time.perf_counter() - started) * 1000), 0, "error", str(exc), model, user_id, prompt_ref, skills)
             raise
         if context.stream:
             def finished(response):
                 _record_refused_tools(agent, project_id, run_id, source, response)
-                record_call(agent, project_id, run_id, source, dict(response.usage_details or {}), int((time.perf_counter() - started) * 1000), _tool_count(response), "ok", "", model, user_id)
+                record_call(agent, project_id, run_id, source, dict(response.usage_details or {}), int((time.perf_counter() - started) * 1000), _tool_count(response), "ok", "", model, user_id, prompt_ref, skills)
                 return response
 
             context.stream_result_transforms = [*context.stream_result_transforms, finished]
             return
         response = context.result
         _record_refused_tools(agent, project_id, run_id, source, response)
-        record_call(agent, project_id, run_id, source, dict(response.usage_details or {}), int((time.perf_counter() - started) * 1000), _tool_count(response), "ok", "", model, user_id)
+        record_call(agent, project_id, run_id, source, dict(response.usage_details or {}), int((time.perf_counter() - started) * 1000), _tool_count(response), "ok", "", model, user_id, prompt_ref, skills)
 
     return record
 
@@ -162,7 +165,7 @@ def _record_refused_tools(agent: str, project_id: str | None, run_id: str | None
     allowed = (policy.chat_tools or frozenset()) if source == "chat" else policy.workflow_tools
     for message in response.messages:
         for content in message.contents:
-            if content.type == "function_call" and content.name not in allowed:
+            if content.type == "function_call" and content.name not in allowed and content.name not in SKILL_TOOLS:
                 observability.record_tool(agent, project_id, run_id, source, content.name, {"requested": str(content.arguments)[:2000]}, 0, "Refused: not allowed for this agent")
 
 

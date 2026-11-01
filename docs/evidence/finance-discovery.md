@@ -1,106 +1,90 @@
 ## Purpose and Users
-
-The Personal Finance MCP is a deterministic, stateless financial calculation toolkit exposed through three interfaces: an MCP server (for AI assistants like Claude Desktop/Code), a JSON REST API, and a static Next.js website. It provides 77 pure-math calculators covering time value of money, debt, portfolio analytics, Indian small savings schemes, bonds, derivatives, stocks, mutual funds, cash flow, risk profiling, and live market data (AMFI NAVs, ECB FX rates, Yahoo quotes). A meta-advisor tool (`create_financial_plan`) chains calculators to produce prioritized financial plans from plain-language descriptions.
-
-Users: individuals using MCP-compatible AI assistants, developers integrating financial calculations via API, and general users browsing the website.
+This is a **Personal Finance MCP server** that provides deterministic financial calculators exposed over the Model Context Protocol (MCP). It serves three interfaces from one codebase: an MCP server for AI clients (Claude Desktop, Claude Code, Cursor), a JSON API for the web frontend, and a static Next.js website with tools, calculator, market dashboard, and setup guide. Users are individuals seeking financial planning via LLM chat (plain-language questions routed to tools) or via the web UI.
 
 ## How It Runs End to End
-
-**MCP stdio transport:** User runs `python -m src` → `src/__main__.py` calls `src/server.py:main()` → `src/server.py` initializes `FastMCP` and registers all tool modules via each module's `register(mcp)` function → `mcp.run(transport="stdio")` opens a stdio JSON-RPC channel. Each tool call (e.g., `calculate_emi`) resolves to a function in `src/tools/debt.py:calculate_emi`, wrapped by `@mcp.tool`; the result is formatted by `src/utils/formatters.py:format_tool_response`.
-
-**Unified HTTP server:** User runs `python -m src.web` → `src/web/__main__.py` calls `src/web/server.py:main()` → `src/web/server.py:build_app()` extends the MCP streamable-HTTP app with CORS middleware, a `SecurityMiddleware` (ASGI-layer headers, body cap, per-IP rate limiting), and six JSON API routes on `/api/*`. A sample request: `POST /api/calc` with `{"calculator": "emi", "params": {...}}` → `run_calc()` → `_sanitize_params()` validates/bounds inputs → `CALCULATORS["emi"]` resolves to `debt.calculate_emi` → result returned as JSON. Static files from `web/out` are served at `/`.
-
-**Website (Next.js static export):** Built from `web/` → `npm run build` produces `web/out`. When served by the Python server, users browse `/tools`, `/calculator`, `/dashboard`, `/connect` pages. The calculator page (`web/app/calculator/page.js`) calls `POST /api/calc`.
+1. **Entry point for MCP (stdio):** `python -m src` → `src/__main__.py` → `src/server.py:main()` → runs `mcp.run(transport="stdio")` using the FastMCP instance that has all tool modules registered.
+2. **Entry point for unified web server:** `python -m src.web` → `src/web/__main__.py` → `src/web/server.py:main()` → uvicorn runs the ASGI app built by `build_app()`.
+3. **A tool call (e.g., SIP calculation via MCP):** MCP request comes in → `src/server.py` receives on the FastMCP server → dispatches to `mutual_funds.sip_calculator` registered via `mutual_funds.register(mcp)`.
+4. **A web API call (e.g., `/api/calc`):** HTTP POST to `/api/calc` with JSON body → `src/web/server.py:run_calc()` → validates inputs via `_sanitize_params()` → looks up function in `CALCULATORS` dict → calls pure function (e.g., `tvm.future_value`) → returns JSON response.
+5. **Static site serving:** `src/web/server.py:build_app()` mounts `web/out` directory (Next.js static export) at `/` on the Starlette app.
 
 ## Architecture
-
-Three-tier: pure deterministic function modules (`src/tools/`) → MCP server (`src/server.py`) or web server (`src/web/server.py`) → client (MCP/HTTP). The MCP server uses the `fastmcp` library. The web server is a Starlette application that wraps the MCP streamable-HTTP app and adds security middleware and `/api/*` routes. The Next.js frontend is a static export (no SSR). No database, no sessions, no external state.
+Three layers:
+- **MCP Layer:** FastMCP server (`src/server.py`) registers 13 tool modules from `src/tools/`. Communicates over stdio or streamable-HTTP.
+- **Web/API Layer:** Starlette ASGI app (`src/web/server.py`) wraps the MCP streamable-HTTP app. Security middleware (CSP headers, rate limiting, body cap, input bounds) is implemented in `src/web/server.py`. Serves JSON API at `/api/` and Next.js static site at `/`.
+- **Tool Layer:** Pure Python functions in `src/tools/` (12 modules visible in `largest_sources` scan, plus `cashflow.py` and `risk_profile.py` making 13 total). Each module has a `register(mcp)` function that wraps pure functions as MCP tools.
 
 ## Modules
 
 | Path | Responsibility | Depends On |
-|------|----------------|------------|
-| `src/server.py` | FastMCP initialization, tool registration, stdio entrypoint | `mcp`, all `src/tools/*` |
-| `src/__main__.py` | `python -m src` entrypoint | `src.server:main` |
-| `src/tools/tvm.py` | 10 TVM calculators (FV, PV, annuity, perpetuity, EAR, etc.) | `math` |
-| `src/tools/debt.py` | 6: EMI, amortization, comparison, prepayment, consolidation, invest-vs-prepay | `math` |
-| `src/tools/planning.py` | 9: net worth, financial ratios, emergency fund, budget, health score, insurance, retirement, education, goal planning | `tvm`, `formatters` |
-| `src/tools/bonds.py` | 6: bond price, YTM, current yield, duration, convexity, zero-coupon | `math` |
-| `src/tools/stocks.py` | 5: GGM, DDM, P/E, DCF, dividend yield | `math` |
-| `src/tools/mutual_funds.py` | 7: SIP, target SIP, lump-sum-vs-SIP, expense ratio impact, SWP, CAGR, NAV | `math` |
-| `src/tools/portfolio.py` | 11: expected return, risk, two-asset, CAPM, Sharpe, Treynor, alpha, information ratio, Sortino, allocation | `math`, `statistics` |
-| `src/tools/derivatives.py` | 5: futures fair value, option payoff, put-call parity, Black-Scholes, beta hedge | `math`, `statistics` |
-| `src/tools/india_savings.py` | 9: PPF, SSY, NSC, KVP, SCSS, RD, FD, EPF, gratuity | `math` |
-| `src/tools/cashflow.py` | 3: cash flow statement, debt-to-income, contingency fund | none |
-| `src/tools/risk_profile.py` | 1: risk profile score → equity/debt split | none |
-| `src/tools/advisor.py` | 1: `create_financial_plan` orchestrator | all tool modules |
-| `src/tools/marketdata.py` | 4: search MF, get NAV, get FX, get quote | `httpx` |
-| `src/models/schemas.py` | Pydantic models for calculator inputs (TVM, annuity, loan, bond, etc.) | `pydantic`, `enums` |
-| `src/models/enums.py` | Enums: compounding frequency, annuity type, loan type, risk profile, bond type, return method | none |
-| `src/utils/formatters.py` | Output formatting for tool responses (currency, percentage, tables) | none |
-| `src/web/server.py` | Unified Starlette server: MCP + API + static site, security middleware | `starlette`, `mcp`, `uvicorn`, tool modules |
-| `src/web/__main__.py` | `python -m src.web` entrypoint | `src.web.server:main` |
-| `web/app/` | Next.js frontend pages (home, tools, calculator, dashboard, connect) | Next.js, React |
-| `run_production.py` | SSE transport runner for production | `src.server:mcp` |
+| :--- | :--- | :--- |
+| `src/server.py` | FastMCP server initialization, registers all tool modules | `mcp[cli]`, `FastMCP`, all tools in `src/tools/` |
+| `src/__main__.py` | Entry point for stdio MCP (`python -m src`) | `src.server` |
+| `src/web/server.py` | Unified Starlette app: MCP streaming + API + static site, security middleware | `starlette`, `src.server`, tools from `src/tools/` |
+| `src/web/__main__.py` | Entry point for web server (`python -m src.web`) | `src.web.server` |
+| `src/tools/tvm.py` | Time Value of Money (10 tools: FV, PV, annuities, EAR, etc.) | `mcp[cli]`, `pydantic`, formatters |
+| `src/tools/planning.py` | Financial planning (9 tools: net worth, ratios, emergency fund, health score) | `tvm`, `mcp[cli]`, formatters |
+| `src/tools/portfolio.py` | Portfolio analytics (11 tools: CAPM, Sharpe, Sortino, etc.) | `mcp[cli]`, formatters |
+| `src/tools/debt.py` | Debt & loans (6 tools: EMI, amortization, prepayment) | `mcp[cli]`, formatters |
+| `src/tools/mutual_funds.py` | Mutual funds (7 tools: SIP, SWP, CAGR, NAV) | `mcp[cli]`, formatters |
+| `src/tools/india_savings.py` | Indian small savings (9 tools: PPF, SSY, NSC, EPF, etc.) | `mcp[cli]`, formatters |
+| `src/tools/bonds.py` | Fixed income (6 tools: bond price, YTM, duration, convexity) | `mcp[cli]`, formatters |
+| `src/tools/derivatives.py` | Derivatives (5 tools: options, futures, Black-Scholes) | `mcp[cli]`, formatters |
+| `src/tools/stocks.py` | Equity valuation (5 tools: DDM, P/E, DCF) | `mcp[cli]`, formatters |
+| `src/tools/cashflow.py` | Cash flow & budgeting (3 tools) | `mcp[cli]`, formatters |
+| `src/tools/risk_profile.py` | Risk profiling (1 tool) | `mcp[cli]`, formatters |
+| `src/tools/advisor.py` | Meta-advisor orchestrator (1 tool) | `mcp[cli]`, formatters |
+| `src/tools/marketdata.py` | Live market data (4 tools: MF search, NAV, FX, quote) | `httpx`, `mcp[cli]`, formatters |
+| `src/models/schemas.py` | Pydantic input schemas (TVMInput, LoanInput, BondInput, etc.) | `pydantic`, `enums` |
+| `src/models/enums.py` | Enum types (CompoundingFrequency, AnnuityType, LoanType, etc.) | none |
+| `src/utils/formatters.py` | Output formatting for tool responses (`format_currency`, `format_percentage`, etc.) | none |
+| `run_production.py` | Production server runner for SSE transport | `mcp` |
+| `src/web/__main__.py` | Entry point for web server | `src.web.server` |
+| `web/` (various files) | Next.js frontend (static export → `web/out`) | Next.js, React |
 
 ## Interfaces
-
-**MCP (Model Context Protocol):**
-- Transport: stdio (`python -m src`) or streamable-HTTP (`/mcp` path on the web server) or SSE (`run_production.py`)
-- 77 tools registered via `@mcp.tool` decorators across 13 module files
-- Tool names include `calculate_net_worth`, `analyze_financial_ratios`, `plan_retirement`, `calculate_emi`, `portfolio_expected_return`, `sip_calculator`, `black_scholes`, `get_mf_nav`, `create_financial_plan`, etc.
-
-**JSON API (6 routes):**
-- `GET /api/health` — status, tool count
-- `GET /api/tools` — list all tools with category and description
-- `POST /api/calc` — run a calculator by name with params
-- `GET /api/nav?code=CODE` — mutual fund NAV lookup
-- `GET /api/fx?base=USD&symbols=INR` — exchange rate
-- `GET /api/quote?symbol=^NSEI` — stock/index quote
-
-**Website:** exported Next.js static pages at `/`, `/tools`, `/calculator`, `/dashboard`, `/connect`.
+- **MCP Server:** Streamable-HTTP at `/mcp` when run via `python -m src.web`, or stdio transport when run as `python -m src` or via `run_production.py` (SSE transport). Number of tools not determined from evidence (the `pyproject.toml` says 76, the `README.md` says 77).
+- **Web JSON API** (6 endpoints, all in `src/web/server.py`):
+  - `GET /api/health` – health check
+  - `GET /api/tools` – list all tools with categories
+  - `POST /api/calc` – run a calculator by name with params
+  - `GET /api/nav` – mutual fund NAV lookup (by scheme code or search query)
+  - `GET /api/fx` – foreign exchange rate
+  - `GET /api/quote` – stock/index quote
+- **Command-line:** `personal-finance-mcp` CLI entry point in `pyproject.toml` (`src.server:main`), runs stdio MCP. `run_production.py` accepts `--host` and `--port` arguments for SSE transport.
 
 ## Data and Integrations
-
-**No persistent storage.** No database, no sessions, no state.
-
-**External APIs (keyless, public):**
-- `src/tools/marketdata.py`: mutual fund NAVs (AMFI), exchange rates (Frankfurter/EU ECB), equity quotes (Yahoo Finance). Uses `httpx`.
-- On failure: `src/web/server.py` wraps API calls in try/except; errors return JSON 400 with a message. Market data failures degrade gracefully (calculator functions that don't call external APIs continue working).
+- **No persistent storage:** The code and documentation describe the system as stateless with no database and no sessions.
+- **Live market data** (`src/tools/marketdata.py`): Uses `httpx` to fetch from AMFI (mutual fund NAVs), Frankfurter API (FX rates), and Yahoo Finance (equity quotes). The `pyproject.toml` declares `httpx>=0.27` as a dependency. No evidence of API keys in the code. No integration test results are provided to verify these external calls work.
+- **Schemas:** 15 Pydantic input models defined in `src/models/schemas.py` for calculator parameters.
 
 ## Configuration and Deployment
-
-**Environment variable:** `PORT` (default 7860 for Hugging Face Spaces).
-
-**Build & run:**
-- Python: `pip install -e ".[web]"` installs dependencies (`mcp`, `pydantic`, `httpx`, `starlette`, `uvicorn`).
-- Website: `cd web && npm install && npm run build` produces static export in `web/out`.
-- Docker: multi-stage build (`Dockerfile`) — Node 20 for Next.js build, Python 3.12-slim runtime, serves all three interfaces on port 7860.
-
-**CI/CD:** 4 GitHub Actions workflows:
-- `.github/workflows/ci.yml`
-- `.github/workflows/codeql.yml`
-- `.github/workflows/hf-sync.yml` — syncs to Hugging Face Docker Space on push to `main`
-- `.github/workflows/pypi-publish.yml` — publishes to PyPI
-
-**PyPI install:** `pip install personal-finance-mcp` or `uvx personal-finance-mcp`. CLI entry point: `personal-finance-mcp` → `src.server:main`.
+- **Python package:** Defined in `pyproject.toml`, package name `personal-finance-mcp`, version `2.0.0`. Dependencies: `mcp[cli]`, `pydantic`, `httpx`. Optional `[web]` extra includes `starlette` and `uvicorn`. Optional `[dev]` extra includes `pytest`, `pytest-asyncio`, `pytest-cov`, `ruff`.
+- **Environment Variables:**
+  - `PORT` (default `7860`) – port for the unified web server (`src/web/server.py`)
+  - `MCP_HOST` (default `127.0.0.1`) – bind host for SSE server (`run_production.py`)
+  - `MCP_PORT` (default `8000`) – port for SSE server (`run_production.py`)
+- **CI/CD:** Four GitHub Actions workflows at `.github/workflows/`: `ci.yml`, `codeql.yml`, `hf-sync.yml` (syncs to Hugging Face Docker Space), `pypi-publish.yml`.
+- **Docker:** Dockerfile multi-stage build: builds Next.js site (Stage 1), then Python runtime (Stage 2) with `pip install --no-cache-dir -e ".[web]"` and static site copied in. Runs `CMD ["python", "-m", "src.web"]` on port 7860 with healthcheck.
+- **Deployment:** Hugging Face Docker Space (auto-synced via `hf-sync.yml`), PyPI package, and local Docker.
 
 ## Existing Tests
-
-12 test files. Test runner: `pytest` (configured in `pyproject.toml` with test paths in `tests/`). README reports 137 passing tests. Run with `pytest -q`. What is not covered: not determined from available evidence.
+- **Count:** The scan found 12 test files matching `test_*.py` patterns. The `pyproject.toml` configures pytest with `testpaths = ["tests"]`.
+- **Test runner:** pytest, with `pytest-asyncio` and `pytest-cov` as dev dependencies.
+- **The README claims 119–137 passing tests, but no test content, execution results, or coverage data are provided in the evidence. These claims are unverified.**
 
 ## Risks
-
-- `src/web/server.py:95-106`: In-memory rate-limit tracker `_hits` is a dict of IP → deque. When `_prune` clears on `> 20,000` entries, all rate-limit state is lost (DoS for legitimate users). Also, the pruning logic checks `now - q[-1] > RATE_WINDOW` but `q[-1]` is the *last* timestamp, not the *oldest*; this may not prune correctly.
-- `src/tools/planning.py:438-442`: `calculate_net_worth_tool` uses `json.loads(assets_json)` on user-supplied JSON strings without depth or size limits. Extremely nested JSON could cause unbounded parsing, though mitigated by the 16 KB body cap at the web layer.
-- `src/web/server.py:48-49`: `CALCULATORS` hard-codes functions from `tvm`, `debt`, `mutual_funds`, `india_savings`, `advisor`. If new calculators are added to tool modules but not added to this registry, the website calculator will not expose them.
-- `src/tools/planning.py:688-691`: `calculate_insurance_need_tool` uses a hard-coded `discount_rate = 0.06` with no configuration or input parameter, which may produce incorrect results for users in different economic environments.
-- `src/web/server.py:207-218`: Input sanitization silently drops booleans typed as `True`/`False` by the JSON parser (they are handled, but the logic is: silently drop `None` and nested structures; booleans are kept). Not a risk per se, but the comment "silently drop nulls / nested structures" means some invalid inputs produce no error.
+- `src/web/server.py:95` – `_hits: dict[str, deque]` is a process-memory rate-limit tracking dict. Under a distributed denial-of-service with rotating IPs, the pruning at line 105 (`_hits.clear()`) on exceeding 20,000 tracked IPs is a hard reset that could be triggered repeatedly. Rate-limiting effectiveness per-client degrades during a burst of distinct IPs.
+- `src/web/server.py:114-117` – `_client_ip()` trusts the first `X-Forwarded-For` header value. If deployed behind a proxy that does not strip spoofed headers, an attacker can forge their IP to bypass per-IP rate limiting.
+- `src/web/server.py:147` – Security middleware only rate-limits and body-checks `/api` paths. The `/mcp` endpoint (streaming SSE) is not rate-limited by this middleware.
+- `src/web/server.py:247-253` – The `run_calc` handler catches all exceptions with bare `except Exception`, which is intentional to avoid leaking stack traces but also catches `SystemExit` and `KeyboardInterrupt`.
+- `src/tools/planning.py:376` – Net worth benchmark formula `age * monthly_income * 12 / 10` is a hardcoded heuristic with no evidence of validation.
+- Tool count inconsistency: The `pyproject.toml` description says "76 deterministic tools," the `README.md` says "77 calculators" and "77 tools," and the scan of `largest_sources` symbols lists fewer than 76 tools across the 12 modules shown.
 
 ## Not Determined
-
-- Exact test file content and test coverage details (only counts known: 12 files, 137 tests per README).
-- Content of documentation files (`docs/HOW_IT_WORKS.md`, `docs/deployment.md`, `docs/Architecture.md`, `docs/testing.md`, `docs/setup.md`).
-- What the `src/tools/__init__.py` exports or imports (not provided).
-- Specific dependency versions beyond what `pyproject.toml` declares.
-- Whether `ruff` linting is configured beyond `src/tools/planning.py:421` (`# ruff: noqa: E402`).
+- Exact number of tools. The evidence is inconsistent: `pyproject.toml` says 76, `README.md` says 77, and the symbol counts from `largest_sources` (which does not include `cashflow.py` or `risk_profile.py` symbols) sum to fewer than 76.
+- Test file paths and their contents. The scan counted 12 test files but did not list them.
+- Whether any tests actually pass or fail. No test execution results are provided.
+- Whether the live market data integrations (AMFI, Frankfurter, Yahoo) work correctly in practice or have proper error handling.
+- Full content of `src/web/server.py` beyond the first 360 lines shown in `largest_sources`. The security middleware code (lines 132-174) and parameter caps (lines 64-75) are present in the source provided, but the evidence limits coverage.
+- Number of Python source files that are not tools (the scan reports 38 Python files total, but only 12 tool modules plus `server.py`, models, and utils are visible).

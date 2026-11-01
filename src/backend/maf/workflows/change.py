@@ -84,7 +84,7 @@ async def _select_files(rc: RunContext, state: dict, worktree: Path) -> list[str
         return [*state["finding_files"], *tests]
     if len(tree) <= 15:
         return tree
-    picked = await AgentCall(rc.run_id, rc.project_id, "repo-intelligence-analyst").typed(
+    picked = await AgentCall(rc.run_id, rc.project_id, "repo-intelligence-analyst", skills=()).typed(
         f"Choose up to 12 existing files needed to do this task, including one that shows how similar things are done and one related test.\nTASK:\n{state['spec'][:1500]}\n\nFILES:\n" + "\n".join(tree[:800]), FileSelection)
     chosen = [f for f in picked.files if f in tree]
     return chosen[:12] or static_analysis.rank_files_for_review(worktree, _analysis(rc.project_id), 12)
@@ -113,7 +113,7 @@ async def _fix_file_by_file(rc: RunContext, state: dict, worktree: Path) -> dict
     """Fix all sends one small request per file. One long conversation grows with every round, and costs far more."""
     fixed, missed = [], []
     for name, listed in state["findings_by_file"].items():
-        call = AgentCall(rc.run_id, rc.project_id, "defect-diagnostician")
+        call = AgentCall(rc.run_id, rc.project_id, "defect-diagnostician", skills=())  # this fixes real defects; the healing skill would forbid that
         only_this_file = lambda edit, target=name: None if edit.path.replace("\\", "/") == target else f"Change only {target}."  # noqa: E731
         prompt = f"Fix these findings in {name}. Change only this file, and fix a finding only if it is a real defect.\nFINDINGS:\n{listed}\n\nCODE:\n{code_pack(rc.project_id, worktree, [name], 60_000)}"
         applied: list[str] = []
@@ -164,7 +164,7 @@ async def change_implement(rc: RunContext, state: dict) -> dict:
             return f"Refused new file {path}: only source, test, and configuration files belong in this change."
         return None
 
-    call = AgentCall(rc.run_id, rc.project_id, agent)
+    call = AgentCall(rc.run_id, rc.project_id, agent, skills=())  # a real defect fix is not test healing
     before = git.diff(worktree)
     summary, prompt, paths = "", message, state["paths"]
     for _ in range(3):

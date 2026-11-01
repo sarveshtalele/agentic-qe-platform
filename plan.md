@@ -46,9 +46,10 @@ Modify the existing project into a production-ready app for BAs and developers, 
 | 9 | Agent governance: policy, guardrails, evals, observability | `maf/governance.py`, `maf/evals.py`, `/agents` |
 | 10 | Sign-in, per-user allocations, confidence review beside each stage | `core/auth.py`, `api/auth.py`, `core/doc_checks.py`, `/login`, `/users` |
 | 11 | Roadmap: Skill Studio, repository-aware changes, application builder, chatbot, new UI | `docs/PLUGIN_AND_UI_PLAN.md`. Approved, not built |
+| 13 | Delivery phase 4: plugin skills injected into workflows, chat skill selection, and a live tool check per model | `skills/`, `core/skills.py`, `maf/skill_chat.py`, `llm.tool_check` | Built |
 | 12 | Delivery phases 1 to 3 of `docs/PLUGIN_AND_UI_PLAN.md`: names and integrity, typed errors and logs, models, limits, and roles | `core/models.py`, `core/errors.py`, `core/logs.py`, `core/auth.py`, `api/settings.py`, `maf/engine.py`. Built. Phase 4, Skills, is next |
 
-Latest results: offline 261 passed, end-to-end 33 of 33 passed, agent evaluations 26 of 26 passed. The finance repository QE run executed 64 tests, with 16 passed, 48 failed, coverage 50%, and verdict FAIL. Generated tests vary a lot between runs, and improving them is phase 5. CI status for this commit is not yet confirmed. The last confirmed CI run was green on Windows, macOS, and Linux at commit 34f6dda. Azure has never been deployed for real.
+Latest results, after phase 4: offline 290 passed, end-to-end 33 of 33 passed across two runs, agent evaluations 29 of 31 passed. The finance repository QE run executed 66 tests, with 40 passed and 26 failed, coverage 73%, verdict FAIL. Results vary between runs.
 
 ## How MAF is used
 

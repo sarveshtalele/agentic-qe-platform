@@ -15,7 +15,11 @@ function Conversation({ thread, onReplied }: { thread: any; onReplied: () => voi
   const [error, setError] = useState("");
   const [running, setRunning] = useState(false);
   const [model, setModel] = useState<string>(thread.model || "");
+  const [tools, setTools] = useState<{ models: string[]; default: string; tools: Record<string, any> } | null>(null);
   const bottom = useRef<HTMLDivElement>(null);
+  useEffect(() => { api("/settings/models").then(setTools).catch(() => setTools(null)); }, [thread.id]);
+  const current = model || tools?.default || "";
+  const toolCheck = tools?.tools?.[current];
   useEffect(() => setModel(thread.model || ""), [thread.id, thread.model]);
   // the server checks the pick too: a model this account may not use is refused there
   const pickModel = async (next: string) => {
@@ -72,6 +76,7 @@ function Conversation({ thread, onReplied }: { thread: any; onReplied: () => voi
         <ErrorNote message={error} />
         <div ref={bottom} />
       </div>
+      {toolCheck?.status === "failed" && <p role="alert" data-testid="tool-warning" className="mx-3 mb-1 rounded-lg bg-amber-500/15 px-3 py-1.5 text-xs text-amber-700 dark:text-amber-400">{current} failed the tool check ({toolCheck.reason}). It may ignore the project tools in this chat, so check its answers against the documents.</p>}
       <div className="flex items-center gap-2 border-t border-slate-200 px-3 pt-2 text-xs text-slate-500 dark:border-slate-800">Model <ModelPicker value={model} onChange={pickModel} compact /></div>
       <form className="flex items-end gap-2 px-3 pb-3 pt-2" onSubmit={(e) => { e.preventDefault(); send(); }}>
         <textarea aria-label="Message" rows={2} disabled={!isReady} className={`${inputClass} resize-none`} placeholder={isReady ? "Ask about this project, its documents, or run an agent" : "Connecting"} value={text} onChange={(e) => setText(e.target.value)}

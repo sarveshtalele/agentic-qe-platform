@@ -1,0 +1,30 @@
+{
+  "_note": "Code checks for plugin skill eval cases. The plugin's evals hold expected_behavior sentences for a human or grader. Only what code can check literally is here, keyed by skill and the exact query. Every other expectation stays ungraded until a grader exists (phase 6). A pass here covers these checks only.",
+  "authoring-user-stories": {
+    "Greenfield: I'm building a web calculator (add, subtract, divide). No code yet. Write user stories and test cases for app CALC.": {
+      "matches": ["\\*\\*US-CALC-\\d{3}\\*\\*: As an? .+, I want to .+ so that .+"],
+      "contains": ["Given", "When", "Then", "Exception"]
+    }
+  },
+  "designing-test-cases": {
+    "Design test cases for the login requirement REQ-001.": {
+      "contains": ["Positive", "Negative", "Exception", "Negative (Boundary)", "REQ-001"]
+    }
+  },
+  "generating-test-code": {
+    "Generate Playwright tests for approved case TC-002.": {
+      "contains": ["// CASE_ID: TC-002", "BASE_URL"],
+      "not_contains": ["TODO"]
+    }
+  },
+  "planning-tests": {
+    "Plan tests for the approved requirements of app shop.": {
+      "contains": ["Unit", "Integration", "API"]
+    }
+  },
+  "tracing-coverage": {
+    "Trace coverage when results.json is missing.": {
+      "contains": ["NOT_RUN"]
+    }
+  }
+}

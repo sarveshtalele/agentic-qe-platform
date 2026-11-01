@@ -1,0 +1,38 @@
+[
+  {
+    "skills": [
+      "tracing-coverage"
+    ],
+    "query": "Build the traceability matrix for app shop.",
+    "files": [],
+    "expected_behavior": [
+      "Maps requirements to cases to results",
+      "Flags unmapped P0/P1 requirements",
+      "Flags orphan test cases"
+    ]
+  },
+  {
+    "skills": [
+      "tracing-coverage"
+    ],
+    "query": "Trace coverage when results.json is missing.",
+    "files": [],
+    "expected_behavior": [
+      "Reports results as NOT_RUN rather than PASS",
+      "Does not fabricate results",
+      "Asks for or points to /agentic-qe:qe-execute"
+    ]
+  },
+  {
+    "skills": [
+      "tracing-coverage"
+    ],
+    "query": "Save the matrix.",
+    "files": [],
+    "expected_behavior": [
+      "Asks for approval of the output path before writing",
+      "Uses the build-matrix.ts script",
+      "Reports coverage percent and uncovered count"
+    ]
+  }
+]

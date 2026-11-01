@@ -30,21 +30,21 @@ flowchart LR
   QE --> SBX
 ```
 
-The project has 219 files, not counting screenshots.
+The project has 261 files, not counting screenshots.
 
 ## Backend application
 
 | File | What it does | Uses | Used by |
 |---|---|---|---|
-| `src/backend/app.py` | FastAPI application: REST API for the UI, AG-UI for the chatbot, background MAF workflows. | `__init__.py`, `api/__init__.py`, `config.py`, `core/auth.py`, `core/documents.py`, `core/errors.py`, `core/files.py`, `core/gates.py`, and 14 more | `tests/test_access.py`, `tests/test_api_workflows.py`, `tests/test_errors.py`, `tests/test_ops.py` |
-| `src/backend/config.py` | Paths and environment. ATLAS_DATA_DIR lets tests run against a throwaway store. |  | `api/common.py`, `api/logs.py`, `api/projects.py`, `api/repository.py`, `api/templates.py`, `app.py`, `core/documents.py`, `core/files.py`, and 22 more |
-| `src/backend/db.py` | SQLite access: one short connection per unit of work, numbered SQL migrations via user_version. | `config.py` | `api/chat.py`, `api/common.py`, `api/documents.py`, `api/findings.py`, `api/governance.py`, `api/observability.py`, `api/projects.py`, `api/runs.py`, and 32 more |
+| `src/backend/app.py` | FastAPI application: REST API for the UI, AG-UI for the chatbot, background MAF workflows. | `__init__.py`, `api/__init__.py`, `config.py`, `core/auth.py`, `core/documents.py`, `core/errors.py`, `core/files.py`, `core/gates.py`, and 15 more | `tests/test_access.py`, `tests/test_api_workflows.py`, `tests/test_errors.py`, `tests/test_ops.py`, `tests/test_skills.py` |
+| `src/backend/config.py` | Paths and environment. ATLAS_DATA_DIR lets tests run against a throwaway store. |  | `api/common.py`, `api/logs.py`, `api/projects.py`, `api/repository.py`, `api/templates.py`, `app.py`, `core/documents.py`, `core/files.py`, and 24 more |
+| `src/backend/db.py` | SQLite access: one short connection per unit of work, numbered SQL migrations via user_version. | `config.py` | `api/chat.py`, `api/common.py`, `api/documents.py`, `api/findings.py`, `api/governance.py`, `api/observability.py`, `api/projects.py`, `api/runs.py`, and 33 more |
 
 ## REST API
 
 | File | What it does | Uses | Used by |
 |---|---|---|---|
-| `src/backend/api/__init__.py` | REST API, one router per area. | `api/auth.py`, `api/chat.py`, `api/documents.py`, `api/findings.py`, `api/governance.py`, `api/logs.py`, `api/observability.py`, `api/projects.py`, and 4 more | `app.py` |
+| `src/backend/api/__init__.py` | REST API, one router per area. | `api/auth.py`, `api/chat.py`, `api/documents.py`, `api/findings.py`, `api/governance.py`, `api/logs.py`, `api/observability.py`, `api/projects.py`, and 5 more | `app.py` |
 | `src/backend/api/auth.py` | Sign-in and user management. | `core/auth.py` | `api/__init__.py` |
 | `src/backend/api/chat.py` | Chat API. | `api/common.py`, `core/auth.py`, `db.py`, `maf/agui.py`, `maf/engine.py`, `maf/evals.py`, `maf/governance.py`, `maf/llm.py`, and 2 more | `api/__init__.py` |
 | `src/backend/api/common.py` | Helpers shared by routers. | `__init__.py`, `config.py`, `db.py` | `api/chat.py`, `api/documents.py`, `api/governance.py`, `api/projects.py`, `api/repository.py`, `api/runs.py`, `api/templates.py` |
@@ -57,13 +57,14 @@ The project has 219 files, not counting screenshots.
 | `src/backend/api/repository.py` | Repository API. | `api/common.py`, `config.py`, `core/auth.py`, `core/security.py`, `maf/agui.py`, `maf/engine.py`, `maf/evals.py`, `maf/governance.py`, and 5 more | `api/__init__.py` |
 | `src/backend/api/runs.py` | Workflows API. | `api/common.py`, `core/auth.py`, `core/ledger.py`, `core/security.py`, `db.py`, `maf/agui.py`, `maf/engine.py`, `maf/evals.py`, and 6 more | `api/__init__.py` |
 | `src/backend/api/settings.py` | Connections and settings API. | `core/auth.py`, `core/models.py`, `maf/agui.py`, `maf/engine.py`, `maf/evals.py`, `maf/governance.py`, `maf/llm.py`, `maf/workflows/__init__.py`, and 1 more | `api/__init__.py` |
+| `src/backend/api/skills.py` | Skills API, read only. The skills are the plugin folders under skills/, validated by MAF at startup. | `core/skills.py` | `api/__init__.py` |
 | `src/backend/api/templates.py` | Templates and source documents API. | `api/common.py`, `config.py`, `core/files.py`, `core/security.py`, `db.py`, `maf/agui.py`, `maf/engine.py`, `maf/evals.py`, and 3 more | `api/__init__.py` |
 
 ## Agents
 
 | File | What it does | Uses | Used by |
 |---|---|---|---|
-| `src/backend/maf/agents/__init__.py` | Agent registry. Each file in this folder declares one agent's POLICY, so adding an agent means adding a file. | `maf/agents/policy.py` | `maf/governance.py`, `tests/test_core.py`, `tests/test_migration_006.py` |
+| `src/backend/maf/agents/__init__.py` | Agent registry. Each file in this folder declares one agent's POLICY, so adding an agent means adding a file. | `maf/agents/policy.py` | `core/skills.py`, `maf/governance.py`, `tests/test_core.py`, `tests/test_migration_006.py`, `tests/test_skills.py` |
 | `src/backend/maf/agents/bug_reviewer.py` | Finds defects in code it is given. Prompt: prompts/bug-reviewer.md. Evals: evals/bug-reviewer.json. | `maf/agents/policy.py` |  |
 | `src/backend/maf/agents/business_analyst.py` | Writes requirements documents from a brief and sources, and converts them to validated Gherkin. Prompt: prompts/business-analyst.md. Evals: evals/business-analyst.json. | `maf/agents/policy.py` |  |
 | `src/backend/maf/agents/confidence_reviewer.py` | Scores requirements documents, plans, and releases from evidence. Prompt: prompts/confidence-reviewer.md. Evals: evals/confidence-reviewer.json. | `maf/agents/policy.py` |  |
@@ -112,19 +113,20 @@ The project has 219 files, not counting screenshots.
 
 | File | What it does | Uses | Used by |
 |---|---|---|---|
-| `src/backend/maf/agui.py` | AG-UI endpoint for the chatbot. MAF's AgentFrameworkAgent produces the protocol stream. | `core/auth.py`, `core/errors.py`, `core/ledger.py`, `core/security.py`, `db.py`, `maf/engine.py`, `maf/governance.py`, `maf/llm.py`, and 2 more | `api/chat.py`, `api/documents.py`, `api/findings.py`, `api/governance.py`, `api/projects.py`, `api/repository.py`, `api/runs.py`, `api/settings.py`, and 2 more |
+| `src/backend/maf/agui.py` | AG-UI endpoint for the chatbot. MAF's AgentFrameworkAgent produces the protocol stream. | `core/auth.py`, `core/errors.py`, `core/ledger.py`, `core/security.py`, `core/skills.py`, `db.py`, `maf/engine.py`, `maf/governance.py`, and 4 more | `api/chat.py`, `api/documents.py`, `api/findings.py`, `api/governance.py`, `api/projects.py`, `api/repository.py`, `api/runs.py`, `api/settings.py`, and 2 more |
 | `src/backend/maf/engine.py` | Run manager over real MAF workflows: typed stages, HITL via request_info, file checkpoints, durable events. | `config.py`, `core/auth.py`, `core/errors.py`, `core/gates.py`, `core/ledger.py`, `core/security.py`, `db.py`, `maf/runtime.py` | `api/chat.py`, `api/documents.py`, `api/findings.py`, `api/governance.py`, `api/projects.py`, `api/repository.py`, `api/runs.py`, `api/settings.py`, and 11 more |
-| `src/backend/maf/evals.py` | Agent evals on MAF's evaluation API. Each case runs the real active prompt, so prompt versions can be compared. | `config.py`, `core/errors.py`, `core/gherkin.py`, `core/prompts.py`, `db.py`, `maf/runtime.py`, `maf/workflows/__init__.py`, `qe/model.py` | `api/chat.py`, `api/documents.py`, `api/findings.py`, `api/governance.py`, `api/projects.py`, `api/repository.py`, `api/runs.py`, `api/settings.py`, and 4 more |
-| `src/backend/maf/governance.py` | Agent governance: one registry, per-agent tool policy, an admin kill switch, guardrails, and call telemetry. | `core/auth.py`, `core/errors.py`, `core/ledger.py`, `core/models.py`, `core/prompts.py`, `core/security.py`, `db.py`, `maf/agents/__init__.py`, and 1 more | `api/chat.py`, `api/documents.py`, `api/findings.py`, `api/governance.py`, `api/projects.py`, `api/repository.py`, `api/runs.py`, `api/settings.py`, and 6 more |
-| `src/backend/maf/llm.py` | Model provider settings. Environment wins on first run; the Settings page can override and encrypts the key. | `config.py`, `core/errors.py`, `core/security.py`, `db.py` | `api/chat.py`, `api/documents.py`, `api/findings.py`, `api/governance.py`, `api/projects.py`, `api/repository.py`, `api/runs.py`, `api/settings.py`, and 10 more |
+| `src/backend/maf/evals.py` | Agent evals on MAF's evaluation API. Each case runs the real active prompt, so prompt versions can be compared. | `config.py`, `core/errors.py`, `core/gherkin.py`, `core/prompts.py`, `core/skills.py`, `db.py`, `maf/runtime.py`, `maf/workflows/__init__.py`, and 1 more | `api/chat.py`, `api/documents.py`, `api/findings.py`, `api/governance.py`, `api/projects.py`, `api/repository.py`, `api/runs.py`, `api/settings.py`, and 5 more |
+| `src/backend/maf/governance.py` | Agent governance: one registry, per-agent tool policy, an admin kill switch, guardrails, and call telemetry. | `core/auth.py`, `core/errors.py`, `core/ledger.py`, `core/models.py`, `core/prompts.py`, `core/security.py`, `db.py`, `maf/agents/__init__.py`, and 1 more | `api/chat.py`, `api/documents.py`, `api/findings.py`, `api/governance.py`, `api/projects.py`, `api/repository.py`, `api/runs.py`, `api/settings.py`, and 8 more |
+| `src/backend/maf/llm.py` | Model provider settings. Environment wins on first run; the Settings page can override and encrypts the key. | `config.py`, `core/errors.py`, `core/models.py`, `core/security.py`, `db.py` | `api/chat.py`, `api/documents.py`, `api/findings.py`, `api/governance.py`, `api/projects.py`, `api/repository.py`, `api/runs.py`, `api/settings.py`, and 12 more |
 | `src/backend/maf/observability.py` | One log of everything agents and workflows did, for a run, a project, or all projects. Reads stored records only. | `core/auth.py`, `core/ledger.py`, `core/security.py`, `db.py` | `api/observability.py`, `maf/governance.py`, `maf/runtime.py`, `tests/test_access.py`, `tests/test_api_workflows.py` |
-| `src/backend/maf/runtime.py` | Agent construction on the real Microsoft Agent Framework, with middleware and JSON validation. | `config.py`, `core/auth.py`, `core/documents.py`, `core/errors.py`, `core/ledger.py`, `core/prompts.py`, `core/security.py`, `db.py`, and 5 more | `api/chat.py`, `api/documents.py`, `maf/agui.py`, `maf/engine.py`, `maf/evals.py`, `maf/tools/remember.py`, `maf/workflows/ba.py`, `maf/workflows/bug_scan.py`, and 7 more |
+| `src/backend/maf/runtime.py` | Agent construction on the real Microsoft Agent Framework, with middleware and JSON validation. | `config.py`, `core/auth.py`, `core/documents.py`, `core/errors.py`, `core/ledger.py`, `core/prompts.py`, `core/security.py`, `core/skills.py`, and 7 more | `api/chat.py`, `api/documents.py`, `maf/agui.py`, `maf/engine.py`, `maf/evals.py`, `maf/skill_chat.py`, `maf/tools/remember.py`, `maf/workflows/ba.py`, and 9 more |
+| `src/backend/maf/skill_chat.py` | Skills in chat. Tools are unreliable through the proxy, so by default code picks the skill and adds its text to the turn. | `config.py`, `core/models.py`, `core/prompts.py`, `core/skills.py`, `maf/governance.py`, `maf/llm.py`, `maf/runtime.py` | `maf/agui.py`, `maf/runtime.py`, `tests/test_skills.py` |
 
 ## Core services
 
 | File | What it does | Uses | Used by |
 |---|---|---|---|
-| `src/backend/core/auth.py` | Accounts and access. The admin login comes from .env. Users are created by the admin. | `core/errors.py`, `core/ledger.py`, `core/models.py`, `core/security.py`, `db.py`, `maf/llm.py` | `api/auth.py`, `api/chat.py`, `api/documents.py`, `api/findings.py`, `api/governance.py`, `api/observability.py`, `api/projects.py`, `api/repository.py`, and 12 more |
+| `src/backend/core/auth.py` | Accounts and access. The admin login comes from .env. Users are created by the admin. | `core/errors.py`, `core/ledger.py`, `core/models.py`, `core/security.py`, `db.py`, `maf/llm.py` | `api/auth.py`, `api/chat.py`, `api/documents.py`, `api/findings.py`, `api/governance.py`, `api/observability.py`, `api/projects.py`, `api/repository.py`, and 13 more |
 | `src/backend/core/doc_checks.py` | Deterministic requirements checks. They cap the reviewer's score, so a model cannot pass a weak document. | `core/files.py` | `api/documents.py`, `maf/workflows/ba.py`, `maf/workflows/qe.py`, `tests/test_api_workflows.py`, `tests/test_core.py` |
 | `src/backend/core/documents.py` | Versioned documents. Every save is an immutable version with SHA-256, author, and prompt reference. | `config.py`, `core/gherkin.py`, `core/ledger.py`, `core/security.py`, `db.py`, `qe/model.py` | `api/documents.py`, `api/projects.py`, `app.py`, `maf/runtime.py`, `maf/tools/common.py`, `maf/tools/list_documents.py`, `maf/tools/read_document.py`, `maf/tools/save_document.py`, and 6 more |
 | `src/backend/core/errors.py` | Typed errors. Each says what happened, what to do next, and whether a plain retry may help. | `core/security.py` | `app.py`, `core/auth.py`, `core/models.py`, `maf/agui.py`, `maf/engine.py`, `maf/evals.py`, `maf/governance.py`, `maf/llm.py`, and 9 more |
@@ -133,9 +135,10 @@ The project has 219 files, not counting screenshots.
 | `src/backend/core/gherkin.py` | Gherkin validation with the official Cucumber parser. |  | `core/documents.py`, `maf/evals.py`, `maf/workflows/ba.py`, `tests/test_core.py` |
 | `src/backend/core/ledger.py` | Tamper-evident audit ledger: each entry hashes the previous entry, per project. | `core/security.py`, `db.py` | `api/findings.py`, `api/governance.py`, `api/projects.py`, `api/runs.py`, `core/auth.py`, `core/documents.py`, `core/gates.py`, `maf/agui.py`, and 8 more |
 | `src/backend/core/logs.py` | Daily JSON-lines application log: data/logs/app-YYYY-MM-DD.jsonl. | `__init__.py`, `config.py`, `core/security.py` | `api/logs.py`, `app.py`, `tests/test_ops.py` |
-| `src/backend/core/models.py` | The model list, who may use which model, and token limits per period. | `core/errors.py`, `db.py` | `api/settings.py`, `app.py`, `core/auth.py`, `maf/governance.py`, `tests/test_api_workflows.py`, `tests/test_models.py` |
-| `src/backend/core/prompts.py` | Versioned agent prompts. prompts/*.md seed v1; every edit is a new immutable version in the DB. | `config.py`, `core/security.py`, `db.py` | `api/governance.py`, `app.py`, `maf/evals.py`, `maf/governance.py`, `maf/runtime.py`, `tests/conftest.py`, `tests/test_core.py`, `tests/test_migration_006.py` |
-| `src/backend/core/security.py` | Secrets at rest, secret detection, redaction, path confinement, and shell-free command policy. | `config.py` | `api/documents.py`, `api/logs.py`, `api/projects.py`, `api/repository.py`, `api/runs.py`, `api/templates.py`, `app.py`, `core/auth.py`, and 26 more |
+| `src/backend/core/models.py` | The model list, who may use which model, and token limits per period. | `core/errors.py`, `db.py` | `api/settings.py`, `app.py`, `core/auth.py`, `maf/governance.py`, `maf/llm.py`, `maf/skill_chat.py`, `tests/test_api_workflows.py`, `tests/test_models.py`, and 1 more |
+| `src/backend/core/prompts.py` | Versioned agent prompts. prompts/*.md seed v1; every edit is a new immutable version in the DB. | `config.py`, `core/security.py`, `db.py` | `api/governance.py`, `app.py`, `maf/evals.py`, `maf/governance.py`, `maf/runtime.py`, `maf/skill_chat.py`, `tests/conftest.py`, `tests/test_core.py`, and 1 more |
+| `src/backend/core/security.py` | Secrets at rest, secret detection, redaction, path confinement, and shell-free command policy. | `config.py` | `api/documents.py`, `api/logs.py`, `api/projects.py`, `api/repository.py`, `api/runs.py`, `api/templates.py`, `app.py`, `core/auth.py`, and 27 more |
+| `src/backend/core/skills.py` | Plugin skills from skills/, validated by MAF's FileSkillsSource and read through safe_path. | `config.py`, `core/security.py`, `maf/agents/__init__.py` | `api/skills.py`, `app.py`, `maf/agui.py`, `maf/evals.py`, `maf/runtime.py`, `maf/skill_chat.py`, `tests/test_skills.py` |
 
 ## Repositories
 
@@ -170,6 +173,7 @@ The project has 219 files, not counting screenshots.
 | `src/backend/migrations/008_observability_indexes.sql` | Database change: observability indexes |  |  |
 | `src/backend/migrations/009_models_limits.sql` | Database change: models limits |  |  |
 | `src/backend/migrations/010_roles_members.sql` | Database change: roles members |  |  |
+| `src/backend/migrations/011_skills_tool_check.sql` | Database change: skills tool check |  |  |
 
 ## Agent prompts
 
@@ -200,6 +204,7 @@ The project has 219 files, not counting screenshots.
 | `evals/project-copilot.json` | Quality and safety cases for the project-copilot agent |  |  |
 | `evals/repo-intelligence-analyst.json` | Quality and safety cases for the repo-intelligence-analyst agent |  |  |
 | `evals/requirements-analyst.json` | Quality and safety cases for the requirements-analyst agent |  |  |
+| `evals/skills/checks.json` | Quality and safety cases for the checks agent |  |  |
 | `evals/test-automation-engineer.json` | Quality and safety cases for the test-automation-engineer agent |  |  |
 | `evals/test-design-architect.json` | Quality and safety cases for the test-design-architect agent |  |  |
 
@@ -250,6 +255,7 @@ The project has 219 files, not counting screenshots.
 | `src/frontend/app/projects/[id]/runs/[runId]/page.tsx` | Page at `/projects/{id}/runs/{runId}` | `ui/components/ProjectShell.tsx`, `ui/components/RunPanel.tsx` |  |
 | `src/frontend/app/projects/[id]/runs/page.tsx` | Page at `/projects/{id}/runs` | `ui/components/ProjectShell.tsx`, `ui/components/ui.tsx`, `ui/lib/api.ts` |  |
 | `src/frontend/app/settings/page.tsx` | Page at `/settings` | `ui/components/AppShell.tsx`, `ui/components/AuthGate.tsx`, `ui/components/ui.tsx`, `ui/lib/api.ts` |  |
+| `src/frontend/app/skills/page.tsx` | Page at `/skills` | `ui/components/AppShell.tsx`, `ui/components/ui.tsx`, `ui/lib/api.ts` |  |
 | `src/frontend/app/templates/page.tsx` | Page at `/templates` | `ui/components/AppShell.tsx`, `ui/components/ui.tsx`, `ui/lib/api.ts` |  |
 | `src/frontend/app/usage/page.tsx` | Page at `/usage` | `ui/components/AppShell.tsx`, `ui/components/ui.tsx`, `ui/lib/api.ts` |  |
 | `src/frontend/app/users/page.tsx` | Page at `/users` | `ui/components/AppShell.tsx`, `ui/components/ui.tsx`, `ui/lib/api.ts` |  |
@@ -258,7 +264,7 @@ The project has 219 files, not counting screenshots.
 
 | File | What it does | Uses | Used by |
 |---|---|---|---|
-| `src/frontend/components/AppShell.tsx` | Workspace sidebar and header | `ui/components/AuthGate.tsx`, `ui/components/ui.tsx`, `ui/lib/api.ts` | `ui/app/account/page.tsx`, `ui/app/agents/[key]/page.tsx`, `ui/app/agents/page.tsx`, `ui/app/approvals/page.tsx`, `ui/app/documents/page.tsx`, `ui/app/findings/page.tsx`, `ui/app/observability/page.tsx`, `ui/app/page.tsx`, and 4 more |
+| `src/frontend/components/AppShell.tsx` | Workspace sidebar and header | `ui/components/AuthGate.tsx`, `ui/components/ui.tsx`, `ui/lib/api.ts` | `ui/app/account/page.tsx`, `ui/app/agents/[key]/page.tsx`, `ui/app/agents/page.tsx`, `ui/app/approvals/page.tsx`, `ui/app/documents/page.tsx`, `ui/app/findings/page.tsx`, `ui/app/observability/page.tsx`, `ui/app/page.tsx`, and 5 more |
 | `src/frontend/components/ApprovalsList.tsx` | List of pending approvals | `ui/components/RunPanel.tsx`, `ui/components/ui.tsx`, `ui/lib/api.ts` | `ui/app/approvals/page.tsx`, `ui/app/projects/[id]/approvals/page.tsx` |
 | `src/frontend/components/AuthGate.tsx` | Sends people to sign in, and holds the sign-out menu | `ui/components/ui.tsx`, `ui/lib/api.ts` | `ui/app/agents/[key]/page.tsx`, `ui/app/agents/page.tsx`, `ui/app/layout.tsx`, `ui/app/projects/[id]/documents/[docId]/page.tsx`, `ui/app/projects/[id]/governance/page.tsx`, `ui/app/projects/[id]/page.tsx`, `ui/app/settings/page.tsx`, `ui/components/AppShell.tsx`, and 2 more |
 | `src/frontend/components/Chat.tsx` | Chat threads and conversation | `ui/components/ModelPicker.tsx`, `ui/components/ui.tsx`, `ui/lib/api.ts` | `ui/app/chat/[id]/page.tsx`, `ui/app/projects/[id]/chat/page.tsx` |
@@ -267,9 +273,9 @@ The project has 219 files, not counting screenshots.
 | `src/frontend/components/Observability.tsx` | Log with filters, run trace, and download | `ui/components/ui.tsx`, `ui/lib/api.ts` | `ui/app/observability/page.tsx`, `ui/app/projects/[id]/observability/page.tsx` |
 | `src/frontend/components/ProjectShell.tsx` | Project sidebar and header | `ui/components/AuthGate.tsx`, `ui/components/ui.tsx`, `ui/lib/api.ts` | `ui/app/projects/[id]/approvals/page.tsx`, `ui/app/projects/[id]/ba/page.tsx`, `ui/app/projects/[id]/bugs/page.tsx`, `ui/app/projects/[id]/chat/page.tsx`, `ui/app/projects/[id]/documents/[docId]/page.tsx`, `ui/app/projects/[id]/documents/page.tsx`, `ui/app/projects/[id]/feature/page.tsx`, `ui/app/projects/[id]/governance/page.tsx`, and 7 more |
 | `src/frontend/components/RunPanel.tsx` | Live run view, approval card, and past runs | `ui/components/AuthGate.tsx`, `ui/components/ui.tsx`, `ui/lib/api.ts` | `ui/app/projects/[id]/ba/page.tsx`, `ui/app/projects/[id]/bugs/page.tsx`, `ui/app/projects/[id]/feature/page.tsx`, `ui/app/projects/[id]/qe/page.tsx`, `ui/app/projects/[id]/runs/[runId]/page.tsx`, `ui/components/ApprovalsList.tsx` |
-| `src/frontend/components/ui.tsx` | Shared buttons, cards, badges, fields, and toasts |  | `ui/app/account/page.tsx`, `ui/app/agents/[key]/page.tsx`, `ui/app/agents/page.tsx`, `ui/app/approvals/page.tsx`, `ui/app/docs/[slug]/page.tsx`, `ui/app/docs/layout.tsx`, `ui/app/documents/page.tsx`, `ui/app/error.tsx`, and 31 more |
+| `src/frontend/components/ui.tsx` | Shared buttons, cards, badges, fields, and toasts |  | `ui/app/account/page.tsx`, `ui/app/agents/[key]/page.tsx`, `ui/app/agents/page.tsx`, `ui/app/approvals/page.tsx`, `ui/app/docs/[slug]/page.tsx`, `ui/app/docs/layout.tsx`, `ui/app/documents/page.tsx`, `ui/app/error.tsx`, and 32 more |
 | `src/frontend/content/docs.ts` | All documentation pages |  | `ui/app/docs/[slug]/page.tsx`, `ui/app/docs/layout.tsx` |
-| `src/frontend/lib/api.ts` | Browser calls to the API |  | `ui/app/account/page.tsx`, `ui/app/agents/[key]/page.tsx`, `ui/app/agents/page.tsx`, `ui/app/documents/page.tsx`, `ui/app/findings/page.tsx`, `ui/app/login/page.tsx`, `ui/app/page.tsx`, `ui/app/projects/[id]/ba/page.tsx`, and 23 more |
+| `src/frontend/lib/api.ts` | Browser calls to the API |  | `ui/app/account/page.tsx`, `ui/app/agents/[key]/page.tsx`, `ui/app/agents/page.tsx`, `ui/app/documents/page.tsx`, `ui/app/findings/page.tsx`, `ui/app/login/page.tsx`, `ui/app/page.tsx`, `ui/app/projects/[id]/ba/page.tsx`, and 24 more |
 
 ## Frontend configuration
 
@@ -295,14 +301,15 @@ The project has 219 files, not counting screenshots.
 | `tests/e2e/test_app.py` | End-to-end: real FastAPI, real Next.js build, real browser, real model, real git and pytest. Nothing is mocked. | `tests/e2e/conftest.py` | `tests/e2e/test_finance_repo.py` |
 | `tests/e2e/test_finance_repo.py` | Every feature on a real repository, sarveshtalele/personal-finance-mcp, adding a new MCP tool. Nothing is mocked. | `tests/e2e/conftest.py`, `tests/e2e/test_app.py` |  |
 | `tests/e2e/test_smoke.py` | Browser smoke test with no model: a built app, an empty throwaway data folder, and a real browser. | `tests/e2e/conftest.py` |  |
-| `tests/scripted_client.py` | Test double only. A real MAF chat client whose replies come from a script, so workflow logic runs offline. |  | `tests/test_api_workflows.py`, `tests/test_core.py`, `tests/test_errors.py`, `tests/test_models.py`, `tests/test_ops.py` |
+| `tests/scripted_client.py` | Test double only. A real MAF chat client whose replies come from a script, so workflow logic runs offline. |  | `tests/test_api_workflows.py`, `tests/test_core.py`, `tests/test_errors.py`, `tests/test_models.py`, `tests/test_ops.py`, `tests/test_skills.py` |
 | `tests/test_access.py` | Roles, gate signing, project members, the account page, and the idle timeout. Only the model is ever scripted; none of this needs it. | `__init__.py`, `app.py`, `config.py`, `core/auth.py`, `db.py`, `maf/observability.py`, `tests/test_api_workflows.py` |  |
-| `tests/test_api_workflows.py` | Integration: real FastAPI, real SQLite, real git, real pytest, real MAF workflow engine. Only the model is scripted. | `app.py`, `config.py`, `core/auth.py`, `core/doc_checks.py`, `core/documents.py`, `core/models.py`, `core/security.py`, `db.py`, and 10 more | `tests/test_access.py`, `tests/test_errors.py`, `tests/test_models.py`, `tests/test_ops.py` |
+| `tests/test_api_workflows.py` | Integration: real FastAPI, real SQLite, real git, real pytest, real MAF workflow engine. Only the model is scripted. | `app.py`, `config.py`, `core/auth.py`, `core/doc_checks.py`, `core/documents.py`, `core/models.py`, `core/security.py`, `db.py`, and 10 more | `tests/test_access.py`, `tests/test_errors.py`, `tests/test_models.py`, `tests/test_ops.py`, `tests/test_skills.py` |
 | `tests/test_core.py` | Unit tests for governance, versioning, ingest safety, scanners, and QE rules. No network, no model. | `__init__.py`, `config.py`, `core/doc_checks.py`, `core/documents.py`, `core/files.py`, `core/gates.py`, `core/gherkin.py`, `core/ledger.py`, and 21 more |  |
 | `tests/test_errors.py` | Typed errors, failure records, retry from the failed stage, kept batches, and the API error shape. Only the model is scripted. | `__init__.py`, `app.py`, `config.py`, `core/auth.py`, `core/errors.py`, `db.py`, `maf/engine.py`, `maf/llm.py`, and 7 more | `tests/test_models.py` |
 | `tests/test_migration_006.py` | Migration 006 renames agent keys to the plugin names. A database at schema 005 with history under the old keys must lose nothing. | `__init__.py`, `config.py`, `core/ledger.py`, `core/prompts.py`, `core/security.py`, `db.py`, `maf/agents/__init__.py` |  |
 | `tests/test_models.py` | Models per account, the order a call picks one, and daily, weekly, monthly, and per-model token limits. Only the model is scripted. | `__init__.py`, `config.py`, `core/auth.py`, `core/models.py`, `db.py`, `maf/evals.py`, `maf/llm.py`, `maf/runtime.py`, and 3 more |  |
 | `tests/test_ops.py` | Phase 2, second half: observability paging, one active run, daily JSON logs, run file removal. | `__init__.py`, `app.py`, `config.py`, `core/logs.py`, `db.py`, `maf/llm.py`, `tests/scripted_client.py`, `tests/test_api_workflows.py` |  |
+| `tests/test_skills.py` | Plugin skills on MAF: loading, the agent mapping, injection into the message, prompt references, the chat pick, the live tool check, skill evals, the API, and the package. | `app.py`, `core/auth.py`, `core/models.py`, `core/skills.py`, `db.py`, `maf/agents/__init__.py`, `maf/evals.py`, `maf/governance.py`, and 5 more |  |
 
 ## Scripts and deployment
 
@@ -347,6 +354,41 @@ The project has 219 files, not counting screenshots.
 | `progress.md` | Timestamped activity log written by hooks |  |  |
 | `pytest.ini` | Test settings |  |  |
 | `requirements.txt` | Python dependencies |  |  |
+| `skills/README.md` |  |  |  |
+| `skills/analyzing-repositories/SKILL.md` |  |  |  |
+| `skills/analyzing-repositories/evals/evals.json` |  |  |  |
+| `skills/analyzing-repositories/references/STACK_SIGNALS.md` |  |  |  |
+| `skills/authoring-user-stories/SKILL.md` |  |  |  |
+| `skills/authoring-user-stories/evals/evals.json` |  |  |  |
+| `skills/authoring-user-stories/references/TEMPLATE.md` |  |  |  |
+| `skills/building-qe-dashboard/SKILL.md` |  |  |  |
+| `skills/building-qe-dashboard/evals/evals.json` |  |  |  |
+| `skills/designing-test-cases/SKILL.md` |  |  |  |
+| `skills/designing-test-cases/evals/evals.json` |  |  |  |
+| `skills/designing-test-cases/references/ORACLE_TYPES.md` |  |  |  |
+| `skills/executing-tests/SKILL.md` |  |  |  |
+| `skills/executing-tests/evals/evals.json` |  |  |  |
+| `skills/executing-tests/references/RUNNER_REGISTRY.md` |  |  |  |
+| `skills/executing-tests/references/VERSIONS.md` |  |  |  |
+| `skills/extracting-requirements/SKILL.md` |  |  |  |
+| `skills/extracting-requirements/evals/evals.json` |  |  |  |
+| `skills/extracting-requirements/references/REQUIREMENT_RULES.md` |  |  |  |
+| `skills/generating-test-code/SKILL.md` |  |  |  |
+| `skills/generating-test-code/assets/playwright.config.ts` |  |  |  |
+| `skills/generating-test-code/evals/evals.json` |  |  |  |
+| `skills/generating-test-code/references/LANGUAGE_RULES.md` |  |  |  |
+| `skills/generating-test-code/references/VERSIONS.md` |  |  |  |
+| `skills/generating-test-data/SKILL.md` |  |  |  |
+| `skills/generating-test-data/assets/schema-templates.json` |  |  |  |
+| `skills/generating-test-data/evals/evals.json` |  |  |  |
+| `skills/healing-tests/SKILL.md` |  |  |  |
+| `skills/healing-tests/evals/evals.json` |  |  |  |
+| `skills/healing-tests/references/HEALING_PATTERNS.md` |  |  |  |
+| `skills/planning-tests/SKILL.md` |  |  |  |
+| `skills/planning-tests/evals/evals.json` |  |  |  |
+| `skills/planning-tests/references/LEVEL_GUIDELINES.md` |  |  |  |
+| `skills/tracing-coverage/SKILL.md` |  |  |  |
+| `skills/tracing-coverage/evals/evals.json` |  |  |  |
 | `specs.md` | Requirements with acceptance checks |  |  |
 | `src/backend/__init__.py` | Marks the backend package |  | `api/common.py`, `app.py`, `core/logs.py`, `tests/conftest.py`, `tests/test_access.py`, `tests/test_core.py`, `tests/test_errors.py`, `tests/test_migration_006.py`, and 2 more |
 | `tasks.md` | Status of all work |  |  |

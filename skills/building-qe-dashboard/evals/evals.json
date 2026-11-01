@@ -1,0 +1,38 @@
+[
+  {
+    "skills": [
+      "building-qe-dashboard"
+    ],
+    "query": "Build the dashboard for app shop.",
+    "files": [],
+    "expected_behavior": [
+      "Writes no HTML file",
+      "Points the user to /agentic-qe:qe-panel --serve, which prints or starts the live dashboard link",
+      "Does not copy the access link into any file"
+    ]
+  },
+  {
+    "skills": [
+      "building-qe-dashboard"
+    ],
+    "query": "Build the dashboard but there is no execution evidence.",
+    "files": [],
+    "expected_behavior": [
+      "Does not show a fake pass rate",
+      "Reports missing evidence and points to /agentic-qe:qe-execute",
+      "Creates no files"
+    ]
+  },
+  {
+    "skills": [
+      "building-qe-dashboard"
+    ],
+    "query": "Write the report to docs/qe/shop/REPORT.html.",
+    "files": [],
+    "expected_behavior": [
+      "Explains that 1.4.0 replaced the HTML reports with the live dashboard and one HTML snapshot",
+      "Points to /agentic-qe:qe-panel --export, which writes docs/qe/shop/09-release/dashboard.html",
+      "Does not write a hand-made REPORT.html"
+    ]
+  }
+]

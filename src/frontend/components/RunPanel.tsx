@@ -60,7 +60,7 @@ function LiveLog({ events, live }: { events: any[]; live: boolean }) {
   useEffect(() => {
     if (follow && box.current) box.current.scrollTop = box.current.scrollHeight;
   }, [events, follow]);
-  const color: Record<string, string> = { error: "text-rose-400", warning: "text-amber-400", review: "text-sky-300", test: "text-emerald-300", artifact: "text-emerald-300", agent: "text-indigo-300", agent_call: "text-indigo-300", tool: "text-slate-400" };
+  const color: Record<string, string> = { error: "text-rose-400", warning: "text-amber-400", review: "text-sky-300", test: "text-emerald-300", artifact: "text-emerald-300", agent: "text-indigo-300", agent_call: "text-indigo-300", skill: "text-fuchsia-300", tool: "text-slate-400" };
   return (
     <div data-testid="live-log">
       <div className="mb-1 flex items-center justify-between text-xs">

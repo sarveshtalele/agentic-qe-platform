@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Button, Card, ErrorNote, Field, inputClass, PageTitle, useToast } from "../../components/ui";
 import { AppShell } from "../../components/AppShell";
 import { useAuth } from "../../components/AuthGate";
-import { api } from "../../lib/api";
+import { api, when } from "../../lib/api";
 
 /** The models on the one endpoint. A listed name may not work, so loaded names start off and each has a Test that sends a real short completion. */
 function ModelList() {
@@ -14,6 +14,7 @@ function ModelList() {
   const [zone, setZone] = useState("");
   const [results, setResults] = useState<Record<string, any>>({});
   const [testing, setTesting] = useState("");
+  const [checking, setChecking] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const toast = useToast();
@@ -43,6 +44,11 @@ function ModelList() {
     }
     setTesting("");
   };
+  const checkTools = async (model: string) => {
+    setChecking(model);
+    await guard(async () => { await api("/models/tool-check", { json: { name: model } }); });
+    setChecking("");
+  };
   const loadFromProxy = async () => {
     setLoading(true);
     await guard(async () => {
@@ -64,8 +70,13 @@ function ModelList() {
                   <label className="flex items-center gap-1 text-xs"><input type="checkbox" aria-label={`Enable ${m.name}`} checked={m.enabled} onChange={(e) => patch(m.name, { enabled: e.target.checked })} />On</label>
                   <label className="flex items-center gap-1 text-xs"><input type="radio" name="default-model" aria-label={`Default ${m.name}`} checked={m.is_default} disabled={!m.enabled} onChange={() => patch(m.name, { is_default: true })} />Default</label>
                   <Button variant="secondary" className="!px-2 !py-1 !text-xs" busy={testing === m.name} onClick={() => test(m.name)}>Test</Button>
+                  <Button variant="secondary" className="!px-2 !py-1 !text-xs" busy={checking === m.name} onClick={() => checkTools(m.name)}>Check tools</Button>
                   <button aria-label={`Remove ${m.name}`} onClick={() => guard(() => api(`/models?name=${encodeURIComponent(m.name)}`, { method: "DELETE" }))} className="text-slate-400 hover:text-rose-500"><Trash2 className="h-4 w-4" /></button>
                 </div>
+                <p className="text-xs" data-testid={`tool-status-${m.name}`}>
+                  Tools: {m.tools_status === "passed" ? <b className="text-emerald-600 dark:text-emerald-400">passed</b> : m.tools_status === "failed" ? <b className="text-rose-500">failed</b> : <span className="text-slate-500">not checked</span>}
+                  {m.tools_status && <span className="text-slate-500"> ({m.tools_reason}) checked {when(m.tools_checked_at)}, max_tokens {m.tools_max_tokens}</span>}
+                </p>
                 {results[m.name] && (results[m.name].ok ? <p className="text-xs text-emerald-600 dark:text-emerald-400">Works: replied in {results[m.name].latency_ms} ms, {results[m.name].tokens} tokens. Reply: {results[m.name].reply}</p> : <p role="alert" className="text-xs text-rose-500">{results[m.name].error}</p>)}
               </li>
             ))}
@@ -164,7 +175,7 @@ export default function SettingsPage() {
     <AppShell>
       <PageTitle title="Settings" />
       <div className="space-y-4">
-        {health && <Card title="System health"><ul className="flex flex-wrap gap-3 text-sm">{[["Git", health.git], ["Node.js", health.node], ["npx", health.npx], ["Ruff", health.ruff], ["Model", health.llm]].map(([name, ok]) => <li key={name as string} className="flex items-center gap-1.5"><span className={`h-2 w-2 rounded-full ${ok ? "bg-emerald-500" : "bg-rose-500"}`} />{name} {ok ? "ready" : "missing"}</li>)}</ul></Card>}
+        {health && <Card title="System health"><ul className="flex flex-wrap gap-3 text-sm">{[["Git", health.git], ["Node.js", health.node], ["npx", health.npx], ["Ruff", health.ruff], ["Model", health.llm], ["Skills", health.skills && health.skills.loaded > 0 && health.skills.problems === 0]].map(([name, ok]) => <li key={name as string} className="flex items-center gap-1.5"><span className={`h-2 w-2 rounded-full ${ok ? "bg-emerald-500" : "bg-rose-500"}`} />{name} {ok ? "ready" : "missing"}</li>)}</ul>{health.skills && <p className="mt-2 text-xs text-slate-500" data-testid="health-skills">{health.skills.loaded} skills loaded{health.skills.problems ? `, ${health.skills.problems} could not be loaded (see the server log)` : ""}. Tool check on enabled models: {health.tool_checks.passed} passed, {health.tool_checks.failed} failed, {health.tool_checks.not_checked} not checked.</p>}</Card>}
         <Card title="Model provider">
           <div className="space-y-3">
             <Field label="OpenAI-compatible base URL" hint="OpenAI, Azure OpenAI, LiteLLM, Ollama, or any compatible endpoint."><input name="base-url" className={inputClass} value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="https://api.openai.com/v1" /></Field>

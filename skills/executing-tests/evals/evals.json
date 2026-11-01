@@ -1,0 +1,38 @@
+[
+  {
+    "skills": [
+      "executing-tests"
+    ],
+    "query": "Run the generated Playwright suite.",
+    "files": [],
+    "expected_behavior": [
+      "Uses @playwright/test via npx --no-install playwright test with BASE_URL set",
+      "Captures JUnit or JSON evidence",
+      "Marks PASS only with at least one passing test and zero failures"
+    ]
+  },
+  {
+    "skills": [
+      "executing-tests"
+    ],
+    "query": "Run the test suite but it contains zero tests.",
+    "files": [],
+    "expected_behavior": [
+      "Marks the verdict INCONCLUSIVE, not PASS",
+      "Reports the cause",
+      "Does not claim success"
+    ]
+  },
+  {
+    "skills": [
+      "executing-tests"
+    ],
+    "query": "Greenfield first run of test-first suite; app does not exist.",
+    "files": [],
+    "expected_behavior": [
+      "Records the failures as a RED baseline",
+      "Does not label them as app defects",
+      "Does not send them to healing as flaky"
+    ]
+  }
+]

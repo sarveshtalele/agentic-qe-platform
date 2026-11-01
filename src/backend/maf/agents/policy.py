@@ -17,3 +17,4 @@ class AgentPolicy:
     chat_tools: frozenset | None = None  # None means this agent is not offered in chat
     max_tokens: int = 16_000
     can_change_code: bool = False
+    skills: tuple[str, ...] = ()  # folder names under skills/ (the agentic-qe plugin skills this agent applies)

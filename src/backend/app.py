@@ -22,6 +22,7 @@ from backend import config
 from backend import db as database
 from backend.api import ROUTERS
 from backend.core import auth, documents, files, gates, logs, models, prompts
+from backend.core import skills as skill_lib
 from backend.core.errors import AqeError, classify, stack_of
 from backend.core.security import install_log_mask, redact, PathEscape
 from backend.db import new_id
@@ -50,6 +51,7 @@ def fail(request: Request | None, status: int, message: str, *, code: str | None
 async def lifespan(_: FastAPI):
     database.migrate()
     prompts.seed()
+    skill_lib.load()  # a skill MAF cannot load is a warning in the log and is absent
     files.seed_templates()
     models.seed_from_config(llm.current()["model"])
     engine.recover()
@@ -171,4 +173,6 @@ async def unexpected(request: Request, exc: Exception):
 @app.get("/api/health")
 def health():
     """Doctor: what this machine can actually run."""
-    return {"status": "ok", "llm": llm.public()["configured"], "git": bool(shutil.which("git")), "node": bool(shutil.which("node")), "npx": bool(shutil.which("npx")), "ruff": bool(shutil.which("ruff") or shutil.which("ruff", path=str(Path(sys.executable).parent)))}
+    checks = [m["tools_status"] for m in models.list_models() if m["enabled"]]
+    return {"status": "ok", "llm": llm.public()["configured"], "skills": {"loaded": len(skill_lib.names()), "problems": len(skill_lib.problems())},
+            "tool_checks": {"passed": checks.count("passed"), "failed": checks.count("failed"), "not_checked": checks.count("")}, "git": bool(shutil.which("git")), "node": bool(shutil.which("node")), "npx": bool(shutil.which("npx")), "ruff": bool(shutil.which("ruff") or shutil.which("ruff", path=str(Path(sys.executable).parent)))}

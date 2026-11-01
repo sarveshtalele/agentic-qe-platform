@@ -492,14 +492,20 @@ def test_manual_gate_decision_keeps_order(client, project):
 def test_agent_eval_uses_maf_and_records_prompt_version(client):
     feature = "Feature: Login\n\n  @FR-001 @FR-002\n  Scenario: Sign in\n    Given a member\n    When they sign in\n    Then they see home\n"
     document = "## Scope\n## Functional Requirements\nFR-001 Reset link valid for 30 minutes\n## Open Questions\n"
-    llm.set_client_override(ScriptedClient([("Convert into a Gherkin feature", feature), ("Write the document", document)]))
+    story = "**US-CALC-001**: As a shopper, I want to divide so that I get a quotient.\nGiven two numbers\nWhen I divide\nThen I see the quotient\nException: divide by zero"
+    llm.set_client_override(ScriptedClient([("Convert into a Gherkin feature", feature), ("Write the document", document), ("web calculator", story)]))
     result = client.post("/api/agents/business-analyst/evals").json()
-    assert result["total"] == 5 and result["passed"] == 5 and result["prompt_ref"].startswith("business-analyst@v")
+    # the five original cases keep their exact expectations; the plugin skill's cases join them (one has code checks, two need a grader and are not scored)
+    original = [r for r in result["results"] if not r["skill"]]
+    assert len(original) == 5 and all(r["passed"] for r in original) and result["prompt_ref"].startswith("business-analyst@v")
+    skill_results = [r for r in result["results"] if r["skill"]]
+    assert [r["skill"] for r in skill_results] == ["authoring-user-stories"] * 3 and [r["passed"] for r in skill_results] == [True, None, None]
+    assert result["total"] == 6 and result["passed"] == 6 and result["needs_grader"] == 2
     assert client.get("/api/evals/business-analyst").json()[0]["id"] == result["id"]
-    llm.set_client_override(ScriptedClient([("Convert into a Gherkin feature", "not gherkin"), ("Write the document", document)]))
+    llm.set_client_override(ScriptedClient([("Convert into a Gherkin feature", "not gherkin"), ("Write the document", document), ("web calculator", story)]))
     failed = client.post("/api/agents/business-analyst/evals").json()
     gherkin_cases = [r for r in failed["results"] if r["name"] in {"login_feature", "injection"}]
-    assert failed["passed"] == 3 and len(gherkin_cases) == 2 and all(not r["passed"] and "valid_gherkin" in r["failed_checks"] for r in gherkin_cases)
+    assert failed["passed"] == 4 and len(gherkin_cases) == 2 and all(not r["passed"] and "valid_gherkin" in r["failed_checks"] for r in gherkin_cases)  # 3 original + the skill case
     assert "prj_agent_evals" not in [p["id"] for p in client.get("/api/projects").json()]
 
 

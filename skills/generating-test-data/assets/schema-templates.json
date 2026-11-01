@@ -1,0 +1,24 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "AgenticQEDataTemplates",
+  "definitions": {
+    "user": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["admin", "customer", "viewer"] }
+      },
+      "required": ["id", "email", "role"]
+    },
+    "order": {
+      "type": "object",
+      "properties": {
+        "orderId": { "type": "string" },
+        "quantity": { "type": "integer", "minimum": 1, "maximum": 100 },
+        "price": { "type": "number", "minimum": 0 }
+      },
+      "required": ["orderId", "quantity", "price"]
+    }
+  }
+}

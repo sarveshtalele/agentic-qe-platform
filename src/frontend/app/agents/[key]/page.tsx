@@ -85,6 +85,7 @@ function Detail({ agentKey }: { agentKey: string }) {
           {item.risk === "high" && <tr data-testid="impact-controls"><th>Controls on code changes</th><td><ul className="space-y-1 text-xs">{CHANGE_CONTROLS.map(([name, effect]) => <li key={name}><b>{name}.</b> {effect}</li>)}</ul></td></tr>}
           <tr><th>Status</th><td>{item.enabled ? "Enabled" : "Disabled"}</td></tr>
           <tr><th>Prompt version</th><td className="mono text-xs">{item.prompt_ref}</td></tr>
+          <tr><th>Skills</th><td className="mono text-xs" data-testid="agent-skills">{item.skills?.length ? item.skills.join(", ") : "None"}</td></tr>
           <tr><th>Workflow tools</th><td className="mono text-xs">{item.workflow_tools.join(", ") || "None. It works only from the text it is given"}</td></tr>
           <tr><th>Chat tools</th><td className="mono text-xs">{item.in_chat ? item.chat_tools.join(", ") : "Not offered in chat"}</td></tr>
           <tr><th>Can change code</th><td>{item.can_change_code ? "Yes, on a branch, after human review" : "No"}</td></tr>
@@ -117,7 +118,8 @@ function Detail({ agentKey }: { agentKey: string }) {
             <p className="mb-2 text-xs text-slate-500">Latest on <span className="mono">{latest.prompt_ref}</span>, {when(latest.created_at)}</p>
             <ul className="space-y-1 text-sm">{latest.results.map((r: any) => (
               <li key={r.name}>
-                <Badge tone={r.passed ? "emerald" : "rose"}>{r.passed ? "pass" : "fail"}</Badge> <Badge>{r.category}</Badge> {r.name.replace(/_/g, " ")}
+                {r.passed === null ? <Badge tone="amber">needs grader</Badge> : <Badge tone={r.passed ? "emerald" : "rose"}>{r.passed ? "pass" : "fail"}</Badge>} <Badge>{r.category}</Badge> {r.skill && <Badge tone="indigo">{`skill ${r.skill}`}</Badge>} {r.name.replace(/_/g, " ")}
+                {r.passed === null && <p className="ml-1 text-xs text-slate-500">Not scored: the plugin wrote these expectations for a person or a grader, and no code can check them yet.</p>}
                 {!r.passed && <p className="mono ml-1 text-xs text-rose-500">{r.failed_checks.join("; ")}</p>}
               </li>
             ))}</ul>

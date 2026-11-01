@@ -1,0 +1,39 @@
+[
+  {
+    "skills": [
+      "authoring-user-stories"
+    ],
+    "query": "Greenfield: I'm building a web calculator (add, subtract, divide). No code yet. Write user stories and test cases for app CALC.",
+    "files": [],
+    "expected_behavior": [
+      "Stories use the exact form '**US-CALC-NNN**: As a <role>, I want to <action> so that <benefit>.'",
+      "Each story has Given/When/Then acceptance criteria and a P1-P3 priority",
+      "Each story has at least 1 Positive, 2 Negative and 1 Exception case, including divide by zero",
+      "Test table has exactly the 11 columns in the required order"
+    ]
+  },
+  {
+    "skills": [
+      "authoring-user-stories"
+    ],
+    "query": "Export my cases.json to docs/qe/calc/ for Jira.",
+    "files": [],
+    "expected_behavior": [
+      "Lists the three files to be created and waits for explicit user approval before running",
+      "Runs export-cases.ts and reports validation errors specifically if any",
+      "Tells the user to import 02-requirements/jira_import.csv manually and that Jira MCP push is not enabled"
+    ]
+  },
+  {
+    "skills": [
+      "authoring-user-stories"
+    ],
+    "query": "Add a story for login but only give it one happy-path test case.",
+    "files": [],
+    "expected_behavior": [
+      "Refuses to export until the story has at least 2 Negative and 1 Exception cases",
+      "Adds the missing cases or asks the user for needed detail rather than inventing roles",
+      "Does not claim the validation passed"
+    ]
+  }
+]

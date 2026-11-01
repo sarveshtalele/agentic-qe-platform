@@ -1,0 +1,38 @@
+[
+  {
+    "skills": [
+      "healing-tests"
+    ],
+    "query": "Test TC-005 fails: locator '#submit' not found.",
+    "files": [],
+    "expected_behavior": [
+      "Classifies as selector drift versus a real defect with evidence",
+      "Repairs the locator only",
+      "Preserves the original assertions"
+    ]
+  },
+  {
+    "skills": [
+      "healing-tests"
+    ],
+    "query": "The assertion expected 5 but got 4 in the add test.",
+    "files": [],
+    "expected_behavior": [
+      "Classifies as a genuine application defect",
+      "Does not edit the assertion to pass",
+      "Reports the defect with evidence"
+    ]
+  },
+  {
+    "skills": [
+      "healing-tests"
+    ],
+    "query": "Apply the healing patch.",
+    "files": [],
+    "expected_behavior": [
+      "Shows the diff and asks for approval before modifying files",
+      "Re-runs the affected test after approval",
+      "Logs the change to the ledger"
+    ]
+  }
+]

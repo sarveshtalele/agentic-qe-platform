@@ -1,7 +1,9 @@
 """Model provider settings. Environment wins on first run; the Settings page can override and encrypts the key."""
 from __future__ import annotations
 
+import json
 import os
+import secrets
 import time
 
 import httpx
@@ -9,8 +11,9 @@ from agent_framework.openai import OpenAIChatCompletionClient
 from openai import AsyncOpenAI
 
 from backend.config import MODEL_TIMEOUT
+from backend.core import models
 from backend.core.errors import ModelEndpointError
-from backend.core.security import decrypt, encrypt
+from backend.core.security import decrypt, encrypt, redact
 from backend.db import db
 
 
@@ -121,3 +124,73 @@ async def proxy_models() -> list[str]:
         raise ModelEndpointError(f"The endpoint answered HTTP {response.status_code} for /models: {response.text[:200]}")
     found = {str(item.get("id") or "").strip() for item in response.json().get("data", []) if isinstance(item, dict)}
     return sorted(name for name in found if name and "*" not in name)
+
+
+TOOL_CHECK_MAX_TOKENS = 2000  # 400 left Claude and GPT models with nothing: reasoning used the whole limit
+
+
+def _scrubbed(text: str, key: str) -> str:
+    return redact(text.replace(key, "[key]") if key else text)[:300]
+
+
+async def tool_check(model: str, *, max_tokens: int = TOOL_CHECK_MAX_TOKENS, transport: httpx.AsyncBaseTransport | None = None) -> dict:
+    """One real tool-call round trip through the endpoint, to see whether this model can use tools here.
+
+    The model is offered one tool with a unique name. The tool's reply holds a unique token. It passes only if the model called
+    exactly that tool and its final reply holds the token. Measured on 2026-11-01, models called tools never offered and ignored
+    tool results, so a name on the proxy's list proves nothing. The result is stored on the model row. `transport` is a test seam.
+    """
+    cfg = current()
+    base, key = (cfg["base_url"] or "https://api.openai.com/v1").rstrip("/"), cfg["api_key"]
+    if not key:
+        raise LLMNotConfigured("No API key configured. Save the base URL and API key first.")
+    tool, token = f"aqe_probe_{secrets.token_hex(4)}", f"AQE-{secrets.token_hex(6)}"
+    tools = [{"type": "function", "function": {"name": tool, "description": "Returns a short reference value for this check.", "parameters": {"type": "object", "properties": {}}}}]
+    messages: list[dict] = [{"role": "user", "content": f"Please use the function {tool} once, with no arguments. When it returns, tell me the reference value it gave you and nothing else."}]
+    seen: list[str] = []
+    started = time.perf_counter()
+
+    def finish(passed: bool, reason: str) -> dict:
+        reason = _scrubbed(reason, key)
+        result = {"model": model, "status": "passed" if passed else "failed", "reason": reason, "max_tokens": max_tokens, "tools_called": seen, "latency_ms": int((time.perf_counter() - started) * 1000)}
+        try:
+            result["checked_at"] = models.set_tool_check(model, passed, reason, max_tokens)["tools_checked_at"]
+        except KeyError:
+            result["checked_at"] = None  # not in the model list, so there is no row to keep it on
+        return result
+
+    async def ask(http: httpx.AsyncClient) -> tuple[dict | None, str]:
+        response = await http.post(f"{base}/chat/completions", headers={"Authorization": f"Bearer {key}"},
+                                   json={"model": model, "messages": messages, "tools": tools, "max_tokens": max_tokens})
+        if response.status_code != 200:
+            return None, f"HTTP {response.status_code}: {_scrubbed(response.text, key)}"
+        choice = (response.json().get("choices") or [{}])[0]
+        return choice, ""
+
+    try:
+        async with httpx.AsyncClient(timeout=90, transport=transport) as http:
+            first, problem = await ask(http)
+            if first is None:
+                return finish(False, problem)
+            message = first.get("message") or {}
+            calls = message.get("tool_calls") or []
+            seen.extend(str((c.get("function") or {}).get("name") or "") for c in calls)
+            if not calls:
+                said = " ".join((message.get("content") or "").split())
+                return finish(False, f"Did not call the tool. It said: {said[:160]}" if said else f"Did not call the tool and returned nothing (finish reason {first.get('finish_reason') or 'none'}, max_tokens {max_tokens}).")
+            if seen != [tool]:
+                other = [n for n in seen if n != tool]
+                return finish(False, f"Called {', '.join(other) or 'the tool more than once'} instead of exactly {tool}" + (", which was not offered." if other else "."))
+            messages.append({"role": "assistant", "content": message.get("content") or None, "tool_calls": [{"id": c.get("id"), "type": "function", "function": c.get("function")} for c in calls]})
+            messages.append({"role": "tool", "tool_call_id": calls[0].get("id"), "content": json.dumps({"reference": token})})
+            second, problem = await ask(http)
+            if second is None:
+                return finish(False, f"The call to the tool worked, but sending its result failed. {problem}")
+    except httpx.HTTPError as exc:
+        raise ModelEndpointError(f"Cannot reach {base}: {_scrubbed(str(exc) or type(exc).__name__, key)}") from exc
+    reply = ((second.get("message") or {}).get("content") or "").strip()
+    if token in reply:
+        return finish(True, "Called the offered tool and used its result.")
+    if not reply:
+        return finish(False, f"Called the tool, then returned nothing (finish reason {second.get('finish_reason') or 'none'}, max_tokens {max_tokens}).")
+    return finish(False, f"Called the tool but ignored its result. It said: {' '.join(reply.split())[:160]}")
