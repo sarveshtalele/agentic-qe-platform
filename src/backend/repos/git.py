@@ -46,12 +46,17 @@ def validate_url(url: str) -> str:
     return url.strip()
 
 
-def clone(url: str, target: Path, ref: str = "", token: str | None = None, depth: int = 100) -> None:
+def clone(url: str, target: Path, ref: str = "", token: str | None = None) -> None:
+    """A full clone: scans, history, and fixes all work from the complete repository."""
     url = validate_url(url)
-    args = ["-c", "core.symlinks=false", "clone", "--depth", str(depth), "--no-tags"]
+    args = ["-c", "core.symlinks=false", "clone", "--no-tags"]
     if ref:
         args += ["--branch", ref]
     run([*args, "--", url, str(target)], token=token, timeout=600)
+
+
+def is_shallow(repo: Path) -> bool:
+    return run(["rev-parse", "--is-shallow-repository"], cwd=repo, check=False) == "true"
 
 
 def head(repo: Path) -> str:

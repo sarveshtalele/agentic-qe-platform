@@ -16,7 +16,7 @@ from backend.api.common import _project, _save_upload
 from backend.config import project_dir, repo_dir
 from backend.core.security import safe_path
 from backend.maf import agui, engine, evals, governance, llm, workflows  # noqa: F401 - workflows registers definitions
-from backend.repos import ingest, scan
+from backend.repos import ingest, scan, sandbox
 
 router = APIRouter()
 
@@ -30,7 +30,8 @@ class GitIn(BaseModel):
 @router.get("/api/projects/{project_id}/repo")
 def get_repo(project_id: str):
     _project(project_id)
-    return ingest.get(project_id)
+    repo = ingest.get(project_id)
+    return {**repo, "sandbox": sandbox.info(project_id)} if repo else None
 
 
 @router.post("/api/projects/{project_id}/repo/git")

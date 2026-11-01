@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 
 from backend.core.security import redact_value, safe_path, scan_secrets
+from backend.repos import scan
 from backend.repos.scan import _read, iter_files
 
 SEVERITY_BY_PREFIX = {"S": "high", "F": "medium", "B": "medium", "E9": "high", "PL": "low", "UP": "info"}
@@ -141,4 +142,13 @@ def rank_files_for_review(root: Path, analysis: dict, limit: int = 12) -> list[s
     return [p for p, _ in sorted(score.items(), key=lambda kv: -kv[1])][:limit]
 
 
-__all__ = ["run_all", "verify_quote", "rank_files_for_review", "line_at", "redact_value"]
+NOT_REVIEWED = {".css", ".scss", ".html", ".md", ".json", ".yaml", ".yml", ".toml"}
+
+
+def review_targets(root: Path) -> list[str]:
+    """Every source file in the repository. Tests are left out because they are not what ships."""
+    files = [f for f in scan.tree(root, limit=100_000) if Path(f).suffix.lower() in scan.LANGUAGES and Path(f).suffix.lower() not in NOT_REVIEWED]
+    return [f for f in files if not scan.TEST_NAME.search(f)]
+
+
+__all__ = ["run_all", "verify_quote", "rank_files_for_review", "review_targets", "line_at", "redact_value"]

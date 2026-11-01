@@ -77,10 +77,17 @@ export function ErrorNote({ message }: { message?: string | null }) {
   return <p role="alert" className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-700 dark:text-rose-300">{message}</p>;
 }
 
+// document text is untrusted, and loading an outside image would tell that site who is reading
+function SafeImage({ src, alt }: { src?: unknown; alt?: string }) {
+  const url = typeof src === "string" ? src : "";
+  if (url.startsWith("/api/documents/")) return <img src={url} alt={alt || ""} className="my-2 max-w-full rounded-lg" />; // eslint-disable-line @next/next/no-img-element
+  return <span className="text-xs text-slate-500">[Image from another site not loaded: {alt || url}]</span>;
+}
+
 export function Markdown({ children }: { children: string }) {
   return (
     <div className="prose-atlas">
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>{children}</ReactMarkdown>
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ img: SafeImage }}>{children}</ReactMarkdown>
     </div>
   );
 }

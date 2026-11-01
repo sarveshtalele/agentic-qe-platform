@@ -14,7 +14,6 @@ export default function BugsPage() {
   const [severity, setSeverity] = useState("");
   const [runId, setRunId] = useState<string | null>(null);
   const [trace, setTrace] = useState("");
-  const [depth, setDepth] = useState(8);
   const [error, setError] = useState("");
   const load = useCallback(() => api(`/projects/${project.id}/findings`).then(setFindings), [project.id]);
   useEffect(() => {
@@ -37,10 +36,10 @@ export default function BugsPage() {
   const shown = findings.filter((f) => !severity || f.severity === severity);
   return (
     <>
-      <PageTitle title="Bug Scan" subtitle="Ruff, secret, code, and manifest scanners plus agent review. An agent finding is kept only if its quote exists in the file." actions={
+      <PageTitle title="Bug Scan" subtitle="Static scanners and an agent review of every source file in the project sandbox. An agent finding is kept only if its quote exists in the file." actions={
         <div className="flex items-center gap-2">
-          <label className="text-xs">Files for agent review <input aria-label="Files for agent review" type="number" min={0} max={40} className={`${inputClass} ml-1 inline w-16`} value={depth} onChange={(e) => setDepth(Number(e.target.value))} /></label>
-          <Button onClick={() => start("bug_scan", { review_files: depth })}><Radar className="h-4 w-4" /> Scan repository</Button>
+          <Button onClick={() => start("bug_scan", {})}><Radar className="h-4 w-4" /> Scan repository</Button>
+          {findings.length > 0 && <Button variant="secondary" onClick={() => start("change", { kind: "bugfix", fix_all: true })} title="Fixes up to 15 of the most severe open findings on one branch"><Wrench className="h-4 w-4" /> Fix all</Button>}
         </div>
       } />
       <ErrorNote message={error} />

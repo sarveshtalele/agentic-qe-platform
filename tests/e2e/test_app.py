@@ -2,6 +2,7 @@
 
 Tests run in file order and share one project. Screenshots go to docs/evidence as test evidence.
 """
+import base64
 import io
 import re
 import time
@@ -120,8 +121,27 @@ def test_04b_rename_project_docs_and_brand(page):
     page.get_by_role("button", name="Rename Agentic QE plugin").click()
     expect(page.get_by_role("heading", name="Agentic QE repository")).to_be_visible()
     page.get_by_role("link", name="Documentation").click()
-    expect(page.get_by_role("heading", name="Run the QE lifecycle")).to_be_visible()
+    expect(page).to_have_url(re.compile("/docs/introduction"))
+    expect(page.get_by_role("heading", level=1, name="Introduction")).to_be_visible()
     shot(page, "05b-documentation")
+    page.get_by_role("navigation", name="Documentation").get_by_role("link", name="QE Studio").click()
+    expect(page.get_by_role("heading", level=1, name="QE Studio")).to_be_visible()
+    expect(page.get_by_test_id("docs-toc")).to_contain_text("The gates")
+    page.get_by_role("navigation", name="Previous and next pages").get_by_role("link", name=re.compile("Copilot")).click()
+    expect(page.get_by_role("heading", level=1, name="Copilot")).to_be_visible()
+    page.get_by_label("Search documentation").fill("traceback")
+    expect(page.get_by_test_id("docs-search-results")).to_contain_text("Bug Scan")
+    page.get_by_role("link", name="Open app").click()
+    expect(page.get_by_test_id("stat-projects")).to_be_visible()
+    page.get_by_test_id("card-bugs").first.click()
+    expect(page.get_by_role("heading", name="Bug Scan")).to_be_visible()
+    expect(page.locator('ol[aria-label="Quality gates"]')).to_have_count(0)
+    page.goto(UI)
+    page.get_by_test_id("stat-findings").click()
+    expect(page.get_by_role("heading", name="Open findings")).to_be_visible()
+    page.goto(UI)
+    page.get_by_test_id("stat-documents").click()
+    expect(page.get_by_role("heading", level=1, name="Documents")).to_be_visible()
 
 
 def test_05_settings_connection_is_real(page):
@@ -159,7 +179,7 @@ def test_07_gherkin_is_editable_valid_and_downloadable(page):
     page.goto(UI + state["gherkin"])
     expect(page.get_by_test_id("gherkin-status")).to_contain_text("Valid Gherkin")
     expect(page.locator("pre").filter(has_text="Feature:")).to_be_visible()
-    page.get_by_role("tab", name="edit").click()
+    page.get_by_role("tab", name="source").click()
     box = page.get_by_label("Document content")
     original = box.input_value()
     assert original.lstrip().startswith(("Feature:", "@"))
@@ -176,11 +196,73 @@ def test_07_gherkin_is_editable_valid_and_downloadable(page):
     assert info.value.suggested_filename.endswith(".feature") and "Manager reviews audit" in Path(info.value.path()).read_text()
 
 
+def test_07b_gherkin_examples_are_an_editable_table(page):
+    page.goto(UI + state["gherkin"])
+    page.get_by_role("tab", name="source").click()
+    box = page.get_by_label("Document content")
+    box.fill(box.input_value() + "\n  Scenario Outline: Reserve quantities\n    Given stock of <stock>\n    When I reserve <wanted>\n    Then the result is <left>\n\n    Examples:\n      | stock | wanted | left |\n      | 5 | 2 | 3 |\n")
+    page.get_by_role("tab", name="document").click()
+    grid = page.get_by_test_id("table-block").last
+    grid.get_by_label("row 2, column 1").fill("9")
+    grid.get_by_role("button", name="Add row").click()
+    grid.get_by_label("row 3, column 1").fill("4")
+    grid.get_by_label("row 3, column 2").fill("1")
+    grid.get_by_label("row 3, column 3").fill("3")
+    page.get_by_role("button", name="Save version").click()
+    expect(page.get_by_text("Saved as a new version")).to_be_visible(timeout=15_000)
+    expect(page.get_by_test_id("gherkin-status")).to_contain_text("Valid Gherkin")
+    page.get_by_role("tab", name="source").click()
+    assert re.search(r"\| 9 +\| 2 +\| 3 +\|\n +\| 4 +\| 1 +\| 3 +\|", page.get_by_label("Document content").input_value())
+    shot(page, "08c-gherkin-table")
+
+
+def test_07c_edit_document_in_place_with_tables_and_images(page):
+    png = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAEBgIApD5fRAAAAABJRU5ErkJggg==")
+    page.goto(UI + state["brd"])
+    bar = page.get_by_test_id("save-bar")
+    expect(bar.get_by_role("button", name="Save version")).to_be_disabled()
+    block = page.get_by_test_id("text-block").nth(1)
+    block.click()
+    editor = page.get_by_label("Edit this block")
+    editor.fill(editor.input_value() + " Added in place.")
+    expect(page.get_by_test_id("live-preview")).to_contain_text("Added in place.")
+    editor.blur()
+    tools = page.get_by_test_id("doc-toolbar")
+    tools.get_by_role("button", name="Add table").click()
+    grid = page.get_by_test_id("table-block").last
+    grid.get_by_label("row 1, column 1").fill("Owner")
+    grid.get_by_label("row 2, column 1").fill("Priya | Ops")
+    grid.get_by_role("button", name="Add column").click()
+    grid.get_by_label("row 2, column 3").fill("Reviewed")
+    tools.get_by_label("Add image").set_input_files({"name": "diagram.png", "mimeType": "image/png", "buffer": png})
+    image = page.get_by_test_id("document-page").locator('img[alt="diagram.png"]')
+    expect(image).to_be_visible(timeout=15_000)
+    assert image.evaluate("i => i.naturalWidth") == 1
+    page.get_by_label("Your name").fill(SIGNER)
+    page.get_by_label("Change note").fill("Edited in place")
+    bar.get_by_role("button", name="Save version").click()
+    expect(page.get_by_text("Saved as a new version")).to_be_visible(timeout=15_000)
+    shot(page, "08d-document-edited-in-place")
+    page.reload()
+    assert page.get_by_test_id("table-block").last.get_by_label("row 2, column 1").input_value() == "Priya | Ops"
+    expect(page.get_by_test_id("document-page").locator('img[alt="diagram.png"]')).to_be_visible()
+    page.get_by_role("tab", name="source").click()
+    text = page.get_by_label("Document content").input_value()
+    assert "Added in place." in text and r"Priya \| Ops" in text and "](/api/documents/" in text
+    page.get_by_label("Document content").fill(text + "\n\nTyped in source.\n")
+    expect(page.get_by_test_id("source-preview")).to_contain_text("Typed in source.")
+    page.get_by_role("button", name="Discard changes").click()
+    expect(page.get_by_test_id("source-preview")).not_to_contain_text("Typed in source.")
+    with page.expect_download() as info:
+        page.get_by_role("link", name=".docx").click()
+    assert len(Document(io.BytesIO(Path(info.value.path()).read_bytes())).inline_shapes) == 1
+
+
 def test_08_document_edit_history_restore_and_exports(page):
     page.goto(UI + state["brd"])
     expect(page.locator(".prose-atlas h2").first).to_be_visible()  # opens formatted, not as raw markdown
     shot(page, "08b-document-formatted")
-    page.get_by_role("tab", name="edit").click()
+    page.get_by_role("tab", name="source").click()
     box = page.get_by_label("Document content")
     original = box.input_value()
     for heading in ("Executive Summary", "Functional Requirements", "Open Questions"):

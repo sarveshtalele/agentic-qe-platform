@@ -152,8 +152,8 @@ def _generated_file_problems(item: GeneratedFile, known: set[str], worktree: Pat
         errors.append(issue)
     if re.search(r"assert\s+True\b|expect\(\s*true\s*\)\.toBe\(\s*true\s*\)", item.content):
         errors.append(f"{item.path}: tautological assertion")
-    if re.search(r"^\s*(pass|\.\.\.)\s*$|\bTODO\b", item.content, re.M):
-        errors.append(f"{item.path}: placeholder code")
+    if placeholder := re.search(r"^\s*(pass|\.\.\.)\s*$|\bTODO\b", item.content, re.M):
+        errors.append(f"{item.path}: line {item.content.count(chr(10), 0, placeholder.start()) + 1} has placeholder code ({placeholder.group(0).strip()}). Remove it and write real code. Do not use pass, an ellipsis, or the word TODO anywhere in the file")
     if "CASE_ID" not in item.content.splitlines()[0]:
         errors.append(f"{item.path}: first line must be a CASE_ID comment")
     if len(item.case_ids) != 1:

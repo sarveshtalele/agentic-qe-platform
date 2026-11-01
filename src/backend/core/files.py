@@ -3,9 +3,10 @@ from __future__ import annotations
 
 import io
 import re
+from pathlib import Path
 
 from docx import Document
-from docx.shared import Pt
+from docx.shared import Inches, Pt
 
 from backend.config import TEMPLATES_DIR
 from backend.core.security import sha256
@@ -122,7 +123,10 @@ def _runs(paragraph, text: str) -> None:
             paragraph.add_run(part)
 
 
-def markdown_to_docx(title: str, markdown: str, meta: str = "") -> bytes:
+IMAGE_LINE = re.compile(r"^!\[[^\]]*\]\(/api/documents/[^/)]+/images/([\w.-]+)\)\s*$")
+
+
+def markdown_to_docx(title: str, markdown: str, meta: str = "", image_root: Path | None = None) -> bytes:
     doc = Document()
     doc.add_heading(title, 0)
     if meta:
@@ -140,7 +144,7 @@ def markdown_to_docx(title: str, markdown: str, meta: str = "") -> bytes:
             run = doc.add_paragraph().add_run("\n".join(block))
             run.font.name, run.font.size = "Consolas", Pt(9)
         elif line.lstrip().startswith("|") and i + 1 < len(lines) and re.match(r"^\s*\|[\s:|-]+\|\s*$", lines[i + 1]):
-            cells = lambda l: [c.strip() for c in l.strip().strip("|").split("|")]  # noqa: E731
+            cells = lambda l: [c.strip().replace("\\|", "|") for c in re.split(r"(?<!\\)\|", l.strip().removeprefix("|").removesuffix("|"))]  # noqa: E731
             header = cells(line)
             i += 2
             body = []
@@ -157,6 +161,8 @@ def markdown_to_docx(title: str, markdown: str, meta: str = "") -> bytes:
                 cols = table.add_row().cells
                 for j, value in enumerate(values[: len(header)]):
                     _runs(cols[j].paragraphs[0], value)
+        elif (match := IMAGE_LINE.match(line)) and image_root and (image_root / match.group(1)).is_file():
+            doc.add_picture(str(image_root / match.group(1)), width=Inches(6))
         elif match := re.match(r"^(#{1,6})\s+(.+)$", line):
             doc.add_heading(match.group(2), min(len(match.group(1)), 4))
         elif match := re.match(r"^\s*[-*]\s+(.+)$", line):

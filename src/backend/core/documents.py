@@ -6,12 +6,14 @@ stays readable without the app. The database remains the source of truth.
 from __future__ import annotations
 
 import difflib
+import hashlib
 import json
 import re
+from pathlib import Path
 
 from backend.config import project_dir
 from backend.core import gherkin, ledger
-from backend.core.security import redact, sha256
+from backend.core.security import redact, safe_path, sha256
 from backend.db import db, new_id, now, row, rows
 
 EXT = {"gherkin": "feature", "patch": "patch"}
@@ -80,7 +82,8 @@ def get(doc_id: str, version: int | None = None) -> dict:
 
 
 def list_for(project_id: str, kind: str | None = None) -> list[dict]:
-    query = "SELECT * FROM documents WHERE project_id=?" + (" AND kind=?" if kind else "") + " ORDER BY updated_at DESC"
+    # run_id is the run that created the document, which lives on its first version
+    query = "SELECT d.*, (SELECT v.run_id FROM document_versions v WHERE v.document_id=d.id ORDER BY v.version LIMIT 1) AS run_id FROM documents d WHERE d.project_id=?" + (" AND d.kind=?" if kind else "") + " ORDER BY d.updated_at DESC"
     with db() as con:
         return rows(con.execute(query, (project_id, kind) if kind else (project_id,)))
 
@@ -138,3 +141,33 @@ def search(project_id: str, query: str, limit: int = 8) -> list[dict]:
         snippet = "\n".join(lines[i] for i in hits)
         results.append({"id": doc["id"], "kind": doc["kind"], "title": doc["title"], "version": doc["current_version"], "score": score, "snippet": snippet})
     return sorted(results, key=lambda r: -r["score"])[:limit]
+
+
+IMAGE_TYPES = {b"\x89PNG\r\n\x1a\n": ".png", b"\xff\xd8\xff": ".jpg", b"GIF87a": ".gif", b"GIF89a": ".gif"}
+MAX_IMAGE_BYTES = 10 * 1024 * 1024
+
+
+def image_root(doc: dict) -> Path:
+    return project_dir(doc["project_id"]) / "documents" / doc["kind"] / doc["id"] / "images"
+
+
+def _image_suffix(blob: bytes) -> str | None:
+    if blob[:4] == b"RIFF" and blob[8:12] == b"WEBP":
+        return ".webp"
+    return next((suffix for signature, suffix in IMAGE_TYPES.items() if blob.startswith(signature)), None)
+
+
+def save_image(doc_id: str, blob: bytes, actor: str = "user") -> str:
+    """Stores an image for a document and returns its file name. The type comes from the content, never the upload's name."""
+    doc = get(doc_id)
+    suffix = _image_suffix(blob)
+    if not suffix:
+        raise DocumentError("Use a PNG, JPEG, GIF, or WebP image")
+    if len(blob) > MAX_IMAGE_BYTES:
+        raise DocumentError("Images can be up to 10 MB")
+    name = hashlib.sha256(blob).hexdigest()[:24] + suffix
+    root = image_root(doc)
+    root.mkdir(parents=True, exist_ok=True)
+    safe_path(root, name, for_write=True).write_bytes(blob)
+    ledger.append(doc["project_id"], actor, "document.image_added", doc_id, {"file": name})
+    return name

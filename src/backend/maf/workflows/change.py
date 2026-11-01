@@ -10,9 +10,10 @@ from pydantic import BaseModel, Field
 from backend.config import project_dir, repo_dir
 from backend.core import documents
 from backend.core.security import (
+    PathEscape,
     safe_path,
 )
-from backend.db import db
+from backend.db import db, rows
 from backend.maf.engine import REGISTRY, Definition, RunContext, StageSpec
 from backend.maf.runtime import AgentCall
 from backend.maf.workflows.edits import ChangeSet, Edit, guarded_apply
@@ -24,18 +25,33 @@ from backend.qe import execution
 from backend.repos import git, github, ingest, scan, static_analysis
 
 
+MAX_FIX_ALL = 15  # ponytail: one branch stays reviewable. Run Fix all again for the next set
+
+
+def _chosen_findings(project_id: str, state: dict) -> list[dict]:
+    with db() as con:
+        if state.get("fix_all"):
+            return rows(con.execute(f"SELECT * FROM findings WHERE project_id=? AND status='open' ORDER BY CASE severity WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END, file, line LIMIT {MAX_FIX_ALL}", (project_id,)))
+        if state.get("finding_id"):
+            return rows(con.execute("SELECT * FROM findings WHERE id=? AND project_id=?", (state["finding_id"], project_id)))
+    return []
+
+
 async def change_prepare(rc: RunContext, state: dict) -> dict:
     root = repo_dir(rc.project_id)
     if not root.exists():
         raise ValueError("Connect a repository or upload a ZIP first")
-    if not state.get("spec", "").strip() and not state.get("finding_id"):
+    if not state.get("spec", "").strip() and not state.get("finding_id") and not state.get("fix_all"):
         raise ValueError("Describe the change or pick a finding")
     spec = state.get("spec", "")
-    if state.get("finding_id"):
-        with db() as con:
-            finding = dict(con.execute("SELECT * FROM findings WHERE id=? AND project_id=?", (state["finding_id"], rc.project_id)).fetchone())
-        spec = f"Fix this finding.\nRule {finding['rule']} ({finding['severity']}): {finding['title']}\nLocation: {finding['file']}:{finding['line']}\nEvidence: {finding['evidence']}\n{finding['explanation']}\n{spec}"
-        state["title"] = state.get("title") or f"Fix {finding['title'][:50]}"
+    findings = _chosen_findings(rc.project_id, state)
+    if state.get("fix_all") and not findings:
+        raise ValueError("There are no open findings to fix")
+    if findings:
+        listed = "\n".join(f"- Rule {f['rule']} ({f['severity']}): {f['title']}\n  Location: {f['file']}:{f['line']}\n  Evidence: {f['evidence']}\n  {f['explanation']}" for f in findings)
+        spec = f"Fix {'these findings' if len(findings) > 1 else 'this finding'}.\n{listed}\n{spec}"
+        state["findings_by_file"] = {name: "\n".join(f"- {f['severity']} at line {f['line']}: {f['title']}. Evidence: {f['evidence']}. {f['explanation']}" for f in findings if f["file"] == name) for name in {f["file"] for f in findings}}
+        state["title"] = state.get("title") or (f"Fix {findings[0]['title'][:50]}" if len(findings) == 1 else f"Fix {len(findings)} findings")
     slug = re.sub(r"[^a-z0-9]+", "-", (state.get("title") or state.get("kind", "change")).lower()).strip("-")[:40] or "change"
     branch = f"atlas/{slug}-{rc.run_id[-6:]}"
     worktree = project_dir(rc.project_id) / "worktrees" / rc.run_id
@@ -51,7 +67,7 @@ async def change_prepare(rc: RunContext, state: dict) -> dict:
         result = await asyncio.to_thread(execution.run_suite, runner, worktree, "." if runner == "pytest" else "", worktree.parent / f"{rc.run_id}-baseline")
         baseline[runner] = execution.failed_names(result)
         rc.log(f"Before the change, {runner}: {result['passed']} passed, {result['failed']} failed", {"reason": result["reason"]}, "test")
-    return {"branch": branch, "worktree": str(worktree), "spec": spec, "attempt": 0, "baseline": baseline, "title": state.get("title") or slug, "finding_file": finding["file"] if state.get("finding_id") else ""}
+    return {"branch": branch, "worktree": str(worktree), "spec": spec, "attempt": 0, "baseline": baseline, "title": state.get("title") or slug, "finding_files": sorted({f["file"] for f in findings}), "finding_ids": [f["id"] for f in findings], "findings_by_file": state.get("findings_by_file", {})}
 
 
 class FileSelection(BaseModel):
@@ -62,8 +78,8 @@ async def _select_files(rc: RunContext, state: dict, worktree: Path) -> list[str
     """Pick the files a change needs, so they travel in the message. Tool results can be lost between model rounds."""
     tree = scan.tree(worktree)
     tests = [f for f in tree if scan.TEST_NAME.search(f)][:6]
-    if state.get("finding_file"):
-        return [state["finding_file"], *tests]
+    if state.get("finding_files"):
+        return [*state["finding_files"], *tests]
     if len(tree) <= 15:
         return tree
     picked = await AgentCall(rc.run_id, rc.project_id, "repo_analyst").typed(
@@ -80,13 +96,48 @@ def spec_gaps(worktree: Path, state: dict) -> list[str]:
     has_tests = any(scan.TEST_NAME.search(f) for f in scan.tree(worktree))
     if state.get("kind") == "feature" and has_tests and not any(scan.TEST_NAME.search(f) for f in changed):
         gaps.append("no test file was added or changed")
-    if state.get("finding_file") and state["finding_file"] not in changed:
-        gaps.append(f"{state['finding_file']}, the file with the finding, was not changed")
+    gaps += [f"{name}, a file with a finding, was not changed" for name in state.get("finding_files", []) if name not in changed]
     return gaps
+
+
+def safe_exists(root: Path, path: str) -> bool:
+    try:
+        return safe_path(root, path).is_file()
+    except PathEscape:
+        return False
+
+
+async def _fix_file_by_file(rc: RunContext, state: dict, worktree: Path) -> dict:
+    """Fix all sends one small request per file. One long conversation grows with every round, and costs far more."""
+    fixed, missed = [], []
+    for name, listed in state["findings_by_file"].items():
+        call = AgentCall(rc.run_id, rc.project_id, "defect_diagnostician")
+        only_this_file = lambda edit, target=name: None if edit.path.replace("\\", "/") == target else f"Change only {target}."  # noqa: E731
+        prompt = f"Fix these findings in {name}. Change only this file, and fix a finding only if it is a real defect.\nFINDINGS:\n{listed}\n\nCODE:\n{code_pack(rc.project_id, worktree, [name], 60_000)}"
+        applied: list[str] = []
+        try:
+            for _ in range(2):
+                result = await call.typed(prompt, ChangeSet)
+                done, refused = await asyncio.to_thread(guarded_apply, worktree, result.edits, only_this_file)
+                applied += done
+                if not refused:
+                    break
+                prompt = f"These edits were refused: {refused}. Send only corrected edits. Each search must match the file exactly.\n\nCURRENT FILE:\n{code_pack(rc.project_id, worktree, [name], 60_000)}"
+        except RuntimeError as exc:
+            rc.log(f"Could not fix {name}: {exc}", kind="warning")
+        (fixed if applied else missed).append(name)
+        rc.log(f"{'Changed' if applied else 'No change to'} {name}", kind="artifact" if applied else "warning")
+    if not fixed:
+        raise RuntimeError(f"The agent did not change any of {', '.join(missed)}")
+    summary = f"Changed {len(fixed)} of {len(fixed) + len(missed)} files with findings." + (f" Not changed: {', '.join(missed)}." if missed else "")
+    rc.log(summary, kind="artifact")
+    return {"summary": summary, "test_target": "", "attempt": state.get("attempt", 0) + 1, "feedback": "", "paths": await _select_files(rc, state, worktree)}
 
 
 async def change_implement(rc: RunContext, state: dict) -> dict:
     worktree = Path(state["worktree"])
+    if len(state.get("finding_files", [])) > 1 and not state.get("failure") and not state.get("feedback"):
+        return await _fix_file_by_file(rc, state, worktree)
     agent = "defect_diagnostician" if state.get("kind") in {"bugfix", "diagnose"} else "feature_engineer"
     if not state.get("paths"):
         state["paths"] = await _select_files(rc, state, worktree)
@@ -96,15 +147,15 @@ async def change_implement(rc: RunContext, state: dict) -> dict:
         message += f"\n\nThe last attempt broke these tests. Fix only this; do not touch unrelated code or tests.\nCurrent diff:\n{git.diff(worktree)[:8000]}\n\nFailures:\n{state['failure'][:5000]}"
     if state.get("feedback"):
         message += f"\n\nReviewer feedback on the last diff:\n{state['feedback']}\nCurrent diff:\n{git.diff(worktree)[:8000]}"
-    finding_file = state.get("finding_file")
+    finding_files = state.get("finding_files", [])
 
     def finding_scope(edit: Edit) -> str | None:
         """A finding's fix may change only that file and tests, so the agent cannot drift to another bug."""
         path = edit.path.replace("\\", "/")
         name = path.rsplit("/", 1)[-1]
         is_test = path.startswith("tests/") or name.startswith("test_")
-        if finding_file and path != finding_file and not is_test:
-            return f"This task may only change {finding_file} and test files. Fix {finding_file}."
+        if finding_files and path not in finding_files and not is_test:
+            return f"This task may only change {', '.join(finding_files)} and test files."
         if not safe_path(worktree, path).exists() and Path(path).suffix.lower() not in {*scan.LANGUAGES, ".json", ".yaml", ".yml", ".toml", ".md"}:
             return f"Refused new file {path}: only source, test, and configuration files belong in this change."
         return None
@@ -120,14 +171,15 @@ async def change_implement(rc: RunContext, state: dict) -> dict:
         paths = [*paths, *[p for p in applied if p not in paths]]
         gaps = spec_gaps(worktree, state)
         changed = git.diff(worktree) != before
-        if changed and not refused and not gaps:
+        # with several findings the agent may judge one a false alarm, so an untouched file alone is not worth another round. The verdict still lists it
+        if changed and not refused and (not gaps or (len(finding_files) > 1 and all("a file with a finding" in g for g in gaps))):
             break
-        prompt = f"Not finished. Refused edits: {refused or 'none'}. Missing: {gaps or ('no file changed yet' if not changed else 'nothing')}. Send only the remaining edits for this task: {state['spec'][:600]}\n\nCURRENT FILES:\n{code_pack(rc.project_id, worktree, paths, 40_000)}"
+        prompt = f"Not finished. Refused edits: {refused or 'none'}. Missing: {gaps or ('no file changed yet' if not changed else 'nothing')}. Send only the remaining edits for this task: {state['spec'][:600]}\n\nCURRENT FILES:\n{code_pack(rc.project_id, worktree, sorted({r.split(":")[0] for r in refused if safe_exists(worktree, r.split(":")[0])}) or paths, 40_000)}"
     if git.diff(worktree) == before and not state.get("attempt"):
         raise RuntimeError("The agent finished without changing any file")
     # on a retry, keeping the earlier edits is valid: a person then reviews them with the honest failing verdict
-    if finding_file and finding_file not in git.run(["diff", "--name-only"], cwd=worktree):
-        raise RuntimeError(f"The agent did not change {finding_file}, the file with the finding")
+    if finding_files and not set(finding_files) & set(git.run(["diff", "--name-only"], cwd=worktree).splitlines()):
+        raise RuntimeError(f"The agent did not change {', '.join(finding_files)}, the files with the findings")
     rc.log(f"Changes applied: {summary[:300]}", kind="artifact")
     return {"summary": summary[:1000], "test_target": "", "attempt": state.get("attempt", 0) + 1, "feedback": "", "paths": state["paths"]}
 
@@ -149,7 +201,7 @@ async def change_verify(rc: RunContext, state: dict) -> dict:
     update = {"verification": {"changed_assertions": _changed_assertions(worktree), "verdict": outcome["verdict"], "reason": outcome["reason"], "new_failures": len(outcome["new_failures"]), "existing_failures": outcome["existing_failures"], "suites": suites}, "failure": ""}
     # retry only what the change broke; environment failures are not the agent's to fix
     # failing test files go first in paths, because code_pack drops whatever is over its limit
-    if outcome["verdict"] == "FAIL" and state["attempt"] < 3:
+    if outcome["verdict"] == "FAIL" and state["attempt"] < (2 if len(state.get("finding_files", [])) > 1 else 3):
         update |= {"failure": "\n".join(f"{c['classname']}::{c['name']}: {c['message'][:800]}" for c in outcome["new_failures"][:10]), "_next": "implement", "paths": list(dict.fromkeys([*_failing_files(worktree, outcome["new_failures"]), *state["paths"]]))}
     return update
 
@@ -186,6 +238,12 @@ async def change_deliver(rc: RunContext, state: dict, answer: dict) -> dict:
     commit = await asyncio.to_thread(git.commit_all, worktree, f"{state['title']}\n\n{state.get('summary', '')}\n\nApproved by {answer['by']} in Agentic QE Platform run {rc.run_id}")
     rc.log(f"Committed {commit[:10]} on {state['branch']}", kind="artifact")
     outcome = {"commit": commit}
+    if state.get("finding_ids"):
+        changed = await asyncio.to_thread(git.run, ["diff", "--name-only", "HEAD~1", "HEAD"], worktree)
+        marks = [(i, name) for i in state["finding_ids"] for name in changed.splitlines()]
+        with db() as con:
+            done = sum(con.executemany("UPDATE findings SET status='fixed' WHERE id=? AND file=?", marks).rowcount for _ in [0])
+        rc.log(f"Marked {done} findings as fixed. Findings in unchanged files stay open", kind="artifact")
     repo = ingest.get(rc.project_id)
     if answer.get("open_pr") and repo and repo["credential_id"]:
         slug = github.parse_slug(repo["url"])

@@ -1,10 +1,11 @@
 """Documents API."""
 from __future__ import annotations
 
+import asyncio
 import csv
 import io
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import (
     PlainTextResponse,
     Response,
@@ -15,6 +16,10 @@ from backend.api.common import _project
 from backend.core import doc_checks, documents, files
 from backend.maf import agui, engine, evals, governance, llm, workflows  # noqa: F401 - workflows registers definitions
 from backend.maf import runtime as agents
+
+from backend.db import db, rows  # noqa: E402
+
+from backend.core.security import safe_path  # noqa: E402
 
 router = APIRouter()
 
@@ -34,6 +39,14 @@ class VersionIn(BaseModel):
 
 class ActorIn(BaseModel):
     by: str = "user"
+
+
+@router.get("/api/documents")
+def all_documents():
+    with db() as con:
+        projects = rows(con.execute("SELECT id, name FROM projects WHERE archived=0 AND id!='prj_agent_evals'"))
+    found = [{**doc, "project": p["name"]} for p in projects for doc in documents.list_for(p["id"])]
+    return sorted(found, key=lambda doc: doc["updated_at"], reverse=True)[:500]
 
 
 @router.get("/api/projects/{project_id}/documents")
@@ -95,13 +108,29 @@ def export_document(doc_id: str, fmt: str, version: int | None = None):
         return Response(doc["content"], media_type="text/plain; charset=utf-8", headers={"Content-Disposition": f'attachment; filename="{name}.feature"'})
     if fmt == "docx":
         body = doc["content"] if doc["kind"] != "gherkin" else f"```\n{doc['content']}\n```"
-        blob = files.markdown_to_docx(doc["title"], body, f"Version {doc['version']} · {doc['status']} · SHA-256 {doc['sha256'][:16]}")
+        blob = files.markdown_to_docx(doc["title"], body, f"Version {doc['version']} · {doc['status']} · SHA-256 {doc['sha256'][:16]}", documents.image_root(doc))
         return Response(blob, media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document", headers={"Content-Disposition": f'attachment; filename="{name}.docx"'})
     if fmt == "patch":
         return Response(doc["content"], media_type="text/plain; charset=utf-8", headers={"Content-Disposition": f'attachment; filename="{name}.patch"'})
     if fmt in {"csv", "jira"} and doc["kind"] == "test_cases":
         return Response(_cases_csv(doc["data"], fmt), media_type="text/csv; charset=utf-8", headers={"Content-Disposition": f'attachment; filename="{name}-{fmt}.csv"'})
     raise HTTPException(400, "Use md, docx, feature, patch, or for test cases csv and jira")
+
+
+@router.post("/api/documents/{doc_id}/images", status_code=201)
+async def add_image(doc_id: str, file: UploadFile = File(...)):
+    blob = await file.read(documents.MAX_IMAGE_BYTES + 1)
+    name = await asyncio.to_thread(documents.save_image, doc_id, blob)
+    return {"file": name, "url": f"/api/documents/{doc_id}/images/{name}"}
+
+
+@router.get("/api/documents/{doc_id}/images/{name}")
+def get_image(doc_id: str, name: str):
+    target = safe_path(documents.image_root(documents.get(doc_id)), name)
+    if target.suffix not in {".png", ".jpg", ".gif", ".webp"} or not target.is_file():
+        raise HTTPException(404, "Image not found")
+    media = {".png": "image/png", ".jpg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp"}[target.suffix]
+    return Response(target.read_bytes(), media_type=media, headers={"X-Content-Type-Options": "nosniff"})
 
 
 def _cases_csv(cases: list[dict], fmt: str) -> str:

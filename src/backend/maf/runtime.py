@@ -118,16 +118,28 @@ def _strip_tool_markup(text: str) -> str:
 
 
 def extract_json(text: str):
-    """Models wrap JSON in prose or fences, and prose can hold brackets like [FR-001]. Return the first real object."""
+    """Models wrap JSON in prose or fences, and prose can hold brackets like [FR-001]. Return the first real object, or a list of objects."""
     decoder = json.JSONDecoder()
-    for match in re.finditer(r"\{", text):
+    for match in re.finditer(r"[\[{]", text):
         try:
             found, _ = decoder.raw_decode(text, match.start())
         except json.JSONDecodeError:
             continue
         if isinstance(found, dict) and found:
             return found
+        if isinstance(found, list) and found and all(isinstance(item, dict) for item in found):
+            return found
     raise ValueError("No JSON object found in the model reply")
+
+
+def _fit_schema(found, schema: type[BaseModel]):
+    """Some models send a bare list when the schema is one object holding a list, such as {"cases": [...]}."""
+    if isinstance(found, list):
+        names = [name for name, field in schema.model_fields.items() if field.is_required()]
+        if len(names) != 1:
+            raise ValueError("Expected one JSON object, not a list")
+        return {names[0]: found}
+    return found
 
 
 def format_rule(schema: type[BaseModel]) -> str:
@@ -192,12 +204,12 @@ class AgentCall:
                 prompt = f"Your reply was cut off at the token limit. Send the complete answer again with every text field much shorter. {rule}"
                 continue
             try:
-                return schema.model_validate(extract_json(reply))
+                return schema.model_validate(_fit_schema(extract_json(reply), schema))
             except (ValueError, ValidationError) as exc:
                 error = str(exc)[:1500]
                 # same session, so the agent keeps what it read and only has to format its answer
                 prompt = f"That reply was rejected: {error}\nUsing what you have already read, send the complete answer now. {rule}"
-        raise RuntimeError(f"Agent {self.key} did not produce valid {schema.__name__}: {error}")
+        raise RuntimeError(f"Agent {self.key} did not produce valid {schema.__name__}: {error}. The reply had {len(reply)} characters and began: {reply[:160]!r}")
 
 
 def memory_add(project_id: str, content: str, source: str) -> dict:

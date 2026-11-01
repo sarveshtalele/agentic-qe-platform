@@ -31,6 +31,19 @@ export default function BAPage() {
     loadDocs();
   }, [loadTemplates, loadSources, loadDocs]);
 
+  // documents appear while a run works, before its first approval
+  useEffect(() => {
+    if (!runId) return;
+    loadDocs();
+    const timer = setInterval(loadDocs, 3000);
+    return () => clearInterval(timer);
+  }, [runId, loadDocs]);
+
+  const current = docs.filter((d) => runId && d.run_id === runId);
+  const recent = docs.filter((d) => d.run_id !== runId || !runId).slice(0, 8);
+  const docLink = (d: any) => (
+    <li key={d.id} className="flex items-center justify-between gap-2"><Link className="truncate text-indigo-600 hover:underline dark:text-indigo-300" href={`/projects/${project.id}/documents/${d.id}`}>{d.title}</Link><span className="flex shrink-0 items-center gap-1 text-xs"><Badge>{d.kind}</Badge>v{d.current_version}<Badge>{d.status}</Badge></span></li>
+  );
   const template = templates.find((t) => t.id === templateId);
   const start = async () => {
     setBusy(true);
@@ -90,6 +103,7 @@ export default function BAPage() {
               <Button onClick={start} busy={busy} disabled={!brief.trim() && !selected.length}><Play className="h-4 w-4" /> Generate document</Button>
             </div>
           </Card>
+          {current.length > 0 && <Card title="Created in this run"><ul className="space-y-1.5 text-sm" data-testid="current-documents">{current.map(docLink)}</ul></Card>}
           {runId && <RunPanel runId={runId} projectId={project.id} onFinished={() => { loadDocs(); refresh(); }} />}
         </div>
         <div className="space-y-4">
@@ -101,8 +115,8 @@ export default function BAPage() {
               ))}</ul>
             ) : <p className="text-xs text-slate-500">None uploaded.</p>}
           </Card>
-          <Card title="Saved documents">
-            {docs.length ? <ul className="space-y-1 text-sm">{docs.map((d) => <li key={d.id} className="flex items-center justify-between gap-2"><Link className="truncate hover:underline" href={`/projects/${project.id}/documents/${d.id}`}>{d.title}</Link><span className="flex shrink-0 items-center gap-1 text-xs">v{d.current_version}<Badge>{d.status}</Badge></span></li>)}</ul> : <p className="text-xs text-slate-500">None yet.</p>}
+          <Card title="Recent documents" actions={<Link className="text-xs text-indigo-500" href={`/projects/${project.id}/documents`}>All documents</Link>}>
+            {recent.length ? <ul className="space-y-1.5 text-sm" data-testid="recent-documents">{recent.map(docLink)}</ul> : <p className="text-xs text-slate-500">None yet.</p>}
           </Card>
           <Card title="Past runs"><RunList projectId={project.id} workflow={["ba"]} activeId={runId} onPick={setRunId} refreshKey={runId} /></Card>
         </div>

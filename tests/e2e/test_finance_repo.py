@@ -32,6 +32,9 @@ def test_f1_clone_repo_by_shorthand(page):
     details = page.get_by_test_id("repo-details")
     expect(details).to_contain_text("Python", timeout=30_000)
     expect(details).to_contain_text("pytest")
+    expect(page.get_by_test_id("sandbox")).to_contain_text("Complete")
+    expect(page.get_by_test_id("replace-repository")).not_to_have_attribute("open", "")
+    assert page.get_by_test_id("repo-details").bounding_box()["y"] < page.get_by_test_id("replace-repository").bounding_box()["y"], "a connected repository shows first"
     shot(page, "f1-finance-repository")
 
 
@@ -42,12 +45,14 @@ def test_f2_ba_writes_requirements_for_the_new_tool(page):
     page.get_by_role("button", name="Generate document").click()
     approve_next(page, "Gate 0")
     card = wait_card(page, "Gate 1")
+    expect(page.get_by_test_id("current-documents").get_by_role("link")).not_to_have_count(0, timeout=15_000)
     links = card.get_by_role("link").evaluate_all("items => items.map(a => a.getAttribute('href'))")
     shot(page, "f2-finance-ba-gate")
     approve_next(page, "Gate 1")
     expect(page.get_by_test_id("run-status")).to_contain_text("completed", timeout=60_000)
     page.goto(UI + links[0])
     expect(page.locator(".prose-atlas h2", has_text=re.compile("^Functional Requirements"))).to_be_visible()
+    expect(page.get_by_test_id("document-page")).to_be_visible()
     shot(page, "f2-finance-brd-formatted")
     page.goto(UI + links[1])
     expect(page.get_by_test_id("gherkin-status")).to_contain_text("Valid Gherkin")
@@ -60,6 +65,12 @@ def test_f3_bug_scan_real_repo(page):
     expect(page.get_by_test_id("run-status")).to_contain_text("completed", timeout=420_000)
     shot(page, "f3-finance-bug-scan")
     assert get(f"/projects/{run['id']}/runs")[0]["tokens_in"] < 300_000
+
+
+def test_f3b_scan_reviewed_every_source_file():
+    scan = next(r for r in get(f"/projects/{run['id']}/runs") if r["workflow"] == "bug_scan")
+    state = get(f"/runs/{scan['id']}")["state"]
+    assert state["source_files"] > 20 and len(state["reviewed_files"]) == state["source_files"], state["unreviewed_files"]
 
 
 def test_f4_feature_builder_adds_the_tool(page):
@@ -94,6 +105,19 @@ def test_f5_fix_a_real_finding(page):
     card.get_by_placeholder("Name recorded in the audit ledger").fill(SIGNER)
     card.get_by_role("button", name="Approve").click()
     expect(page.get_by_test_id("run-status")).to_contain_text("completed", timeout=60_000)
+
+
+def test_f5b_fix_all_open_findings(page):
+    page.goto(f"{run['base']}/bugs")
+    page.get_by_role("button", name="Fix all").click()
+    card = wait_card(page, "Review change")
+    expect(card).to_contain_text("diff --git a/")
+    run["fix_all_verdict"] = card.inner_text()[:300]
+    shot(page, "f5b-finance-fix-all")
+    card.get_by_placeholder("Name recorded in the audit ledger").fill(SIGNER)
+    card.get_by_role("button", name="Approve").click()
+    expect(page.get_by_test_id("run-status")).to_contain_text("completed", timeout=60_000)
+    assert get(f"/projects/{run['id']}/findings?status=fixed"), "approved fixes are marked as fixed"
 
 
 def test_f6_qe_lifecycle_live(page):

@@ -104,6 +104,33 @@ Each requirement has an acceptance check. "E2E" means `tests/e2e`, "API" means `
 | DEP-3 | SQLite journal mode is configurable, because WAL fails on network storage | Unit |
 | DEP-4 | Published costs come from the Azure Retail Prices API in INR, with the date | Doc |
 
+## Sandbox and complete scan
+
+| ID | Requirement | Check |
+|---|---|---|
+| SBX-1 | Each project has its own sandbox: a full clone with complete history, one worktree per run, its own Python environment, and a scrubbed environment for test code. Older shallow clones are completed before a scan | Unit, API |
+| SBX-2 | Bug Scan reviews every source file. Large files are read in parts, with real line numbers. The result states files reviewed out of total and lists any that were not reviewed | API, E2E |
+| SBX-3 | **Fix all** fixes the most severe open findings on one branch, with the usual tests and human review. Fixed findings are marked when the change is approved | API |
+| SBX-4 | The Repository page shows a connected repository and its sandbox first. The connect forms open only on request | E2E |
+
+## Navigation
+
+| ID | Requirement | Check |
+|---|---|---|
+| NAV-1 | The gate ribbon is removed from the project header. Gates stay on Overview and Governance | E2E |
+| NAV-2 | Each tile and card opens its tab: home tiles, project card figures, and Overview cards. Findings and documents have pages across all projects | E2E |
+| NAV-3 | Documentation works like an official docs site: its own page per topic, grouped sidebar, search, on-this-page links, breadcrumbs, previous and next | E2E |
+
+## Document editing
+
+| ID | Requirement | Check |
+|---|---|---|
+| DOC-1 | Documents open as a clean formatted page and can be edited in place, block by block, with changes shown live | E2E |
+| DOC-2 | Tables, including Gherkin Examples, render as real tables and are edited as grids: change cells, add and remove rows and columns, insert new tables | E2E |
+| DOC-3 | PNG, JPEG, GIF, and WebP images can be uploaded, are shown in the page, and export to DOCX. Content is checked by file signature. Images from other sites are not loaded | API, E2E |
+| DOC-4 | Source view shows the raw text beside a live preview. Saving creates one immutable version; typing does not | E2E |
+| DOC-5 | BA Studio links to the documents the current run created, and to recent documents, as they appear | E2E |
+
 ## Observability
 
 | ID | Requirement | Check |

@@ -77,6 +77,20 @@
 - [x] `start-mac.command` run on macOS. `start-windows.bat` written; a real Windows double-click is not yet checked
 - [ ] Commit and push `feat/real-maf-platform`
 
+## Sandbox, navigation, docs site
+
+- [x] Full clones, complete scan with coverage, Fix all
+- [x] Repository page shows the connected repository and sandbox first
+- [x] Remove gate ribbon; link every card to its tab
+- [x] Rebuild Documentation as a docs site
+- [x] `README.md` and `docs/PROJECT_STRUCTURE.md`
+- [ ] Every feature passes on `personal-finance-mcp`
+
+## Document editor
+
+- [x] In-place editing, table grids, images, live preview
+- [x] BA Studio links to current and recent documents
+
 ## Awaiting your decision
 
 - [ ] Remove `legacy/`

@@ -1,6 +1,6 @@
 "use client";
 
-import { RefreshCw, Unplug, UploadCloud } from "lucide-react";
+import { Box, RefreshCw, Unplug, UploadCloud } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
@@ -28,7 +28,8 @@ function Repository() {
     setBusy(label);
     setError("");
     try {
-      setRepo(await work());
+      await work();
+      await load();
       refresh();
       toast("Repository scanned");
     } catch (e: any) {
@@ -41,10 +42,15 @@ function Repository() {
   if (repo === undefined) return <Spinner />;
   return (
     <>
-      <PageTitle title="Repository" subtitle="Clone a Git repository or upload a ZIP. All analysis comes from the real files." />
+      <PageTitle title="Repository" subtitle={repo ? "This project's connected repository and its sandbox. All analysis comes from the real files." : "Clone a Git repository or upload a ZIP. All analysis comes from the real files."} />
       <ErrorNote message={error} />
-      <Connect project={project} busy={busy} act={act} />
       {repo && <Details repo={repo} project={project} busy={busy} act={act} setRepo={setRepo} refresh={refresh} />}
+      {repo ? (
+        <details className="mt-4 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-[#0b1329]" data-testid="replace-repository">
+          <summary className="cursor-pointer text-sm font-semibold">Replace repository</summary>
+          <Connect project={project} busy={busy} act={act} />
+        </details>
+      ) : <Connect project={project} busy={busy} act={act} />}
     </>
   );
 }
@@ -132,13 +138,25 @@ function Details({ repo, project, busy, act, setRepo, refresh }: any) {
           <Button variant="danger" onClick={disconnect}><Unplug className="h-4 w-4" /> Disconnect</Button>
         </div>
       }>
-        <p className="text-xs text-slate-500">Commit <span className="mono">{repo.commit_sha.slice(0, 10)}</span> · scanned {when(repo.scanned_at)} · <Badge tone="indigo">{a.mode}</Badge></p>
+        <p className="text-xs text-slate-500"><Badge tone="emerald">Connected</Badge> Commit <span className="mono">{repo.commit_sha.slice(0, 10)}</span> · scanned {when(repo.scanned_at)} · <Badge tone="indigo">{a.mode}</Badge></p>
         <dl className="mt-3 grid grid-cols-2 gap-2 text-center md:grid-cols-5">
           {[["Files", a.total_files], ["Source files", a.source_files], ["Test files", a.test_file_count], ["Routes", a.routes.length], ["CI workflows", a.ci.length]].map(([k, v]) => (
             <div key={k as string} className="rounded-lg bg-slate-100 p-2 dark:bg-slate-900"><dd className="text-lg font-bold">{v}</dd><dt className="text-xs text-slate-500">{k}</dt></div>
           ))}
         </dl>
       </Card>
+      {repo.sandbox && (
+        <Card title={<span className="flex items-center gap-2"><Box className="h-4 w-4 text-indigo-500" /> Project sandbox</span>}>
+          <dl className="grid gap-x-6 gap-y-1 text-sm md:grid-cols-2" data-testid="sandbox">
+            <div><dt className="inline font-semibold">Clone: </dt><dd className="inline">{repo.sandbox.complete_history ? `Complete, ${repo.sandbox.commits} commits` : "Partial history. The next scan completes it"}</dd></div>
+            <div><dt className="inline font-semibold">Worktrees for runs: </dt><dd className="inline">{repo.sandbox.run_worktrees}</dd></div>
+            <div><dt className="inline font-semibold">Python environment: </dt><dd className="inline">{repo.sandbox.python_environment ? "Created" : "Created when you install dependencies"}</dd></div>
+            <div><dt className="inline font-semibold">Disk use: </dt><dd className="inline">{repo.sandbox.size_mb} MB</dd></div>
+            <div className="md:col-span-2"><dt className="inline font-semibold">Folder: </dt><dd className="mono inline break-all text-xs">{repo.sandbox.path}</dd></div>
+          </dl>
+          <p className="mt-2 text-xs text-slate-500">Scans read this clone, and each change or test run works on its own branch here. Your main checkout and other projects are not touched. Test code runs without this platform&apos;s secrets.</p>
+        </Card>
+      )}
       <div className="grid gap-4 md:grid-cols-2">
         <Card title="Languages (lines of code)">
           <ul className="space-y-1.5 text-xs">

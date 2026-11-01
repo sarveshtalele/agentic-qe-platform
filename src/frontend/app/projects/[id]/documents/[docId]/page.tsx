@@ -5,23 +5,9 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useProject } from "../../../../../components/ProjectShell";
-import { Badge, Button, Card, ErrorNote, inputClass, Markdown, Spinner, useToast } from "../../../../../components/ui";
+import { DocumentEditor } from "../../../../../components/DocumentEditor";
+import { Badge, Button, Card, ErrorNote, inputClass, Spinner, useToast } from "../../../../../components/ui";
 import { api, getSigner, setSigner, when } from "../../../../../lib/api";
-
-function Gherkin({ text }: { text: string }) {
-  const keyword = /^(\s*)(Feature:|Rule:|Background:|Scenario Outline:|Scenario:|Examples:|Given|When|Then|And|But)(.*)$/;
-  return (
-    <pre className="mono overflow-auto text-sm leading-relaxed">
-      {text.split("\n").map((line, i) => {
-        const match = line.match(keyword);
-        if (line.trim().startsWith("@")) return <div key={i} className="text-amber-600 dark:text-amber-400">{line}</div>;
-        if (!match) return <div key={i}>{line || " "}</div>;
-        const heading = match[2].endsWith(":");
-        return <div key={i} className={heading ? "font-bold" : ""}>{match[1]}<span className="font-bold text-indigo-500">{match[2]}</span>{match[3]}</div>;
-      })}
-    </pre>
-  );
-}
 
 export default function DocumentPage() {
   const { project } = useProject();
@@ -32,7 +18,7 @@ export default function DocumentPage() {
   const [draft, setDraft] = useState("");
   const [note, setNote] = useState("");
   const [author, setAuthor] = useState("");
-  const [tab, setTab] = useState<"edit" | "preview" | "history">("preview");
+  const [tab, setTab] = useState<"document" | "source" | "history">("document");
   const [versions, setVersions] = useState<any[]>([]);
   const [viewing, setViewing] = useState<any>(null);
   const [diff, setDiff] = useState("");
@@ -89,7 +75,7 @@ export default function DocumentPage() {
     setViewing(null);
     setDiff("");
     await load();
-    setTab("edit");
+    setTab("document");
     toast(`Restored v${version} as a new version`);
   };
   const remove = async () => {
@@ -145,7 +131,7 @@ export default function DocumentPage() {
       </div>
       {isGherkin && doc.gherkin && <p className="mb-2 text-xs" data-testid="gherkin-status">{doc.gherkin.valid ? <Badge tone="emerald">{`Valid Gherkin: ${doc.gherkin.scenarios} scenarios, ${doc.gherkin.steps} steps`}</Badge> : <Badge tone="rose">Invalid Gherkin</Badge>}</p>}
       <div role="tablist" className="mb-3 flex gap-1 border-b border-slate-200 dark:border-slate-800">
-        {(["preview", "edit", "history"] as const).map((t) => (
+        {(["document", "source", "history"] as const).map((t) => (
           <button key={t} role="tab" aria-selected={tab === t} onClick={() => setTab(t)} className={`border-b-2 px-3 py-1.5 text-sm font-semibold capitalize ${tab === t ? "border-indigo-500 text-indigo-500" : "border-transparent text-slate-500"}`}>{t}{t === "history" ? ` (${versions.length})` : ""}</button>
         ))}
       </div>
@@ -158,18 +144,27 @@ export default function DocumentPage() {
         </div>
       )}
       {reviewResult && <div className="mb-3"><Card title={<span>Review of v{reviewResult.version}: score {reviewResult.score} <Badge>{reviewResult.verdict}</Badge></span>}><ul className="list-disc space-y-0.5 pl-5 text-sm">{reviewResult.issues.map((i: string, n: number) => <li key={n}>{i}</li>)}</ul></Card></div>}
-      {tab === "edit" && (
-        <div className="space-y-2">
-          <textarea aria-label="Document content" name="doc-content" spellCheck={false} className={`${inputClass} mono min-h-[60vh] text-[13px] leading-relaxed`} value={draft} onChange={(e) => setDraft(e.target.value)} />
-          <div className="flex flex-wrap items-center gap-2">
-            <input aria-label="Your name" className={`${inputClass} max-w-[180px]`} placeholder="Your name" value={author} onChange={(e) => setAuthor(e.target.value)} />
-            <input aria-label="Change note" className={`${inputClass} max-w-md`} placeholder="What changed" value={note} onChange={(e) => setNote(e.target.value)} />
-            <Button onClick={save} busy={busy} disabled={!dirty}><Save className="h-4 w-4" /> Save version</Button>
-            {dirty && <span className="text-xs text-amber-500">Unsaved changes</span>}
-          </div>
+      {tab === "document" && (
+        <Card>
+          {doc.kind === "patch"
+            ? <pre className="mono overflow-auto text-xs">{draft}</pre>
+            : <DocumentEditor documentId={docId} value={draft} gherkin={isGherkin} onChange={setDraft} onError={setError} />}
+        </Card>
+      )}
+      {tab === "source" && (
+        <div className="grid gap-4 lg:grid-cols-2 [&>*]:min-w-0">
+          <textarea aria-label="Document content" name="doc-content" spellCheck={false} className={`${inputClass} mono min-h-[65vh] text-[13px] leading-relaxed`} value={draft} onChange={(e) => setDraft(e.target.value)} />
+          <div className="max-h-[75vh] overflow-auto" data-testid="source-preview"><Card>{doc.kind === "patch" ? <pre className="mono overflow-auto text-xs">{draft}</pre> : <DocumentEditor documentId={docId} value={draft} gherkin={isGherkin} readOnly />}</Card></div>
         </div>
       )}
-      {tab === "preview" && <Card>{isGherkin ? <Gherkin text={draft} /> : <Markdown>{draft}</Markdown>}</Card>}
+      {tab !== "history" && (
+        <div className="sticky bottom-0 z-10 mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white/95 p-2 backdrop-blur dark:border-slate-800 dark:bg-[#0b1329]/95" data-testid="save-bar">
+          <input aria-label="Your name" className={`${inputClass} max-w-[180px]`} placeholder="Your name" value={author} onChange={(e) => setAuthor(e.target.value)} />
+          <input aria-label="Change note" className={`${inputClass} max-w-md`} placeholder="What changed" value={note} onChange={(e) => setNote(e.target.value)} />
+          <Button onClick={save} busy={busy} disabled={!dirty}><Save className="h-4 w-4" /> Save version</Button>
+          {dirty ? <><Button variant="secondary" onClick={() => setDraft(doc.content)}>Discard changes</Button><span className="text-xs text-amber-500">Unsaved changes</span></> : <span className="text-xs text-slate-500">Select any text or table cell to edit it</span>}
+        </div>
+      )}
       {tab === "history" && (
         <div className="grid gap-4 md:grid-cols-[360px_1fr] [&>*]:min-w-0">
           <Card>

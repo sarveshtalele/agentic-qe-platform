@@ -9,11 +9,9 @@ from backend.config import repo_dir
 from backend.db import db, new_id, now
 from backend.maf.engine import REGISTRY, Definition, FanOut, RunContext, StageSpec
 from backend.maf.runtime import AgentCall
-from backend.maf.workflows.shared import (
-    _analysis,
-    code_pack,
-)
-from backend.repos import git, static_analysis
+from backend.maf.workflows.shared import _analysis
+from backend.core.security import redact, safe_path
+from backend.repos import git, sandbox, scan, static_analysis
 
 
 class ReviewFinding(BaseModel):
@@ -33,7 +31,9 @@ async def scan_prepare(rc: RunContext, state: dict) -> dict:
     root = repo_dir(rc.project_id)
     if not root.exists():
         raise ValueError("Connect a repository or upload a ZIP before scanning")
-    rc.log(f"Scanning commit {git.head(root)[:10] or 'snapshot'}")
+    if await asyncio.to_thread(sandbox.complete_history, rc.project_id):
+        rc.log("Fetched the complete history for this project's sandbox")
+    rc.log(f"Scanning commit {git.head(root)[:10] or 'snapshot'} in the project sandbox")
     return {}
 
 
@@ -43,23 +43,52 @@ async def scan_static(rc: RunContext, state: dict) -> dict:
     return {"static": found}
 
 
+PART_CHARS = 20_000
+
+
+def file_parts(path: str, text: str) -> list[str]:
+    """Numbered blocks for one file. A large file is split on line breaks, and its parts keep the real line numbers."""
+    parts, block, size = [], [], 0
+    for number, line in enumerate(text.splitlines(), 1):
+        numbered = f"{number}: {line}"
+        if block and size + len(numbered) > PART_CHARS:
+            parts.append(block)
+            block, size = [], 0
+        block.append(numbered[:PART_CHARS])
+        size += len(numbered) + 1
+    if block:
+        parts.append(block)
+    return [f"--- FILE {path} ---\n" + "\n".join(lines) for lines in parts]
+
+
 async def scan_llm(rc: RunContext, state: dict) -> dict:
     root = repo_dir(rc.project_id)
-    targets = static_analysis.rank_files_for_review(root, _analysis(rc.project_id), int(state.get("review_files", 8)))
-    rc.log(f"Agent review of {len(targets)} highest-risk files", {"files": targets})
+    limit = state.get("review_files")  # a limit is only for quick API checks: the normal scan reads every source file
+    targets = static_analysis.rank_files_for_review(root, _analysis(rc.project_id), int(limit)) if limit else static_analysis.review_targets(root)
+    rc.log(f"Agent review of all {len(targets)} source files" if not limit else f"Agent review of {len(targets)} files", {"files": targets[:500]})
     gate = asyncio.Semaphore(4)
+    reviewed: list[str] = []
+    missed: list[str] = []
 
     async def review(path: str) -> list[dict]:
-        async with gate:
-            try:
-                result = await AgentCall(rc.run_id, rc.project_id, "bug_reviewer").typed(f"Review {path} for real defects.\n\n{code_pack(rc.project_id, paths=[path], limit=25_000)}", ReviewFindings)
-            except RuntimeError as exc:
-                rc.log(f"Review of {path} produced no usable result: {exc}", kind="warning")
-                return []
-        return [{**f.model_dump(), "file": f.file or path} for f in result.findings]
+        found: list[dict] = []
+        parts = file_parts(path, redact(scan._read(safe_path(root, path))))
+        try:
+            for index, part in enumerate(parts, 1):
+                note = f" This is part {index} of {len(parts)}, and its line numbers are the file's real ones." if len(parts) > 1 else ""
+                async with gate:
+                    result = await AgentCall(rc.run_id, rc.project_id, "bug_reviewer").typed(f"Review {path} for real defects.{note}\n\n{part}", ReviewFindings)
+                found += [{**f.model_dump(), "file": f.file or path} for f in result.findings]
+        except RuntimeError as exc:
+            missed.append(path)
+            rc.log(f"Review of {path} did not finish: {exc}", kind="warning")
+            return found
+        reviewed.append(path)
+        rc.log(f"Reviewed {len(reviewed)} of {len(targets)}: {path}")
+        return found
 
     batches = await asyncio.gather(*(review(p) for p in targets))
-    return {"llm": [f for batch in batches for f in batch], "reviewed_files": targets}
+    return {"llm": [f for batch in batches for f in batch], "reviewed_files": sorted(reviewed), "unreviewed_files": sorted(missed), "source_files": len(targets)}
 
 
 async def scan_merge(rc: RunContext, branches: list[dict]) -> dict:
@@ -83,8 +112,10 @@ async def scan_merge(rc: RunContext, branches: list[dict]) -> dict:
                 (new_id("bug"), rc.project_id, rc.run_id, finding["source"], finding["rule"], finding["severity"], finding["title"], finding["file"], finding["line"], finding["evidence"], finding["explanation"], fingerprint, now()),
             )
             added += cur.rowcount
+    coverage = next(({k: b[k] for k in ("reviewed_files", "unreviewed_files", "source_files")} for b in branches if "reviewed_files" in b), {"reviewed_files": [], "unreviewed_files": [], "source_files": 0})
+    rc.log(f"Reviewed {len(coverage['reviewed_files'])} of {coverage['source_files']} source files" + (f". Not reviewed: {coverage['unreviewed_files'][:20]}" if coverage["unreviewed_files"] else ""), kind="warning" if coverage["unreviewed_files"] else "artifact")
     rc.log(f"{len(static)} static and {len(verified)} verified agent findings; {rejected} agent claims rejected for missing evidence; {added} new", kind="artifact")
-    return {**base, "static_count": len(static), "agent_verified": len(verified), "agent_rejected": rejected, "new_findings": added, "reviewed_files": next((b.get("reviewed_files") for b in branches if "reviewed_files" in b), [])}
+    return {**base, "static_count": len(static), "agent_verified": len(verified), "agent_rejected": rejected, "new_findings": added, **coverage}
 
 
 def bug_scan_definition() -> Definition:

@@ -11,6 +11,14 @@ from backend.maf import agui, engine, evals, governance, llm, workflows  # noqa:
 router = APIRouter()
 
 
+@router.get("/api/findings")
+def all_findings():
+    with db() as con:
+        return rows(con.execute("""SELECT f.*, p.name AS project FROM findings f JOIN projects p ON p.id=f.project_id
+                                   WHERE f.status='open' AND p.archived=0 AND p.id!='prj_agent_evals'
+                                   ORDER BY CASE f.severity WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END, f.created_at DESC LIMIT 500"""))
+
+
 class FindingPatch(BaseModel):
     status: str = Field(pattern="^(open|dismissed|fixed)$")
 

@@ -35,6 +35,7 @@ def apply_edits(worktree: Path, edits: list[Edit]) -> list[str]:
         if scan_secrets(written) or has_masked_secret(written):
             errors.append(f"{edit.path}: edit contains a secret")
             continue
+        previous = target.read_text(encoding="utf-8") if target.is_file() else None
         if edit.action == "create":
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(edit.content, encoding="utf-8")
@@ -53,7 +54,12 @@ def apply_edits(worktree: Path, edits: list[Edit]) -> list[str]:
             errors.append(f"{edit.path}: unknown action {edit.action}")
         issue = execution.syntax_error(edit.path, target.read_text(encoding="utf-8")) if target.is_file() else None
         if issue:
-            errors.append(issue)
+            # an edit that breaks the file never stays on disk, or every test would fail to load
+            if previous is None:
+                target.unlink(missing_ok=True)
+            else:
+                target.write_text(previous, encoding="utf-8")
+            errors.append(f"{issue}. The edit was not applied")
     return errors
 
 

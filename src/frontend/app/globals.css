@@ -23,3 +23,28 @@ code, pre, textarea.mono, .mono {
 .prose-atlas th, .prose-atlas td { border: 1px solid rgba(100, 116, 139, 0.35); padding: 0.3rem 0.45rem; text-align: left; vertical-align: top; }
 .prose-atlas th { font-weight: 700; }
 .prose-atlas a { color: #6366f1; text-decoration: underline; }
+
+/* Documentation pages read like an official docs site */
+.docs-body { font-size: 0.95rem; line-height: 1.75; }
+.docs-body h2 { font-size: 1.35rem; margin: 2rem 0 0.6rem; scroll-margin-top: 4.5rem; padding-bottom: 0.3rem; border-bottom: 1px solid rgb(148 163 184 / 0.25); }
+.docs-body p, .docs-body ul, .docs-body ol { margin: 0.75rem 0; }
+.docs-body table { display: block; overflow-x: auto; margin: 1rem 0; }
+.docs-body blockquote { margin: 1rem 0; padding: 0.6rem 0.9rem; border-left: 3px solid rgb(245 158 11); background: rgb(245 158 11 / 0.08); border-radius: 0.375rem; }
+.docs-body a { color: rgb(99 102 241); text-decoration: underline; }
+
+/* Formatted documents, with tables edited in place */
+.doc-page { max-width: 58rem; margin: 0 auto; padding: 0.5rem 1.25rem; }
+.doc-page .prose-atlas { font-size: 0.9375rem; line-height: 1.7; }
+.doc-page .prose-atlas h1 { font-size: 1.6rem; margin-top: 1.25rem; }
+.doc-page .prose-atlas h2 { font-size: 1.25rem; margin-top: 1.25rem; padding-bottom: 0.25rem; border-bottom: 1px solid rgb(148 163 184 / 0.3); }
+.doc-page .prose-atlas h3 { font-size: 1.05rem; }
+.doc-table-wrap { overflow-x: auto; margin: 0.5rem 0; }
+.doc-table { border-collapse: collapse; font-size: 0.8125rem; min-width: 50%; }
+.doc-table th, .doc-table td { border: 1px solid rgb(148 163 184 / 0.4); padding: 0.35rem 0.55rem; text-align: left; vertical-align: top; }
+.doc-table th, .doc-table-head td { background: rgb(99 102 241 / 0.1); font-weight: 700; }
+.doc-table tbody tr:nth-child(even):not(.doc-table-head) td { background: rgb(148 163 184 / 0.06); }
+.doc-table td:has(.doc-cell) { padding: 0; }
+.doc-cell { display: block; width: 100%; min-width: 7ch; field-sizing: content; padding: 0.35rem 0.55rem; background: transparent; font-weight: inherit; outline: none; }
+.doc-cell:focus { box-shadow: inset 0 0 0 2px rgb(99 102 241); }
+.doc-text-input { field-sizing: content; min-height: 3rem; resize: vertical; }
+.prose-atlas th { background: rgb(99 102 241 / 0.1); }

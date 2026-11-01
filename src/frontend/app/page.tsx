@@ -44,8 +44,8 @@ export default function ProjectsPage() {
   const stats: [string, number, any, string, string][] = [
     ["Projects", all.length, FolderKanban, "/", "projects"],
     ["Need my approval", needing, CheckSquare, "/approvals", "need-approval"],
-    ["Open findings", all.reduce((n, p) => n + p.findings, 0), Bug, "/", "findings"],
-    ["Documents", all.reduce((n, p) => n + p.documents, 0), FolderGit2, "/", "documents"],
+    ["Open findings", all.reduce((n, p) => n + p.findings, 0), Bug, "/findings", "findings"],
+    ["Documents", all.reduce((n, p) => n + p.documents, 0), FolderGit2, "/documents", "documents"],
   ];
 
   return (
@@ -86,12 +86,12 @@ export default function ProjectsPage() {
                 <FolderGit2 className="h-3.5 w-3.5 shrink-0" /> {p.repo ? p.repo.url : "No repository"}
               </p>
               {p.repo?.languages?.length > 0 && <div className="mt-1.5 flex flex-wrap gap-1">{p.repo.languages.map((l: string) => <Badge key={l} tone="indigo">{l}</Badge>)}</div>}
-              <dl className="mt-3 grid grid-cols-4 gap-1 text-center text-xs">
-                {[["Gates", `${p.gates_approved}/6`], ["Docs", p.documents], ["Runs", p.runs], ["Bugs", p.findings]].map(([label, value]) => (
-                  <div key={label as string} className="rounded-lg bg-slate-100 py-1 dark:bg-slate-900"><dd className="font-bold">{value}</dd><dt className="text-[10px] text-slate-500">{label}</dt></div>
-                ))}
-              </dl>
             </Link>
+            <dl className="mt-3 grid grid-cols-4 gap-1 text-center text-xs">
+              {[["Gates", `${p.gates_approved}/6`, "governance"], ["Docs", p.documents, "documents"], ["Runs", p.runs, "runs"], ["Bugs", p.findings, "bugs"]].map(([label, value, tab]) => (
+                <Link key={label as string} href={`/projects/${p.id}/${tab}`} data-testid={`card-${tab}`} className="rounded-lg bg-slate-100 py-1 hover:ring-1 hover:ring-indigo-500 dark:bg-slate-900"><dd className="font-bold">{value}</dd><dt className="text-[10px] text-slate-500">{label}</dt></Link>
+              ))}
+            </dl>
             <footer className="mt-3 flex items-center justify-between text-[11px] text-slate-500">
               <span>{p.pending > 0 ? <Link href="/approvals"><Badge tone="amber">{`${p.pending} awaiting approval`}</Badge></Link> : `Updated ${when(p.updated_at)}`}</span>
               <span className="flex gap-1.5">

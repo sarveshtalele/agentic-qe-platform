@@ -1,42 +1,50 @@
 [
   {
     "workflow": "qe",
-    "status": "failed",
-    "tokens_in": 76422,
-    "tokens_out": 48861,
-    "started_at": "2026-11-01T07:54:03+00:00",
-    "ended_at": "2026-11-01T07:57:19+00:00"
+    "status": "completed",
+    "tokens_in": 236862,
+    "tokens_out": 55485,
+    "started_at": "2026-11-01T12:27:33+00:00",
+    "ended_at": "2026-11-01T12:30:56+00:00"
   },
   {
     "workflow": "change",
     "status": "completed",
-    "tokens_in": 11100,
-    "tokens_out": 979,
-    "started_at": "2026-11-01T07:53:52+00:00",
-    "ended_at": "2026-11-01T07:54:02+00:00"
+    "tokens_in": 110356,
+    "tokens_out": 9643,
+    "started_at": "2026-11-01T12:23:29+00:00",
+    "ended_at": "2026-11-01T12:27:32+00:00"
   },
   {
     "workflow": "change",
     "status": "completed",
-    "tokens_in": 38110,
-    "tokens_out": 1800,
-    "started_at": "2026-11-01T07:53:27+00:00",
-    "ended_at": "2026-11-01T07:53:51+00:00"
+    "tokens_in": 10660,
+    "tokens_out": 437,
+    "started_at": "2026-11-01T12:23:21+00:00",
+    "ended_at": "2026-11-01T12:23:28+00:00"
+  },
+  {
+    "workflow": "change",
+    "status": "completed",
+    "tokens_in": 35483,
+    "tokens_out": 2891,
+    "started_at": "2026-11-01T12:22:47+00:00",
+    "ended_at": "2026-11-01T12:23:19+00:00"
   },
   {
     "workflow": "bug_scan",
     "status": "completed",
-    "tokens_in": 28548,
-    "tokens_out": 5901,
-    "started_at": "2026-11-01T07:53:12+00:00",
-    "ended_at": "2026-11-01T07:53:25+00:00"
+    "tokens_in": 98094,
+    "tokens_out": 18667,
+    "started_at": "2026-11-01T12:22:05+00:00",
+    "ended_at": "2026-11-01T12:22:44+00:00"
   },
   {
     "workflow": "ba",
     "status": "completed",
-    "tokens_in": 6891,
-    "tokens_out": 3826,
-    "started_at": "2026-11-01T07:52:46+00:00",
-    "ended_at": "2026-11-01T07:53:12+00:00"
+    "tokens_in": 8228,
+    "tokens_out": 4549,
+    "started_at": "2026-11-01T12:21:34+00:00",
+    "ended_at": "2026-11-01T12:22:04+00:00"
   }
 ]

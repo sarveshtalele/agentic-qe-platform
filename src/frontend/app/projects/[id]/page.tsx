@@ -30,7 +30,7 @@ export default function OverviewPage() {
       <PageTitle title={project.name} subtitle={project.description} actions={<Button variant="secondary" onClick={async () => { const name = prompt("Project name", project.name)?.trim(); if (name && name !== project.name) { await api(`/projects/${project.id}`, { method: "PATCH", json: { name } }); refresh(); } }}><Pencil className="h-4 w-4" /> Rename</Button>} />
       <Link href={step.href} className="mb-4 block rounded-xl border border-indigo-500/50 bg-indigo-500/10 p-3 text-sm font-semibold text-indigo-700 hover:bg-indigo-500/15 dark:text-indigo-300">Next: {step.label}</Link>
       <div className="grid gap-4 md:grid-cols-2">
-        <Card title="Repository" actions={<Link className="text-xs text-indigo-500" href={`${base}/repository`}>Manage</Link>}>
+        <Card title={<Link className="hover:text-indigo-500" href={`${base}/repository`}>Repository</Link>} actions={<Link className="text-xs text-indigo-500" href={`${base}/repository`}>Manage</Link>}>
           {data.repo ? (
             <dl className="space-y-1 text-sm">
               <div className="truncate"><b>{data.repo.kind === "git" ? "Git" : "ZIP"}:</b> {data.repo.url}</div>
@@ -40,17 +40,17 @@ export default function OverviewPage() {
             </dl>
           ) : <Empty title="No repository connected">Greenfield projects can start from BA Studio.</Empty>}
         </Card>
-        <Card title="Quality gates">
+        <Card title={<Link className="hover:text-indigo-500" href={`${base}/governance`}>Quality gates</Link>} actions={<Link className="text-xs text-indigo-500" href={`${base}/governance`}>Governance</Link>}>
           <ul className="space-y-1 text-sm">
             {data.gates.map((g: any) => (
-              <li key={g.gate} className="flex items-center justify-between gap-2">
+              <li key={g.gate}><Link href={`${base}/qe`} className="flex items-center justify-between gap-2 rounded hover:text-indigo-500">
                 <span>G{g.gate} {g.name}</span>
                 <span className="flex items-center gap-2 text-xs text-slate-500">{g.decided_by}<Badge>{g.status}</Badge></span>
-              </li>
+              </Link></li>
             ))}
           </ul>
         </Card>
-        <Card title="Recent runs" actions={<Link className="text-xs text-indigo-500" href={`${base}/runs`}>All runs</Link>}>
+        <Card title={<Link className="hover:text-indigo-500" href={`${base}/runs`}>Recent runs</Link>} actions={<Link className="text-xs text-indigo-500" href={`${base}/runs`}>All runs</Link>}>
           {data.recent_runs.length ? (
             <ul className="space-y-1 text-sm">
               {data.recent_runs.map((r: any) => (
@@ -59,7 +59,7 @@ export default function OverviewPage() {
             </ul>
           ) : <p className="text-sm text-slate-500">No workflow has run yet.</p>}
         </Card>
-        <Card title="Latest documents" actions={<Link className="text-xs text-indigo-500" href={`${base}/documents`}>All documents</Link>}>
+        <Card title={<Link className="hover:text-indigo-500" href={`${base}/documents`}>Latest documents</Link>} actions={<Link className="text-xs text-indigo-500" href={`${base}/documents`}>All documents</Link>}>
           {data.documents.length ? (
             <ul className="space-y-1 text-sm">
               {data.documents.map((d: any) => (

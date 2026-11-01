@@ -899,3 +899,101 @@ def test_large_design_runs_in_batches_and_revises_only_what_failed(client, proje
     doc = next(d for d in client.get(f"/api/projects/{project['id']}/documents").json() if d["kind"] == "test_cases")
     cases = client.get(f"/api/documents/{doc['id']}").json()["data"]
     assert len(cases) == 28 and len({c["id"] for c in cases}) == 28 and {c["requirement_id"] for c in cases} == set(ids)
+
+
+def test_scan_reads_every_source_file_and_reports_coverage(client, project):
+    files = {f"mod_{i}.py": f"def f{i}():\n    return {i}\n" for i in range(12)}
+    upload_repo(client, project, {**files, "tests/test_mod.py": "def test_x():\n    assert 1\n", "conftest.py": ""})
+    scripted = ScriptedClient([("You review code for real defects", '{"findings": []}')])
+    llm.set_client_override(scripted)
+    run = wait_run(client, client.post(f"/api/projects/{project['id']}/runs", json={"workflow": "bug_scan"}).json()["id"], ("completed", "failed"))
+    assert run["status"] == "completed", run["error"]
+    assert run["state"]["source_files"] == 13 and len(run["state"]["reviewed_files"]) == 13 and run["state"]["unreviewed_files"] == []
+    assert all(any(f"--- FILE {name} ---" in call for call in scripted.calls) for name in files)
+    assert not any("--- FILE tests/test_mod.py ---" in call for call in scripted.calls)
+
+
+def test_fix_all_handles_several_findings_on_one_branch_and_marks_them_fixed(client, project):
+    bad = "import subprocess\n\n\ndef b(p):\n    return subprocess.call('x ' + p, shell=True)\n"
+    upload_repo(client, project, {**CALC, "calc.py": "def add(a, b):\n    return a + b\n", "one.py": bad, "two.py": bad})
+    def diagnostician(text: str) -> str:
+        target = text.rsplit("Fix these findings in ", 1)[-1].startswith("one.py")
+        edit = {"path": "one.py", "action": "replace", "search": "return subprocess.call('x ' + p, shell=True)", "replace": "return subprocess.call(['x', p])"}
+        return json.dumps({"summary": "Done.", "edits": [edit] if target else []})
+
+    scripted = ScriptedClient([("You review code for real defects", '{"findings": []}'), ("You diagnose failures", diagnostician)])
+    llm.set_client_override(scripted)
+    wait_run(client, client.post(f"/api/projects/{project['id']}/runs", json={"workflow": "bug_scan"}).json()["id"], ("completed", "failed"))
+    wanted = [f["id"] for f in client.get(f"/api/projects/{project['id']}/findings").json() if f["file"] in {"one.py", "two.py"}]
+    assert len(wanted) >= 2
+    from backend.db import db
+
+    with db() as con:
+        con.execute("UPDATE findings SET status='dismissed' WHERE project_id=? AND file NOT IN ('one.py', 'two.py')", (project["id"],))
+    run = wait_run(client, client.post(f"/api/projects/{project['id']}/runs", json={"workflow": "change", "input": {"kind": "bugfix", "fix_all": True}}).json()["id"])
+    assert run["status"] == "waiting_approval", run["error"]
+    diff = pending(run)["payload"]["diff"]
+    assert "a/one.py" in diff and "a/two.py" not in diff, "the agent judged two.py a false alarm"
+    assert "two.py" in pending(run)["payload"]["verification"]["reason"] or run["state"]["verification"]["verdict"] != "PASS"
+    assert sum("Fix these findings in" in call for call in scripted.calls) == 2 and not any("--- FILE two.py ---" in c and "--- FILE one.py ---" in c for c in scripted.calls), "one small request per file"
+    client.post(f"/api/approvals/{pending(run)['id']}/decide", json={"approved": True, "by": "Ann"})
+    wait_run(client, run["id"], ("completed", "failed"))
+    assert {f["file"] for f in client.get(f"/api/projects/{project['id']}/findings").json()} == {"two.py"}, "an unchanged file keeps its findings open"
+    assert {f["file"] for f in client.get(f"/api/projects/{project['id']}/findings?status=fixed").json()} == {"one.py"}
+    assert {f["file"] for f in client.get("/api/findings").json() if f["project_id"] == project["id"]} == {"two.py"}
+
+
+def test_lists_across_projects_and_sandbox_details(client, project):
+    upload_repo(client, project, CALC)
+    repo = client.get(f"/api/projects/{project['id']}/repo").json()
+    assert repo["sandbox"]["complete_history"] is True and repo["sandbox"]["commits"] == "1" and repo["sandbox"]["run_worktrees"] == 0
+    client.post(f"/api/projects/{project['id']}/documents", json={"kind": "brd", "title": "One", "content": "text", "author": "Ann"})
+    found = next(d for d in client.get("/api/documents").json() if d["project_id"] == project["id"])
+    assert found["title"] == "One" and found["project"] == project["name"]
+
+
+PNG = bytes.fromhex("89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d49444154789c6364f8cfc0000003010100c9fe92ef0000000049454e44ae426082")
+
+
+def test_document_images_upload_serve_refuse_and_export(client, project):
+    from docx import Document
+
+    doc = client.post(f"/api/projects/{project['id']}/documents", json={"kind": "brd", "title": "Pics", "content": "# T\n", "author": "Ann"}).json()
+    saved = client.post(f"/api/documents/{doc['id']}/images", files={"file": ("x.png", PNG, "image/png")})
+    assert saved.status_code == 201
+    url = saved.json()["url"]
+    served = client.get(url)
+    assert served.content == PNG and served.headers["content-type"] == "image/png" and served.headers["x-content-type-options"] == "nosniff"
+    refused = client.post(f"/api/documents/{doc['id']}/images", files={"file": ("x.png", b"<svg onload=alert(1)>", "image/png")})
+    assert refused.status_code == 400 and "PNG" in refused.json()["detail"]
+    assert client.get(f"/api/documents/{doc['id']}/images/..%2F..%2Fsecret.png").status_code in {400, 404}
+    assert client.get(f"/api/documents/{doc['id']}/images/absent.png").status_code == 404
+    client.put(f"/api/documents/{doc['id']}", json={"content": f"# T\n\n![pic]({url})\n\n| A | B |\n| --- | --- |\n| x \\| y | z |\n", "note": "n", "author": "Ann"})
+    word = Document(io.BytesIO(client.get(f"/api/documents/{doc['id']}/export/docx").content))
+    assert len(word.inline_shapes) == 1 and word.tables[0].rows[1].cells[0].text == "x | y"
+    ledger = client.get(f"/api/projects/{project['id']}/ledger").json()
+    assert "document.image_added" in json.dumps(ledger)
+
+
+def test_document_lists_name_the_run_that_created_them(client, project):
+    from backend.core import documents
+
+    with_run = documents.create(project["id"], "brd", "From a run", "# T\n", "agent:x")
+    assert next(d for d in client.get(f"/api/projects/{project['id']}/documents").json() if d["id"] == with_run["id"])["run_id"] is None
+    from backend.db import db, now
+
+    with db() as con:
+        con.execute("INSERT INTO runs (id, project_id, workflow, status, input, state, started_at) VALUES ('run_doc', ?, 'ba', 'completed', '{}', '{}', ?)", (project["id"], now()))
+    made = documents.create(project["id"], "brd", "Run doc", "# T\n", "agent:x", run_id="run_doc")
+    documents.save_version(made["id"], "# T\n\nMore\n", "Ann", note="edit")
+    assert next(d for d in client.get(f"/api/projects/{project['id']}/documents").json() if d["id"] == made["id"])["run_id"] == "run_doc"
+
+
+def test_edit_that_breaks_syntax_is_rolled_back(tmp_path):
+    from backend.maf.workflows import Edit, apply_edits
+
+    (tmp_path / "a.py").write_text("x = 1\n")
+    assert "not applied" in apply_edits(tmp_path, [Edit(path="a.py", action="replace", search="x = 1", replace="x = (")])[0]
+    assert (tmp_path / "a.py").read_text() == "x = 1\n"
+    assert "not applied" in apply_edits(tmp_path, [Edit(path="b.py", action="create", content="def (")])[0]
+    assert not (tmp_path / "b.py").exists()

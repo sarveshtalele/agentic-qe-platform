@@ -89,15 +89,7 @@ export function ProjectShell({ children }: { children: ReactNode }) {
         </div>
       </aside>
       <div className="min-w-0 flex-1">
-        <header className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white/95 px-5 py-2 backdrop-blur dark:border-slate-800 dark:bg-[#060a17]/90">
-          <ol aria-label="Quality gates" className="flex flex-wrap items-center gap-1">
-            {gates.map((g) => (
-              <li key={g.gate} title={`${g.description}${g.decided_by ? ` — ${g.status} by ${g.decided_by}` : ""}`}
-                className={`rounded-md border px-1.5 py-0.5 text-[11px] font-semibold ${g.status === "approved" ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400" : g.status === "rejected" ? "border-rose-500/40 bg-rose-500/10 text-rose-700 dark:text-rose-400" : "border-slate-300 text-slate-500 dark:border-slate-700"}`}>
-                G{g.gate} {g.name}
-              </li>
-            ))}
-          </ol>
+        <header className="sticky top-0 z-20 flex flex-wrap items-center justify-end gap-3 border-b border-slate-200 bg-white/95 px-5 py-2 backdrop-blur dark:border-slate-800 dark:bg-[#060a17]/90">
           <div className="flex items-center gap-2">
             <Link href="/settings" className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-2.5 py-1.5 text-[11px] font-semibold dark:border-slate-700">
               <span className={`h-1.5 w-1.5 rounded-full ${llm?.configured ? "bg-emerald-500" : "bg-rose-500"}`} />

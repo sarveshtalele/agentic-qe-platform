@@ -1,6 +1,6 @@
 # Design
 
-The previous look is kept: dark navy surfaces, indigo accent, compact type, a collapsible sidebar, and a gate ribbon. What changes is navigation and accuracy.
+The previous look is kept: dark navy surfaces, indigo accent, compact type, and a collapsible sidebar. What changes is navigation and accuracy.
 
 ## What changed from the previous UI
 
@@ -32,7 +32,7 @@ Type uses the system sans stack and system mono, so nothing loads from a font ho
 | Area | Rule |
 |---|---|
 | Projects page | Header, search and actions, then a card grid: 3, 2, or 1 columns |
-| Project shell | 240px sidebar, collapsing to 64px, plus a header with gate ribbon, model status, and theme |
+| Project shell | 240px sidebar, collapsing to 64px, plus a header with model status, and theme |
 | Content | Up to 1152px wide. Work on the left, context in a 300px right column |
 | Chat | Saved chats in a 250px column, conversation fills the rest |
 
@@ -45,7 +45,8 @@ Type uses the system sans stack and system mono, so nothing loads from a font ho
 /agents                   Agent policy, evals, guardrails, usage
 /observability            Log across all projects
 /templates                Document templates
-/docs                     How to use Agentic QE Platform
+/docs/{page}              Documentation site with search and page navigation
+/findings, /documents     Open findings and documents across projects
 /projects/{id}            Overview with a "Next" step
   /repository             Git, ZIP, or folder; analysis and file viewer
   /ba                     Brief, template, sources, run

@@ -641,3 +641,59 @@ def test_generated_tests_must_import_real_names_and_real_plugins(tmp_path):
     assert execution.invalid_test_code(tmp_path, "t.js", "import x from 'y'") == []
     assert execution.classify_failure("ImportError: cannot import name 'x' from 'src.a'") == "FIXTURE_DRIFT"
     assert execution.classify_failure("ModuleNotFoundError: No module named 'requests'") == "ENVIRONMENT"
+
+
+def test_shallow_clones_are_detected_and_clones_are_full(tmp_path, monkeypatch):
+    origin = tmp_path / "origin"
+    origin.mkdir()
+    run = lambda *args, cwd=origin: subprocess.run(["git", "-c", "user.name=T", "-c", "user.email=t@x", *args], cwd=cwd, check=True, capture_output=True)
+    run("init", "-q")
+    for n in range(3):
+        (origin / "a").write_text(str(n))
+        run("add", "-A")
+        run("commit", "-qm", str(n))
+    shallow = tmp_path / "shallow"
+    run("clone", "-q", "--depth", "1", origin.as_uri(), str(shallow), cwd=tmp_path)
+    assert git.is_shallow(shallow) and not git.is_shallow(origin)
+    calls = []
+    monkeypatch.setattr(git, "run", lambda args, **kw: calls.append(args))
+    git.clone("https://github.com/o/r", tmp_path / "x")
+    assert "--depth" not in calls[0]
+
+
+def test_review_targets_cover_all_source_files_but_not_tests(tmp_path):
+    (tmp_path / "tests").mkdir()
+    for name in ("a.py", "b.ts", "style.css", "README.md", "tests/test_a.py"):
+        (tmp_path / name).write_text("x = 1\n")
+    assert static_analysis.review_targets(tmp_path) == ["a.py", "b.ts"]
+
+
+def test_large_files_keep_their_real_line_numbers_when_split():
+    from backend.maf.workflows.bug_scan import PART_CHARS, file_parts
+
+    text = "\n".join("x" * 50 for _ in range(1000))
+    parts = file_parts("big.py", text)
+    assert len(parts) > 1 and all(len(p) < PART_CHARS + 100 for p in parts)
+    assert parts[1].splitlines()[1].split(":")[0] != "1" and parts[-1].splitlines()[-1].startswith("1000: ")
+
+
+def test_bare_list_replies_fit_a_single_list_schema():
+    from pydantic import BaseModel
+
+    from backend.maf.runtime import _fit_schema, extract_json
+
+    class Item(BaseModel):
+        id: str
+
+    class Items(BaseModel):
+        items: list[Item]
+
+    class Two(BaseModel):
+        a: list[Item]
+        b: str
+
+    reply = 'Here you go:\n```json\n[{"id": "1"}, {"id": "2"}]\n```'
+    assert len(Items.model_validate(_fit_schema(extract_json(reply), Items)).items) == 2
+    with pytest.raises(ValueError):
+        _fit_schema(extract_json(reply), Two)
+    assert extract_json('See [FR-001] and [1, 2]. {"a": 1}') == {"a": 1}

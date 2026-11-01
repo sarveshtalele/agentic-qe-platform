@@ -194,6 +194,7 @@ export function RunPanel({ runId, projectId, onFinished }: { runId: string; proj
             {run.state.pull_request && <Button variant="secondary" className="!px-2 !py-1 !text-xs" onClick={async () => { if (confirm("Squash-merge this pull request on GitHub?")) { try { await api(`/runs/${run.id}/merge-pr`, { json: { by: getSigner() || "user" } }); toast("Pull request merged"); } catch (e: any) { toast(e.message, "error"); } } }}>Merge</Button>}
           </div>
         )}
+        {run.state.source_files !== undefined && <p className="text-sm" data-testid="scan-coverage">Reviewed <b>{run.state.reviewed_files?.length || 0}</b> of <b>{run.state.source_files}</b> source files{run.state.unreviewed_files?.length ? `. Not reviewed: ${run.state.unreviewed_files.join(", ")}` : ""}</p>}
         {run.state.summary?.verdict && <p className="text-sm">Result <Badge>{run.state.summary.verdict}</Badge> {run.state.summary.passed}/{run.state.summary.executed} tests passed, {run.state.summary.coverage}% requirement coverage</p>}
         {open.map((a: any) => <ApprovalCard key={a.id} approval={a} projectId={projectId} onDecided={decided} />)}
         <div className="max-h-[28rem] space-y-1 overflow-y-auto text-xs" data-testid="run-events">
