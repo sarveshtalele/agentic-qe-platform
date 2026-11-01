@@ -4,7 +4,7 @@ import { Play, Upload } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useProject } from "../../../../components/ProjectShell";
-import { RunList, RunPanel } from "../../../../components/RunPanel";
+import { RunDocuments, RunList, RunPanel } from "../../../../components/RunPanel";
 import { Badge, Button, Card, ErrorNote, Field, inputClass, PageTitle, useToast } from "../../../../components/ui";
 import { api, upload } from "../../../../lib/api";
 
@@ -39,7 +39,6 @@ export default function BAPage() {
     return () => clearInterval(timer);
   }, [runId, loadDocs]);
 
-  const current = docs.filter((d) => runId && d.run_id === runId);
   const recent = docs.filter((d) => d.run_id !== runId || !runId).slice(0, 8);
   const docLink = (d: any) => (
     <li key={d.id} className="flex items-center justify-between gap-2"><Link className="truncate text-indigo-600 hover:underline dark:text-indigo-300" href={`/projects/${project.id}/documents/${d.id}`}>{d.title}</Link><span className="flex shrink-0 items-center gap-1 text-xs"><Badge>{d.kind}</Badge>v{d.current_version}<Badge>{d.status}</Badge></span></li>
@@ -103,10 +102,10 @@ export default function BAPage() {
               <Button onClick={start} busy={busy} disabled={!brief.trim() && !selected.length}><Play className="h-4 w-4" /> Generate document</Button>
             </div>
           </Card>
-          {current.length > 0 && <Card title="Created in this run"><ul className="space-y-1.5 text-sm" data-testid="current-documents">{current.map(docLink)}</ul></Card>}
           {runId && <RunPanel runId={runId} projectId={project.id} onFinished={() => { loadDocs(); refresh(); }} />}
         </div>
         <div className="space-y-4">
+          <RunDocuments projectId={project.id} runId={runId} />
           <Card title="Source documents">
             <label className="mb-2 inline-flex cursor-pointer items-center gap-1.5 text-xs font-semibold text-indigo-500"><Upload className="h-3.5 w-3.5" /> Upload (.md, .txt, .pdf, .docx, .xlsx, .pptx)<input type="file" name="source-file" accept=".md,.txt,.pdf,.docx,.xlsx,.pptx,.csv,.json,.yaml,.yml" className="hidden" onChange={(e) => addSource(e.target.files?.[0])} /></label>
             {sources.length ? (

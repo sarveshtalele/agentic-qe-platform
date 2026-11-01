@@ -131,6 +131,32 @@ Each requirement has an acceptance check. "E2E" means `tests/e2e`, "API" means `
 | DOC-4 | Source view shows the raw text beside a live preview. Saving creates one immutable version; typing does not | E2E |
 | DOC-5 | BA Studio links to the documents the current run created, and to recent documents, as they appear | E2E |
 
+## Accounts and access
+
+| ID | Requirement | Check |
+|---|---|---|
+| USR-1 | Every page and API needs a signed-in session. The admin login comes from `.env` | API, E2E |
+| USR-2 | The admin creates users with a password, model, token allocation, and active dates, and can change or disable them | API, E2E |
+| USR-3 | User passwords are salted scrypt hashes, usernames are encrypted at rest, and sessions are stored only as hashes. Logs, ledger, and API replies never hold passwords, and logs never hold usernames | Unit, API |
+| USR-4 | Users see only their own projects and everything in them. Admin sees all | API |
+| USR-5 | A run or chat uses the owner's model and stops with a clear error when tokens run out or dates pass | API |
+
+## Agent accuracy
+
+| ID | Requirement | Check |
+|---|---|---|
+| ACC-1 | A confidence review runs before every QE gate and beside the tests on code changes. A failed review shows as not run, never as a score. A low score sends the work back once | API |
+| ACC-2 | Discovery covers purpose, end-to-end flow, architecture, all modules, interfaces, data, deployment, tests, and risks. Code checks headings, cited files, and module coverage | Unit, API |
+| ACC-3 | A malformed model reply is reported as malformed. An inner fragment is never treated as the answer. Test design splits a batch that keeps failing | Unit, API |
+
+## Live views
+
+| ID | Requirement | Check |
+|---|---|---|
+| LIVE-1 | Runs show a live log of each step, including agent calls while they wait for the model | E2E |
+| LIVE-2 | Documents a run creates show as cards on the right of the screen | E2E |
+| LIVE-3 | Agents show as cards. Each opens its own page with a details table | E2E |
+
 ## Observability
 
 | ID | Requirement | Check |
@@ -156,3 +182,16 @@ Each requirement has an acceptance check. "E2E" means `tests/e2e`, "API" means `
 | NF-3 | Keys are never returned by the API and are encrypted at rest | API |
 | NF-5 | A model call that hangs fails the run with a clear error after a bounded time (`ATLAS_MODEL_TIMEOUT`) | Unit |
 | NF-4 | `progress.md` logs actions before and after, with time | Hook pipe test |
+
+## Skill Studio (SKL), planned and not built
+
+Full design in `docs/PLUGIN_AND_UI_PLAN.md`, Part 9.
+
+- SKL-1: A skill starts from a BA document at a set version, an uploaded file, a brief, or an imported skill.
+- SKL-2: A skill follows the Agent Skills specification and must load in MAF `FileSkillsSource`.
+- SKL-3: Each save is an immutable version with SHA-256, author, and prompt reference.
+- SKL-4: Output evaluations run with and without the skill in clean context, and report pass rate, time, tokens, and the difference.
+- SKL-5: A grade passes only if its evidence exists in the output. No runs or no tests is INCONCLUSIVE.
+- SKL-6: Trigger tests use a held-out set, and the best description is chosen by held-out score.
+- SKL-7: A named person signs S0 to S4. Agents never do.
+- SKL-8: A skill reaches an agent only after publishing. `allowed-tools` never widens an agent's tools.

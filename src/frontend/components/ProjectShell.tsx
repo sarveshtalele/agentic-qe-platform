@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
 import { createContext, ReactNode, useCallback, useContext, useEffect, useState } from "react";
 import { api } from "../lib/api";
+import { useAuth, UserMenu } from "./AuthGate";
 import { ErrorNote, Spinner, ThemeToggle } from "./ui";
 
 const nav = [
@@ -27,6 +28,7 @@ const ProjectContext = createContext<{ project: any; gates: any[]; refresh: () =
 export const useProject = () => useContext(ProjectContext);
 
 export function ProjectShell({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
   const { id } = useParams<{ id: string }>();
   const pathname = usePathname();
   const [project, setProject] = useState<any>(null);
@@ -83,9 +85,11 @@ export function ProjectShell({ children }: { children: ReactNode }) {
           <Link href="/templates" title="Templates" className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-900 ${collapsed ? "justify-center" : ""}`}>
             <FileText className="h-4 w-4 shrink-0" /> {!collapsed && "Templates"}
           </Link>
+          {user?.role === "admin" && (
           <Link href="/settings" title="Settings" className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-900 ${collapsed ? "justify-center" : ""}`}>
             <Settings className="h-4 w-4 shrink-0" /> {!collapsed && "Settings"}
           </Link>
+          )}
         </div>
       </aside>
       <div className="min-w-0 flex-1">
@@ -95,6 +99,7 @@ export function ProjectShell({ children }: { children: ReactNode }) {
               <span className={`h-1.5 w-1.5 rounded-full ${llm?.configured ? "bg-emerald-500" : "bg-rose-500"}`} />
               <span className="mono">{llm?.configured ? llm.model : "No model configured"}</span>
             </Link>
+            <UserMenu />
             <ThemeToggle />
           </div>
         </header>

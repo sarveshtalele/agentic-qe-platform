@@ -4,7 +4,7 @@ import { Play } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useProject } from "../../../../components/ProjectShell";
-import { RunList, RunPanel } from "../../../../components/RunPanel";
+import { RunDocuments, RunList, RunPanel } from "../../../../components/RunPanel";
 import { Badge, Button, Card, ErrorNote, PageTitle } from "../../../../components/ui";
 import { api } from "../../../../lib/api";
 
@@ -52,7 +52,7 @@ export default function QEPage() {
       </Card>
       <div className="grid gap-4 lg:grid-cols-[1fr_300px] [&>*]:min-w-0">
         <div>{runId ? <RunPanel runId={runId} projectId={project.id} onFinished={() => { load(); refresh(); }} /> : <p className="text-sm text-slate-500">No QE run selected.</p>}</div>
-        <Card title="Past runs"><RunList projectId={project.id} workflow={["qe"]} activeId={runId} onPick={setRunId} refreshKey={runId} /></Card>
+        <div className="space-y-4"><RunDocuments projectId={project.id} runId={runId} /><Card title="Past runs"><RunList projectId={project.id} workflow={["qe"]} activeId={runId} onPick={setRunId} refreshKey={runId} /></Card></div>
       </div>
     </>
   );

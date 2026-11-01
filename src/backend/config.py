@@ -16,7 +16,7 @@ CHECKPOINTS = DATA_DIR / "checkpoints"
 PROMPTS_DIR = ROOT / "prompts"
 TEMPLATES_DIR = ROOT / "templates"
 MAX_UPLOAD_BYTES = int(os.environ.get("ATLAS_MAX_UPLOAD_MB", "200")) * 1024 * 1024
-RUN_TOKEN_LIMIT = int(os.environ.get("ATLAS_RUN_TOKEN_LIMIT", "300000"))
+RUN_TOKEN_LIMIT = int(os.environ.get("ATLAS_RUN_TOKEN_LIMIT", "600000"))
 MODEL_TIMEOUT = int(os.environ.get("ATLAS_MODEL_TIMEOUT", "180"))
 MODEL_CONCURRENCY = int(os.environ.get("ATLAS_MODEL_CONCURRENCY", "4"))
 # WAL needs shared memory, which network storage such as Azure App Service /home lacks. Use DELETE there.

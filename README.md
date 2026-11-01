@@ -14,7 +14,8 @@ A governed workspace for business analysts and developers, built on Microsoft Ag
 | Feature Builder | Changes on a branch, checked against a test baseline. You review the diff and verdict before commit |
 | QE Studio | Requirements, plan, design, generated tests, execution, healing, and traceability, through gates G0 to G5, shown live |
 | Copilot | AG-UI and CopilotKit chat with saved threads, project memory, and selectable agents |
-| Agents | 13 agents with tool policy, kill switch, token limits, guardrails, and evaluations |
+| Accounts | Admin login from `.env`. Users have their own password, model, token allocation, and active dates, and see only their own projects |
+| Agents | 13 agents shown as cards, each with its own page: tool policy, kill switch, token limits, guardrails, and evaluations |
 | Observability | Skills, agents, tools, workflow steps, approvals, guardrails, and the audit ledger, by run, project, or all projects |
 | Documentation | A built-in docs site at `/docs`, with search |
 
@@ -30,7 +31,14 @@ From a terminal, the same thing is:
 python scripts/dev.py up
 ```
 
-Then open **Settings**, enter the model details, and choose **Test connection**. You can put them in `.env` instead.
+Before the first start, add the admin login to `.env`, or nobody can sign in:
+
+```text
+ATLAS_ADMIN_USERNAME=your-admin-name
+ATLAS_ADMIN_PASSWORD=a-long-unique-password
+```
+
+Then sign in, open **Settings**, enter the model details, and choose **Test connection**. Create users under **Users**. You can put them in `.env` instead.
 
 ### Development with live reload
 
@@ -105,7 +113,7 @@ python scripts/dev.py e2e
 python scripts/package_azure.py
 ```
 
-This makes separate backend and frontend ZIPs in `dist/`. With `--repo`, it also makes a clean copy of the project in `dist/agentic-qe-platform`. `docs/AZURE_DEPLOY.md` has the portal steps and costs: about ₹1,182 a month on one Basic B1 Linux plan in East US, at retail prices checked on 1 November 2026.
+This makes separate backend and frontend ZIPs in `dist/`. With `--repo`, it also makes a clean copy of the project in `dist/agentic-qe-platform`. `docs/AZURE_DEPLOY.md` has the portal steps and costs: about ₹1,182 a month on one Basic B1 Linux plan in East US 2, at retail prices checked on 1 November 2026.
 
 ## Documents
 
@@ -114,6 +122,7 @@ This makes separate backend and frontend ZIPs in `dist/`. With `--repo`, it also
 | `docs/SYSTEM_DESIGN.md` | End-to-end design, and how to add agents, tools, and workflows |
 | `docs/PROJECT_STRUCTURE.md` | Every file, its purpose, and how it connects |
 | `docs/AZURE_DEPLOY.md` | Azure deployment with the portal and ZIPs |
+| `docs/AZURE_SYSTEM_DESIGN.md` | Multi-user Azure design: storage, sandboxes, and costs in East US 2 |
 | `docs/ARCHITECTURE.md` | Plugin mapping and workflow details |
 | `maf-guide.md` | MAF features used, by file |
 | `plan.md`, `specs.md`, `tasks.md` | Decisions, requirements, status |
@@ -123,6 +132,6 @@ This makes separate backend and frontend ZIPs in `dist/`. With `--repo`, it also
 
 ## Security limits
 
-- The app is single-user and has no login. Locally it binds to loopback. On Azure, use App Service Authentication and an access restriction, as the guide describes.
-- A project sandbox isolates by folder and environment, and is not an operating system container. Tick **Install repository dependencies** only for repositories you trust, because that runs their install scripts.
+- Everyone signs in. Passwords are salted hashes, and logs mask login details. Use HTTPS outside your own machine, and keep the backend private with an access restriction, as the Azure guide describes.
+- A project sandbox isolates by folder and environment, and is not an operating system container, so it is not safe for untrusted users yet. `docs/AZURE_SYSTEM_DESIGN.md` has the design that is. Tick **Install repository dependencies** only for repositories you trust, because that runs their install scripts.
 - Keys are encrypted at rest and redacted from logs. Keep `data/` private.

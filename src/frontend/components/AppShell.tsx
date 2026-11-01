@@ -1,10 +1,11 @@
 "use client";
 
-import { Activity, BookOpen, Bot, CheckSquare, FileText, FolderKanban, Settings, ShieldCheck } from "lucide-react";
+import { Activity, BookOpen, UsersRound, Bot, CheckSquare, FileText, FolderKanban, Settings, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ReactNode, useEffect, useState } from "react";
 import { api } from "../lib/api";
+import { useAuth, UserMenu } from "./AuthGate";
 import { ThemeToggle } from "./ui";
 
 const nav = [
@@ -14,12 +15,15 @@ const nav = [
   { href: "/observability", label: "Observability", icon: Activity },
   { href: "/templates", label: "Templates", icon: FileText },
   { href: "/docs", label: "Documentation", icon: BookOpen },
-  { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/users", label: "Users", icon: UsersRound, admin: true },
+  { href: "/settings", label: "Settings", icon: Settings, admin: true },
 ];
 
-/** Workspace frame for pages outside a project: brand, one-line purpose, and left navigation. */
+/** Workspace frame for pages outside a project: brand and left navigation. */
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const { user } = useAuth();
+  const links = nav.filter((item) => !item.admin || user?.role === "admin");
   const [pending, setPending] = useState(0);
   useEffect(() => {
     const load = () => api("/approvals").then((items) => setPending(items.length)).catch(() => {});
@@ -35,7 +39,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <span className="text-base font-bold">Agentic QE Platform</span>
         </Link>
         <nav aria-label="Workspace" className="flex-1 space-y-0.5">
-          {nav.map((item) => {
+          {links.map((item) => {
             const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
             const Icon = item.icon;
             return (
@@ -49,8 +53,8 @@ export function AppShell({ children }: { children: ReactNode }) {
         </nav>
       </aside>
       <div className="min-w-0 flex-1">
-        <header className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-slate-200 bg-white/95 px-6 py-2.5 backdrop-blur dark:border-slate-800 dark:bg-[#060a17]/90">
-          <p className="text-sm"><b>Agentic QE Platform</b> <span className="text-slate-600 dark:text-slate-400">Governed requirements, code changes, and test engineering for BAs and developers.</span></p>
+        <header className="sticky top-0 z-20 flex items-center justify-end gap-3 border-b border-slate-200 bg-white/95 px-6 py-2.5 backdrop-blur dark:border-slate-800 dark:bg-[#060a17]/90">
+          <UserMenu />
           <ThemeToggle />
         </header>
         <main className="mx-auto max-w-6xl p-6">{children}</main>

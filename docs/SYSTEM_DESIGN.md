@@ -127,6 +127,24 @@ Source: [Harness Patterns](https://ashishpatel26.github.io/agent-harness-enginee
 | Server restart | Waiting runs resume from checkpoints. Running ones are marked interrupted |
 | No tests ran | The verdict is `INCONCLUSIVE`, never `PASS` |
 
+## Accounts and access
+
+Every API and chat path passes `session_guard` in `app.py`, which denies by default. `core/auth.py` holds the rules: an unknown session gets 401, another owner's item gets 404, and admin areas get 403. Runs and chats use the project owner's model, token allocation, and active dates, so background work is limited the same way as page requests. Passwords are salted scrypt hashes, usernames are encrypted, and sessions are stored only as hashes. Every log line passes through `redact()`.
+
+## Accuracy controls
+
+| Stage | Checks by code | Independent review |
+|---|---|---|
+| Discovery | Required sections, every cited path exists, every source folder covered | Before the requirements gate, with one automatic revision |
+| Requirements | Each quote must exist in the file | Before Gate 1, with one automatic revision |
+| Test plan | Plan score and coverage | Before Gate 2, with one automatic revision |
+| Test design | Case mix per requirement, duplicates | Per batch, in parallel, before Gate 3 |
+| Generated tests | Imports exist, syntax, no placeholders, one case per file | Before Gate 4 |
+| Code change | Baseline comparison, named functions present, assertions flagged | In parallel with the tests, before review |
+| Bug scan | Each quote must exist in the file | Once, on the verified findings |
+
+A review that cannot run shows as **not run**, never as a score.
+
 ## Deployment
 
 ```mermaid
@@ -142,4 +160,4 @@ flowchart TB
   B --> G[Git hosts]
 ```
 
-On each start, the startup scripts compare a stamp, rebuild only what changed, and then serve.
+On each start, the startup scripts compare a stamp, rebuild only what changed, and then serve. `docs/AZURE_SYSTEM_DESIGN.md` has the multi-user target design.

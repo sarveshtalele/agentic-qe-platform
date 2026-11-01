@@ -42,7 +42,10 @@ Type uses the system sans stack and system mono, so nothing loads from a font ho
 /                         Projects
 /settings                 Model, private repo access, health
 /approvals                Every decision waiting on a person
-/agents                   Agent policy, evals, guardrails, usage
+/login                    Sign in
+/users                    Admin: accounts, models, token allocations, dates
+/agents                   Agent cards
+/agents/{key}             One agent: details table, controls, evals, recent calls
 /observability            Log across all projects
 /templates                Document templates
 /docs/{page}              Documentation site with search and page navigation

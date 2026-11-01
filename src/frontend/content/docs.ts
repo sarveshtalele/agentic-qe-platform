@@ -237,7 +237,11 @@ Paste a traceback into **Diagnose an error**, and the diagnostician finds the ca
 
 ## Watch it live
 
-The run panel shows the current stage, elapsed time, tokens, and agent calls. **Open full trace** shows every step.
+The run panel shows the current stage, elapsed time, tokens, and a **live log** of each step, including while an agent waits for the model. Documents appear as cards on the right as they are created.
+
+## Confidence reviews
+
+An independent reviewer scores the work before every gate: discovery, requirements, the plan, each batch of test cases, and the generated tests. A score below 70 sends the work back once, automatically. The score and issues show on the approval card. If a review could not run, the card says **not run**.
 
 ## Results
 
@@ -316,10 +320,55 @@ Agents can start workflows, but only people approve gates.`,
 4. Use **Download JSON** to save what the filters show.`,
       },
       {
+        slug: "accounts",
+        title: "Accounts and access",
+        summary: "Sign in, create users, and set what each one can use.",
+        body: `## Sign in
+
+Everyone signs in first. The admin login comes from \`ATLAS_ADMIN_USERNAME\` and \`ATLAS_ADMIN_PASSWORD\` in \`.env\`.
+
+## Manage users
+
+The admin opens **Users** and sets, for each person:
+
+| Setting | What it does |
+|---|---|
+| Password | Stored only as a salted hash. It cannot be read back, only replaced |
+| Model | The model their work uses. Blank uses the default |
+| Token allocation | Their total. Runs and chats stop with a clear message when it is used |
+| Active from and until | Outside these dates, they cannot sign in and their runs stop |
+
+## What each person sees
+
+Users see only their own projects and everything in them. The admin sees everything and is the only one who can change model settings, agents, prompts, and private repository access.
+
+## How login details are protected
+
+- Passwords are salted scrypt hashes, and usernames are encrypted at rest.
+- Sessions are stored only as hashes, in a cookie scripts cannot read.
+- Logs pass through a mask, and audit records use account ids rather than names.
+
+Use HTTPS outside your own machine, so sign-in details are encrypted in transit.`,
+      },
+      {
         slug: "agents",
         title: "Agents and evaluations",
         summary: "Policy, guardrails, and quality for all 13 agents.",
-        body: `## Controls
+        body: `## What risk means
+
+Risk shows what an agent **could affect**, not how it is behaving.
+
+High-risk agents are in the application because Feature Builder and Bug Scan fixes need something that changes code. They have no tools in workflows, their edits pass code guards, they work only on a separate branch, and nothing is committed until a named person approves.
+
+| Risk | Meaning | Agents |
+|---|---|---|
+| Low | Handles text only | Business analyst, reviewers, Gherkin author, test architect, test designer |
+| Medium | Reads code, or acts on project data in chat | Project copilot, repository analyst, requirements analyst, test automation, bug reviewer |
+| High | Can change code, always on a branch with a person's review | Feature engineer, defect diagnostician |
+
+Select any agent's card to open its page, with its details, evaluations, and recent calls.
+
+## Controls
 
 | Control | What it does |
 |---|---|
@@ -331,7 +380,19 @@ Agents can start workflows, but only people approve gates.`,
 
 ## Evaluations
 
-**Run all evaluations** runs each agent's quality and safety cases on the real model, and stores results per prompt version. Model replies vary, so an occasional case can fail between runs.`,
+**Run all evaluations** runs each agent's cases on the real model, and stores results per prompt version. Model replies vary, so an occasional case can fail between runs.
+
+There are 26 cases across 13 agents today:
+
+| Check | What it proves |
+|---|---|
+| Contains, does not contain | Required text is present, and invented text is absent |
+| JSON schema | The reply is usable by the next step |
+| Gherkin parser | Scenarios are valid |
+| Score limits | Weak or untested work cannot score high |
+| Prompt injection | The agent ignores instructions hidden in content |
+
+These catch breakage, but they do not measure accuracy, so a card showing 2/2 means less than it seems. Groundedness, Faithfulness, Recall, and F1 scores are planned in \`docs/PLUGIN_AND_UI_PLAN.md\`.`,
       },
     ],
   },
@@ -350,7 +411,7 @@ Put these in \`.env\`, or in Azure's environment variables. They keep the \`ATLA
 |---|---|---|
 | \`OPENAI_BASE_URL\`, \`OPENAI_API_KEY\`, \`DEFAULT_MODEL\` | None | Model, unless set on the Settings page |
 | \`ATLAS_DATA_DIR\` | \`data\` | Runtime data |
-| \`ATLAS_RUN_TOKEN_LIMIT\` | 300000 | Token budget for one run |
+| \`ATLAS_RUN_TOKEN_LIMIT\` | 600000 | Token budget for one run |
 | \`ATLAS_MODEL_TIMEOUT\` | 180 | Seconds before one model call fails |
 | \`ATLAS_MODEL_CONCURRENCY\` | 4 | Model calls at once |
 | \`ATLAS_SQLITE_JOURNAL\` | WAL | Use DELETE on network storage |
@@ -363,7 +424,7 @@ Put these in \`.env\`, or in Azure's environment variables. They keep the \`ATLA
         summary: "Run on App Service for about ₹1,182 a month.",
         body: `## Cost
 
-Two Linux web apps share one Basic B1 plan in East US: ₹1.6189 an hour, or about ₹1,182 for a 730-hour month, from Azure's retail prices on 1 November 2026. Taxes and your model provider are extra.
+Two Linux web apps share one Basic B1 plan in East US 2: ₹1.6189 an hour, or about ₹1,182 for a 730-hour month, from Azure's retail prices on 1 November 2026. Taxes and your model provider are extra.
 
 ## Steps
 
@@ -371,11 +432,13 @@ Two Linux web apps share one Basic B1 plan in East US: ₹1.6189 an hour, or abo
 2. Create the plan and both apps in the Azure portal.
 3. Add the settings and startup commands.
 4. Upload each ZIP. The server builds its own environment on first start.
-5. Turn on App Service Authentication for the frontend, and an access restriction for the backend.
+5. Add the admin login to the backend settings, and an access restriction so only the frontend can reach the backend.
 
-> Both protections are required, because the app has no login of its own and can run repository code.
+The complete click-by-click guide is in \`docs/AZURE_DEPLOY.md\`.
 
-The complete click-by-click guide is in \`docs/AZURE_DEPLOY.md\`.`,
+## For several users
+
+That setup suits one person or a small trusted team. \`docs/AZURE_SYSTEM_DESIGN.md\` has the design for several users: PostgreSQL for records, Blob Storage for files, Key Vault for secrets, and Container Apps Jobs so repository code never runs beside the app. It comes to about ₹3,905 a month for 5 users, before model costs.`,
       },
       {
         slug: "troubleshooting",

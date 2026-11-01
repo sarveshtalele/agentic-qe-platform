@@ -4,11 +4,14 @@ import { CopilotRuntime, createCopilotRuntimeHandler } from "@copilotkit/runtime
 const backend = process.env.ATLAS_BACKEND_URL || "http://127.0.0.1:8000";
 const keys = ["copilot", "business_analyst", "requirements_analyst", "test_architect", "test_designer", "defect_diagnostician", "bug_reviewer", "repo_analyst"];
 
-const runtime = new CopilotRuntime({
-  agents: Object.fromEntries(keys.map((key) => [key, new HttpAgent({ url: `${backend}/agui/${key}` })])),
-});
+// a runtime per request, because each chat call must carry the caller's session to the backend
+function handle(request: Request) {
+  const headers = { cookie: request.headers.get("cookie") || "" };
+  const runtime = new CopilotRuntime({
+    agents: Object.fromEntries(keys.map((key) => [key, new HttpAgent({ url: `${backend}/agui/${key}`, headers })])),
+  });
+  return createCopilotRuntimeHandler({ runtime, basePath: "/api/copilotkit" })(request);
+}
 
-const handler = createCopilotRuntimeHandler({ runtime, basePath: "/api/copilotkit" });
-
-export const GET = handler;
-export const POST = handler;
+export const GET = handle;
+export const POST = handle;

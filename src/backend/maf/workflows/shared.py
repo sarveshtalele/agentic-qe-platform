@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 from backend.config import repo_dir
@@ -11,6 +12,8 @@ from backend.core.security import (
     safe_path,
 )
 from backend.maf.engine import RunContext
+from backend.maf.runtime import AgentCall
+from backend.qe import model
 from backend.repos import ingest, scan, static_analysis
 
 MAX_SOURCE_CHARS = 60_000
@@ -52,6 +55,34 @@ def code_pack(project_id: str, root: Path | None = None, paths: list[str] | None
         parts.append(block)
         used += len(block)
     return "\n".join(parts) or "(no readable source files)"
+
+
+LOW_CONFIDENCE = 70
+
+
+async def review_artifact(rc: RunContext, name: str, artifact: str, evidence: str = "") -> dict:
+    """An independent score before a person approves. If the review cannot run, the result says so and carries no score."""
+    try:
+        review = await AgentCall(rc.run_id, rc.project_id, "confidence_reviewer").typed(f"Score this {name} from the evidence.\n\nWORK:\n{artifact[:30_000]}\n\nEVIDENCE:\n{evidence[:25_000]}", model.ConfidenceReview)
+    except RuntimeError as exc:
+        rc.log(f"Confidence review of {name} did not run: {str(exc)[:200]}", kind="warning")
+        return {"score": None, "verdict": "NOT RUN", "issues": [str(exc)[:300]]}
+    rc.log(f"Confidence review of {name}: {review.score} ({review.verdict})", {"issues": review.issues}, "review")
+    return review.model_dump()
+
+
+def is_low(review: dict) -> bool:
+    return review["score"] is not None and review["score"] < LOW_CONFIDENCE
+
+
+def discovery_pack(project_id: str, limit: int = 70_000) -> str:
+    """What explains a repository from end to end comes first: its readme, manifests, and entry points, then its riskiest code."""
+    a = _analysis(project_id)
+    root = repo_dir(project_id)
+    files = scan.tree(root, limit=100_000)
+    front = [f for f in files if "/" not in f and re.match(r"(?i)(readme|pyproject\.toml|package\.json|requirements.*\.txt|dockerfile|docker-compose|makefile)", f)]
+    paths = list(dict.fromkeys([*front, *a.get("entrypoints", []), *{r["file"] for r in a.get("routes", [])}, *static_analysis.rank_files_for_review(root, a, 60)]))
+    return code_pack(project_id, paths=paths, limit=limit)
 
 
 async def intake(rc: RunContext, state: dict) -> dict:

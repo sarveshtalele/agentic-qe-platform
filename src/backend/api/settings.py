@@ -7,6 +7,7 @@ from fastapi.responses import (
 )
 from pydantic import BaseModel, Field
 
+from backend.core import auth
 from backend.maf import agui, engine, evals, governance, llm, workflows  # noqa: F401 - workflows registers definitions
 from backend.repos import github
 
@@ -47,6 +48,8 @@ def remove_connection(credential_id: str):
 
 @router.get("/api/settings/llm")
 def llm_settings():
+    if auth.current_user.get()["role"] != "admin":  # only the admin sees the endpoint; a user sees their own model
+        return {"model": auth.current_user_model() or llm.public()["model"], "configured": llm.public()["configured"]}
     return llm.public()
 
 

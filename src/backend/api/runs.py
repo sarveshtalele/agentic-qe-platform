@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 
 from backend.api.common import _project
 from backend.api.documents import ActorIn
-from backend.core import ledger
+from backend.core import auth, ledger
 from backend.core.security import safe_path
 from backend.db import db, rows
 from backend.maf import agui, engine, evals, governance, llm, workflows  # noqa: F401 - workflows registers definitions
@@ -96,7 +96,7 @@ def all_approvals():
         items = rows(con.execute(
             """SELECT a.*, p.name AS project_name, r.workflow FROM approvals a JOIN projects p ON p.id=a.project_id JOIN runs r ON r.id=a.run_id
                WHERE a.status='pending' AND p.archived=0 ORDER BY a.created_at DESC"""))
-    return [{**a, "payload": json.loads(a["payload"])} for a in items]
+    return [{**a, "payload": json.loads(a["payload"])} for a in items if auth.can_see_project(a["project_id"])]
 
 
 @router.get("/api/runs/{run_id}/changes.zip")

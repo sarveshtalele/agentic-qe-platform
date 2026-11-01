@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 
 from backend.api.common import _project
 from backend.config import project_dir
-from backend.core import documents, gates, ledger
+from backend.core import auth, documents, gates, ledger
 from backend.db import db, new_id, now, rows
 from backend.maf import agui, engine, evals, governance, llm, workflows  # noqa: F401 - workflows registers definitions
 from backend.repos import ingest
@@ -50,14 +50,14 @@ def _project_summary(item: dict) -> dict:
 def list_projects(archived: bool = False):
     with db() as con:
         items = rows(con.execute("SELECT * FROM projects WHERE archived=? AND id!='prj_agent_evals' ORDER BY updated_at DESC", (int(archived),)))
-    return [_project_summary(i) for i in items]
+    return [_project_summary(i) for i in items if auth.can_see_project(i["id"])]
 
 
 @router.post("/api/projects", status_code=201)
 def create_project(body: ProjectIn):
-    item = {"id": new_id("prj"), "name": body.name.strip(), "description": body.description.strip(), "created_at": now(), "updated_at": now()}
+    item = {"id": new_id("prj"), "name": body.name.strip(), "description": body.description.strip(), "owner_id": auth.current_user.get()["id"], "created_at": now(), "updated_at": now()}
     with db() as con:
-        con.execute("INSERT INTO projects (id, name, description, created_at, updated_at) VALUES (:id,:name,:description,:created_at,:updated_at)", item)
+        con.execute("INSERT INTO projects (id, name, description, owner_id, created_at, updated_at) VALUES (:id,:name,:description,:owner_id,:created_at,:updated_at)", item)
     ledger.append(item["id"], "user", "project.created", item["id"], {"name": item["name"]})
     return _project_summary(_project(item["id"]))
 

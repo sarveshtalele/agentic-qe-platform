@@ -4,7 +4,7 @@ import { Radar, Stethoscope, Wrench, X } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useProject } from "../../../../components/ProjectShell";
-import { RunList, RunPanel } from "../../../../components/RunPanel";
+import { RunDocuments, RunList, RunPanel } from "../../../../components/RunPanel";
 import { Badge, Button, Card, Empty, ErrorNote, Field, inputClass, PageTitle } from "../../../../components/ui";
 import { api } from "../../../../lib/api";
 
@@ -74,6 +74,7 @@ export default function BugsPage() {
             <Field label="Paste a stack trace or failing test output"><textarea name="traceback" rows={6} className={`${inputClass} mono text-xs`} value={trace} onChange={(e) => setTrace(e.target.value)} /></Field>
             <Button variant="secondary" className="mt-2" disabled={!trace.trim()} onClick={() => start("change", { kind: "diagnose", title: "Diagnose error", spec: `Diagnose and fix this failure:\n${trace}` })}><Stethoscope className="h-4 w-4" /> Diagnose and fix</Button>
           </Card>
+          <RunDocuments projectId={project.id} runId={runId} />
           <Card title="Past runs"><RunList projectId={project.id} workflow={["bug_scan", "change"]} activeId={runId} onPick={setRunId} refreshKey={runId} /></Card>
         </div>
       </div>

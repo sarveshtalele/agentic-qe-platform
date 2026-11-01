@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import sys
 import time
+import tomllib
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -116,6 +117,16 @@ def _commit_date(worktree: Path) -> str:
     return next((date for author, date in dates if author != GIT_AUTHOR), "")
 
 
+def _test_extras(worktree: Path) -> str:
+    """The repository's own test plugins usually live in dev or test extras, and tests cannot run without them."""
+    try:
+        extras = tomllib.loads((worktree / "pyproject.toml").read_text(encoding="utf-8")).get("project", {}).get("optional-dependencies", {})
+    except (tomllib.TOMLDecodeError, OSError):
+        return ""
+    wanted = [name for name in extras if name.lower() in {"dev", "test", "tests", "testing"}]
+    return f"[{','.join(wanted)}]" if wanted else ""
+
+
 def install_dependencies(worktree: Path, analysis: dict, log) -> None:
     """Runs repo-defined install scripts, so callers only reach this after explicit human opt-in.
 
@@ -136,7 +147,8 @@ def install_dependencies(worktree: Path, analysis: dict, log) -> None:
         if (worktree / "requirements.txt").exists():
             steps.append([str(python), "-m", "pip", "install", "-q", *dated, "-r", "requirements.txt"])
         if (worktree / "pyproject.toml").exists():
-            steps.append([str(python), "-m", "pip", "install", "-q", *dated, "-e", "."])
+            steps.append([str(python), "-m", "pip", "install", "-q", *dated, "-e", f".{_test_extras(worktree)}"])
+        steps += [[str(python), "-m", "pip", "install", "-q", *dated, "-r", path.name] for path in sorted(worktree.glob("requirements*dev*.txt")) + sorted(worktree.glob("requirements*test*.txt"))]
         steps.append([str(python), "-m", "pip", "install", "-q", *dated, "pytest"])
         for step in steps:
             done = subprocess.run(step, cwd=worktree, env=clean_env(), capture_output=True, text=True, errors="replace", timeout=600)
@@ -260,7 +272,7 @@ def classify_failure(message: str) -> str:
     text = message.lower()
     if "cannot import name" in text:  # the module exists but the test asks for a wrong name: the test is wrong, not the machine
         return "FIXTURE_DRIFT"
-    if re.search(r"modulenotfounderror|importerror|command not found|connection refused|econnrefused|cannot find module|no module named|browser.*not found|timed out waiting for server", text):
+    if re.search(r"modulenotfounderror|importerror|command not found|connection refused|econnrefused|cannot find module|no module named|browser.*not found|timed out waiting for server|not natively supported", text):
         return "ENVIRONMENT"
     if re.search(r"locator|selector|getby|element not found|no element|waiting for|strict mode violation", text):
         return "SELECTOR_DRIFT"

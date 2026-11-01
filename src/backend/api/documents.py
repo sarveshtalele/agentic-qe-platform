@@ -13,7 +13,7 @@ from fastapi.responses import (
 from pydantic import BaseModel, Field
 
 from backend.api.common import _project
-from backend.core import doc_checks, documents, files
+from backend.core import auth, doc_checks, documents, files
 from backend.maf import agui, engine, evals, governance, llm, workflows  # noqa: F401 - workflows registers definitions
 from backend.maf import runtime as agents
 
@@ -45,7 +45,7 @@ class ActorIn(BaseModel):
 def all_documents():
     with db() as con:
         projects = rows(con.execute("SELECT id, name FROM projects WHERE archived=0 AND id!='prj_agent_evals'"))
-    found = [{**doc, "project": p["name"]} for p in projects for doc in documents.list_for(p["id"])]
+    found = [{**doc, "project": p["name"]} for p in projects if auth.can_see_project(p["id"]) for doc in documents.list_for(p["id"])]
     return sorted(found, key=lambda doc: doc["updated_at"], reverse=True)[:500]
 
 

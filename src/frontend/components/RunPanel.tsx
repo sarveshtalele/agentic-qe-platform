@@ -1,10 +1,74 @@
 "use client";
 
-import { CheckCircle2, Circle, Loader2, XCircle } from "lucide-react";
+import { CheckCircle2, Circle, FileText, Loader2, XCircle } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, getSigner, setSigner, when } from "../lib/api";
 import { Badge, Button, Card, ErrorNote, Field, inputClass, useToast } from "./ui";
+
+function ConfidenceNote({ review }: { review?: any }) {
+  if (!review) return null;
+  const tone = review.score === null ? "amber" : review.score >= 85 ? "emerald" : review.score >= 70 ? "amber" : "rose";
+  return (
+    <div className="text-sm" data-testid="confidence">
+      <span className="flex flex-wrap items-center gap-2"><b>Independent confidence review</b> <Badge tone={tone}>{review.score === null ? "not run" : `${review.score} of 100`}</Badge> <Badge>{review.verdict}</Badge></span>
+      {review.issues?.length > 0 && <ul className="mt-1 list-disc pl-5 text-xs text-slate-600 dark:text-slate-400">{review.issues.slice(0, 8).map((issue: string, i: number) => <li key={i}>{issue}</li>)}</ul>}
+    </div>
+  );
+}
+
+function LiveLog({ events, live }: { events: any[]; live: boolean }) {
+  const box = useRef<HTMLDivElement>(null);
+  const [follow, setFollow] = useState(true);
+  useEffect(() => {
+    if (follow && box.current) box.current.scrollTop = box.current.scrollHeight;
+  }, [events, follow]);
+  const color: Record<string, string> = { error: "text-rose-400", warning: "text-amber-400", review: "text-sky-300", test: "text-emerald-300", artifact: "text-emerald-300", agent: "text-indigo-300", agent_call: "text-indigo-300", tool: "text-slate-400" };
+  return (
+    <div data-testid="live-log">
+      <div className="mb-1 flex items-center justify-between text-xs">
+        <b className="flex items-center gap-1.5">{live && <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />}{live ? "Live log" : "Run log"} ({events.length})</b>
+        <label className="flex items-center gap-1 text-slate-500"><input type="checkbox" checked={follow} onChange={(e) => setFollow(e.target.checked)} /> Follow</label>
+      </div>
+      <div ref={box} className="mono max-h-72 overflow-y-auto rounded-lg bg-[#070d1f] p-2 text-[11px] leading-relaxed text-slate-300">
+        {events.map((e) => (
+          <div key={e.seq} className="flex gap-2">
+            <span className="shrink-0 text-slate-500">{new Date(e.ts).toLocaleTimeString()}</span>
+            {e.stage && <span className="w-24 shrink-0 truncate text-slate-500">{e.stage}</span>}
+            <span className={`min-w-0 break-words ${color[e.type] || ""}`}>{e.message}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Rectangular cards for the documents a run has made. They appear as the run creates them. */
+export function RunDocuments({ projectId, runId }: { projectId: string; runId: string | null }) {
+  const [docs, setDocs] = useState<any[]>([]);
+  useEffect(() => {
+    if (!runId) return setDocs([]);
+    const load = () => api(`/projects/${projectId}/documents`).then((items) => setDocs(items.filter((d: any) => d.run_id === runId))).catch(() => {});
+    load();
+    const timer = setInterval(load, 3000);
+    return () => clearInterval(timer);
+  }, [projectId, runId]);
+  if (!docs.length) return null;
+  return (
+    <Card title={`Documents from this run (${docs.length})`}>
+      <ul className="space-y-2" data-testid="current-documents">
+        {docs.map((d) => (
+          <li key={d.id}>
+            <Link href={`/projects/${projectId}/documents/${d.id}`} data-testid="document-card" className="flex items-center gap-2.5 rounded-lg border border-slate-200 bg-slate-50 p-2.5 transition hover:border-indigo-500 dark:border-slate-700 dark:bg-slate-900">
+              <FileText className="h-5 w-5 shrink-0 text-indigo-500" />
+              <span className="min-w-0 flex-1"><b className="block truncate text-sm">{d.title}</b><span className="text-[11px] text-slate-500">{d.kind.replace(/_/g, " ")} · v{d.current_version} · {d.status}</span></span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </Card>
+  );
+}
 
 export function ApprovalCard({ approval, projectId, onDecided }: { approval: any; projectId: string; onDecided: () => void }) {
   const [by, setBy] = useState("");
@@ -41,6 +105,7 @@ export function ApprovalCard({ approval, projectId, onDecided }: { approval: any
           ))}
         </ul>
       )}
+      <ConfidenceNote review={payload.confidence || payload.verification?.confidence} />
       {payload.review && <p className="text-sm">Reviewer score <b>{payload.review.score}</b>: {payload.review.issues?.join("; ") || "no issues"}</p>}
       {payload.verification && (
         <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -197,6 +262,7 @@ export function RunPanel({ runId, projectId, onFinished }: { runId: string; proj
         {run.state.source_files !== undefined && <p className="text-sm" data-testid="scan-coverage">Reviewed <b>{run.state.reviewed_files?.length || 0}</b> of <b>{run.state.source_files}</b> source files{run.state.unreviewed_files?.length ? `. Not reviewed: ${run.state.unreviewed_files.join(", ")}` : ""}</p>}
         {run.state.summary?.verdict && <p className="text-sm">Result <Badge>{run.state.summary.verdict}</Badge> {run.state.summary.passed}/{run.state.summary.executed} tests passed, {run.state.summary.coverage}% requirement coverage</p>}
         {open.map((a: any) => <ApprovalCard key={a.id} approval={a} projectId={projectId} onDecided={decided} />)}
+        <LiveLog events={events} live={live} />
         <div className="max-h-[28rem] space-y-1 overflow-y-auto text-xs" data-testid="run-events">
           {stages.map((stage) => (
             <details key={stage.id} open={stage.status === "running" || stage.status === "failed"} className="rounded-lg border border-slate-200 dark:border-slate-800">

@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from backend.api.common import _project
-from backend.core import gates, ledger, prompts
+from backend.core import auth, gates, ledger, prompts
 from backend.db import db, rows
 from backend.maf import agui, engine, evals, governance, llm, workflows  # noqa: F401 - workflows registers definitions
 
@@ -100,7 +100,8 @@ def agent_detail(agent: str):
     item = next((a for a in governance.overview() if a["key"] == agent), None)
     if not item:
         raise KeyError(agent)
-    return {**item, "calls_recent": governance.recent_calls(agent), "events_recent": governance.recent_events(agent), "evals": evals.history(agent), "has_evals": agent in evals.available()}
+    admin = auth.current_user.get()["role"] == "admin"  # recent calls and events span projects
+    return {**item, "calls_recent": governance.recent_calls(agent) if admin else [], "events_recent": governance.recent_events(agent) if admin else [], "evals": evals.history(agent), "has_evals": agent in evals.available()}
 
 
 @router.put("/api/agents/{agent}/settings")

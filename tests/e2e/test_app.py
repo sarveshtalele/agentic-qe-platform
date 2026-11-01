@@ -4,9 +4,9 @@ Tests run in file order and share one project. Screenshots go to docs/evidence a
 """
 import base64
 import io
+import os
 import re
 import time
-import urllib.request
 import zipfile
 from pathlib import Path
 
@@ -14,7 +14,7 @@ import pytest
 from docx import Document
 from playwright.sync_api import expect
 
-from tests.e2e.conftest import state
+from tests.e2e.conftest import api_get, state
 
 pytestmark = pytest.mark.e2e
 
@@ -116,7 +116,7 @@ def test_04_real_public_github_clone(page):
 
 def test_04b_rename_project_docs_and_brand(page):
     page.goto(UI)
-    expect(page.get_by_text("Governed requirements, code changes, and test engineering for BAs and developers.")).to_be_visible()
+    expect(page.get_by_text("Governed requirements, code changes, and test engineering for BAs and developers.")).to_have_count(0)
     page.once("dialog", lambda d: d.accept("Agentic QE repository"))
     page.get_by_role("button", name="Rename Agentic QE plugin").click()
     expect(page.get_by_role("heading", name="Agentic QE repository")).to_be_visible()
@@ -376,9 +376,8 @@ def test_13_chat_memory_new_window_and_specialist_agent(page):
     box.press("Enter")
     deadline = time.time() + 180
     while time.time() < deadline:
-        with urllib.request.urlopen(f"{API}/api/projects/{state['id']}/memories") as response:
-            if b"freeze" in response.read():
-                break
+        if b"freeze" in api_get(f"/projects/{state['id']}/memories"):
+            break
         time.sleep(2)
     else:
         raise AssertionError("the agent did not store the memory")
@@ -426,25 +425,62 @@ def test_15_prompt_version_and_real_eval(page):
 
 def test_15b_agents_page_evals_kill_switch_and_real_numbers(page):
     page.goto(f"{UI}/agents")
-    table = page.get_by_test_id("agents-table")
-    expect(table.locator("tbody tr")).to_have_count(13)
+    cards = page.get_by_test_id("agent-card")
+    expect(cards).to_have_count(13)
+    expect(page.get_by_test_id("risk-legend")).to_contain_text("can change code")
     page.get_by_role("button", name="Run all evaluations").click()
     expect(page.get_by_role("button", name="Running evaluations")).to_be_visible()
     expect(page.get_by_role("button", name="Run all evaluations")).to_be_enabled(timeout=420_000)
-    expect(table).not_to_contain_text("Not run")
+    expect(page.get_by_test_id("agent-cards")).not_to_contain_text("evals not run")
     state["eval_summary"] = page.get_by_test_id("agent-stats").inner_text()
-    (EVIDENCE / "eval-summary.txt").write_text(table.inner_text())
+    (EVIDENCE / "eval-summary.txt").write_text(page.get_by_test_id("agent-cards").inner_text())
     shot(page, "21b-agents")
-    page.get_by_role("button", name="Document reviewer").click()
+    cards.filter(has_text="Document reviewer").click()
+    expect(page).to_have_url(re.compile("/agents/doc_reviewer"))
     detail = page.get_by_test_id("agent-detail")
+    expect(page.get_by_test_id("agent-details-table")).to_contain_text("Tokens per model call")
     expect(detail).to_contain_text("scores weak doc low")
     detail.get_by_label("Your name").fill(SIGNER)
     detail.get_by_label("Reason").fill("Temporarily off for the test")
     detail.get_by_role("button", name="Disable agent").click()
-    expect(page.get_by_test_id("agent-detail")).to_contain_text("disabled")
+    expect(page.get_by_test_id("agent-details-table")).to_contain_text("Disabled")
     shot(page, "21c-agent-disabled")
     page.get_by_test_id("agent-detail").get_by_role("button", name="Enable agent").click()
     expect(page.get_by_test_id("agent-detail").get_by_role("button", name="Disable agent")).to_be_visible()
+
+
+def test_15e_admin_creates_user_who_sees_only_their_own_work(page):
+    name, secret = f"qa.user{int(time.time())}", base64.urlsafe_b64encode(os.urandom(15)).decode()
+    page.goto(f"{UI}/users")
+    page.locator('input[name="new-username"]').fill(name)
+    page.locator('input[name="new-password"]').fill(secret)
+    page.locator('input[name="new-model"]').fill("deepseek-v4-flash-global")
+    page.locator('input[name="new-tokens"]').fill("50000")
+    page.locator('input[name="new-until"]').fill("2099-01-31")
+    page.get_by_role("button", name="Create user").click()
+    card = page.get_by_test_id("user-card").filter(has_text="50,000")
+    expect(card).to_be_visible(timeout=15_000)
+    assert secret not in page.content()
+    shot(page, "22b-users")
+    guest = page.context.browser.new_context(viewport={"width": 1440, "height": 900})
+    tab = guest.new_page()
+    tab.goto(UI)
+    expect(tab).to_have_url(re.compile("/login"), timeout=15_000)
+    shot(tab, "22a-login")
+    tab.get_by_label("Username").fill(name)
+    tab.get_by_label("Password").fill("not-the-right-one")
+    tab.get_by_role("button", name="Sign in").click()
+    expect(tab.locator("p[role=alert]")).to_contain_text("not correct")
+    tab.get_by_label("Password").fill(secret)
+    tab.get_by_role("button", name="Sign in").click()
+    expect(tab.get_by_test_id("signed-in-user")).to_contain_text(name, timeout=30_000)
+    expect(tab.get_by_text("No projects yet")).to_be_visible(timeout=15_000)
+    expect(tab.get_by_role("link", name="Users")).to_have_count(0)
+    tab.goto(f"{state['base']}")
+    expect(tab.get_by_text("Not found")).to_be_visible(timeout=15_000)
+    guest.close()
+    log = (EVIDENCE / "server.log").read_text(errors="replace")
+    assert secret not in log and name not in log and os.environ["ATLAS_ADMIN_PASSWORD"] not in log
 
 
 def test_15c_observability_across_projects_and_per_run(page):

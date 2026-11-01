@@ -44,7 +44,7 @@ code, pre, textarea.mono, .mono {
 .doc-table th, .doc-table-head td { background: rgb(99 102 241 / 0.1); font-weight: 700; }
 .doc-table tbody tr:nth-child(even):not(.doc-table-head) td { background: rgb(148 163 184 / 0.06); }
 .doc-table td:has(.doc-cell) { padding: 0; }
-.doc-cell { display: block; width: 100%; min-width: 7ch; field-sizing: content; padding: 0.35rem 0.55rem; background: transparent; font-weight: inherit; outline: none; }
+.doc-cell { display: block; width: 100%; min-width: 7ch; max-width: 34rem; resize: none; field-sizing: content; padding: 0.35rem 0.55rem; background: transparent; font-weight: inherit; outline: none; }
 .doc-cell:focus { box-shadow: inset 0 0 0 2px rgb(99 102 241); }
 .doc-text-input { field-sizing: content; min-height: 3rem; resize: vertical; }
 .prose-atlas th { background: rgb(99 102 241 / 0.1); }

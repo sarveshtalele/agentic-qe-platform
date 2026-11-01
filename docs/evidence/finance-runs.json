@@ -2,49 +2,49 @@
   {
     "workflow": "qe",
     "status": "completed",
-    "tokens_in": 236862,
-    "tokens_out": 55485,
-    "started_at": "2026-11-01T12:27:33+00:00",
-    "ended_at": "2026-11-01T12:30:56+00:00"
+    "tokens_in": 319949,
+    "tokens_out": 65299,
+    "started_at": "2026-11-01T14:01:00+00:00",
+    "ended_at": "2026-11-01T14:04:22+00:00"
   },
   {
     "workflow": "change",
     "status": "completed",
-    "tokens_in": 110356,
-    "tokens_out": 9643,
-    "started_at": "2026-11-01T12:23:29+00:00",
-    "ended_at": "2026-11-01T12:27:32+00:00"
+    "tokens_in": 77828,
+    "tokens_out": 6926,
+    "started_at": "2026-11-01T14:00:10+00:00",
+    "ended_at": "2026-11-01T14:00:59+00:00"
   },
   {
     "workflow": "change",
     "status": "completed",
-    "tokens_in": 10660,
-    "tokens_out": 437,
-    "started_at": "2026-11-01T12:23:21+00:00",
-    "ended_at": "2026-11-01T12:23:28+00:00"
+    "tokens_in": 11518,
+    "tokens_out": 502,
+    "started_at": "2026-11-01T13:59:59+00:00",
+    "ended_at": "2026-11-01T14:00:08+00:00"
   },
   {
     "workflow": "change",
     "status": "completed",
-    "tokens_in": 35483,
-    "tokens_out": 2891,
-    "started_at": "2026-11-01T12:22:47+00:00",
-    "ended_at": "2026-11-01T12:23:19+00:00"
+    "tokens_in": 51044,
+    "tokens_out": 2407,
+    "started_at": "2026-11-01T13:59:28+00:00",
+    "ended_at": "2026-11-01T13:59:59+00:00"
   },
   {
     "workflow": "bug_scan",
     "status": "completed",
-    "tokens_in": 98094,
-    "tokens_out": 18667,
-    "started_at": "2026-11-01T12:22:05+00:00",
-    "ended_at": "2026-11-01T12:22:44+00:00"
+    "tokens_in": 97470,
+    "tokens_out": 14450,
+    "started_at": "2026-11-01T13:58:45+00:00",
+    "ended_at": "2026-11-01T13:59:26+00:00"
   },
   {
     "workflow": "ba",
     "status": "completed",
-    "tokens_in": 8228,
-    "tokens_out": 4549,
-    "started_at": "2026-11-01T12:21:34+00:00",
-    "ended_at": "2026-11-01T12:22:04+00:00"
+    "tokens_in": 7304,
+    "tokens_out": 3915,
+    "started_at": "2026-11-01T13:58:06+00:00",
+    "ended_at": "2026-11-01T13:58:44+00:00"
   }
 ]

@@ -4,7 +4,7 @@ import { Hammer } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { useProject } from "../../../../components/ProjectShell";
-import { RunList, RunPanel } from "../../../../components/RunPanel";
+import { RunDocuments, RunList, RunPanel } from "../../../../components/RunPanel";
 import { Button, Card, Empty, ErrorNote, Field, inputClass, PageTitle } from "../../../../components/ui";
 import { api } from "../../../../lib/api";
 
@@ -44,7 +44,7 @@ export default function FeaturePage() {
           </Card>
           {runId && <RunPanel runId={runId} projectId={project.id} />}
         </div>
-        <Card title="Past runs"><RunList projectId={project.id} workflow={["change"]} activeId={runId} onPick={setRunId} refreshKey={runId} /></Card>
+        <div className="space-y-4"><RunDocuments projectId={project.id} runId={runId} /><Card title="Past runs"><RunList projectId={project.id} workflow={["change"]} activeId={runId} onPick={setRunId} refreshKey={runId} /></Card></div>
       </div>
     </>
   );

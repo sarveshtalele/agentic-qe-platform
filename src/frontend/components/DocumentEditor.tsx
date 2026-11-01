@@ -88,7 +88,7 @@ function TableBlock({ raw, gherkin, label, readOnly, onChange }: { raw: string; 
           <tbody>
             {rows.map((row, r) => (
               <tr key={r} className={r === 0 ? "doc-table-head" : ""}>
-                {row.map((value, c) => <td key={c}><input aria-label={`${label}, row ${r + 1}, column ${c + 1}`} className="doc-cell" value={value} onChange={(e) => setCell(r, c, e.target.value)} /></td>)}
+                {row.map((value, c) => <td key={c}><textarea rows={1} aria-label={`${label}, row ${r + 1}, column ${c + 1}`} className="doc-cell" value={value} onChange={(e) => setCell(r, c, e.target.value.replace(/\s*\n\s*/g, " "))} /></td>)}
                 <td className="w-6 !border-0 !bg-transparent !p-0">{r > 0 && rows.length > 2 && <button type="button" aria-label={`Remove row ${r + 1}`} title="Remove row" className="ml-1 text-slate-400 hover:text-rose-500" onClick={() => commit(rows.filter((_, i) => i !== r))}><Trash2 className="h-3.5 w-3.5" /></button>}</td>
               </tr>
             ))}
@@ -193,7 +193,7 @@ export function DocumentEditor({ documentId, value, gherkin, readOnly = false, o
             ? <TableBlock raw={block.raw} gherkin={gherkin} label={`Table ${blocks.slice(0, i).filter((b) => b.kind === "table").length + 1}`} readOnly={readOnly} onChange={(raw) => update(i, raw)} />
             : <TextBlock raw={block.raw} gherkin={gherkin} readOnly={readOnly} onChange={(raw) => (raw.trim() ? update(i, raw) : remove(i))} onRemove={() => remove(i)} />}
           {!readOnly && !gherkin && (
-            <div className="flex h-7 items-center gap-1.5 opacity-0 transition focus-within:opacity-100 group-hover/block:opacity-100" aria-label="Insert after this block">
+            <div className="hidden h-7 items-center gap-1.5 focus-within:flex group-hover/block:flex" aria-label="Insert after this block">
               <Plus className="h-3.5 w-3.5 text-slate-400" /><Insert documentId={documentId} onInsert={(raw) => insert(i, raw)} onError={onError} />
             </div>
           )}

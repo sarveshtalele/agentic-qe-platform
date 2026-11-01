@@ -11,7 +11,7 @@ import pytest
 from docx import Document
 
 from backend import db as database
-from backend.core import documents, files, gates, gherkin, ledger, prompts, security
+from backend.core import doc_checks, documents, files, gates, gherkin, ledger, prompts, security
 from backend.db import db, new_id, now
 from backend.qe import execution, model, trace
 from backend.repos import git, ingest, scan, static_analysis
@@ -715,3 +715,48 @@ def test_ruff_skips_test_files_but_not_folders_named_like_tests(tmp_path):
     (inner / "test_app.py").write_text(bad)
     files = {f["file"] for f in static_analysis.run_ruff(inner)}
     assert files == {"app.py"}
+
+
+def test_malformed_reply_is_reported_and_never_replaced_by_a_fragment():
+    from backend.maf.runtime import extract_json
+
+    broken = '{"cases": [{"id": "A", "x": 1}, {"id": "B", "x": '
+    with pytest.raises(ValueError, match="not valid JSON"):
+        extract_json(broken, ("cases",))
+    assert extract_json('{"cases": [{"id": "A"}], "extra": oops', ("cases",)) == [{"id": "A"}], "a complete list inside a broken object is usable"
+    assert extract_json('{"a": "line one\nline two"}'.replace("\\n", "\n"), ("a",))["a"].startswith("line one")
+    assert extract_json(r'{"pattern": "\d+ items"}', ("pattern",))["pattern"] == r"\d+ items"
+
+
+def test_discovery_checks_find_gaps_and_invented_paths():
+    good = "\n".join(f"## {h}\ntext" for h in doc_checks.DISCOVERY_HEADINGS) + "\nSee `src/app.py:3` and `src/`, and `web/page.js`."
+    tree = ["src/app.py", "web/page.js", "README.md"]
+    assert doc_checks.discovery_issues(good, tree, ["src/app.py", "web/page.js"]) == []
+    issues = " ".join(doc_checks.discovery_issues("## Purpose and Users\nSee `src/gone.py`.", tree, ["src/app.py", "web/page.js"]))
+    assert "missing section: Risks" in issues and "src/gone.py" in issues and "web" in issues
+
+
+def test_test_extras_install_and_async_needs_are_environment(tmp_path):
+    (tmp_path / "pyproject.toml").write_text('[project]\nname = "x"\nversion = "1"\n[project.optional-dependencies]\ndev = ["pytest-asyncio"]\ndocs = ["sphinx"]\n')
+    assert execution._test_extras(tmp_path) == "[dev]"
+    assert execution.classify_failure("Failed: async def functions are not natively supported.") == "ENVIRONMENT"
+
+
+def test_discovery_check_reads_real_headings_and_ignores_module_names():
+    text = "\n".join(f"## {h}: with a description" for h in doc_checks.DISCOVERY_HEADINGS) + "\n`src.server`, `127.0.0.1`, `ci.yml`, `app.py`, `made_up.py`."
+    assert doc_checks.discovery_issues(text, [".github/workflows/ci.yml", "src/app.py"], []) == ["cited paths that do not exist: ['made_up.py']"]
+
+
+def test_discovery_accepts_a_path_the_repository_mentions_but_not_an_invented_one():
+    text = "\n".join(f"## {h}" for h in doc_checks.DISCOVERY_HEADINGS) + "\nSee `web/out/` and `made/up/`."
+    assert doc_checks.discovery_issues(text, ["src/app.py"], [], "Dockerfile: COPY web/out/ /site") == ["cited paths that do not exist: ['made/up/']"]
+
+
+def test_failing_tests_cap_a_high_change_review():
+    from backend.maf.workflows.change import cap_for_failed_tests
+    review = {"score": 100, "verdict": "APPROVED", "issues": []}
+    capped = cap_for_failed_tests(review, "FAIL")
+    assert (capped["score"], capped["verdict"], capped["model_score"]) == (60, "REVISE", 100) and "Tests fail" in capped["issues"][0]
+    assert cap_for_failed_tests(review, "PASS") == review
+    not_run = {"score": None, "verdict": "NOT RUN", "issues": []}
+    assert cap_for_failed_tests(not_run, "FAIL") == not_run

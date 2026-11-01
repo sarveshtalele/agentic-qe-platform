@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+from pathlib import PurePosixPath
 
 from backend.core.files import template_headings
 
@@ -70,3 +71,27 @@ def apply(review: dict, document: str, template_body: str = "", sources: str | N
     score = min(review["score"], result["score_cap"])
     verdict = "APPROVED" if score >= 85 else "REVISE" if score >= 60 else "REJECTED"
     return {**review, "score": score, "verdict": verdict, "model_score": review["score"], "issues": [*result["issues"], *review.get("issues", [])]}
+
+
+DISCOVERY_HEADINGS = ("Purpose and Users", "How It Runs End to End", "Architecture", "Modules", "Interfaces", "Data and Integrations", "Configuration and Deployment", "Existing Tests", "Risks", "Not Determined")
+_CITED = re.compile(r"`([\w./-]+\.\w{1,6}|[\w.-]+(?:/[\w.-]+)+/?)(?::\d+)?`")
+
+
+def discovery_issues(text: str, tree: list[str], source_files: list[str], evidence: str = "") -> list[str]:
+    """Checks a discovery summary against the real repository, so gaps and invented paths are found by code."""
+    headings = {match.split(":")[0].strip().lower() for match in re.findall(r"^#{1,3}\s+(.+)$", text, re.M)}
+    issues = [f"missing section: {name}" for name in DISCOVERY_HEADINGS if name.lower() not in headings]
+    known = set(tree)
+    folders = {str(parent) for name in tree for parent in PurePosixPath(name).parents}
+    names = {PurePosixPath(name).name for name in tree}
+    # a bare name such as ci.yml may be a file anywhere, and dotted text may be a module or an address, so only real paths are judged strictly
+    invented = sorted({m for m in _CITED.findall(text) if (m.rstrip("/") not in known and m.rstrip("/") not in folders) if "/" in m or (m in names) is False and re.search(r"\.(py|js|ts|tsx|jsx|java|go|rb|cs|md|json|toml|yaml|yml)$", m) and m not in names})
+    # a path the repository's own files mention, such as an ignored build folder, is not invented
+    invented = [m for m in invented if m.rstrip("/") not in evidence]
+    if invented:
+        issues.append(f"cited paths that do not exist: {invented[:15]}")
+    top = sorted({name.split("/")[0] for name in source_files if "/" in name})
+    missed = [folder for folder in top if folder not in text]
+    if missed:
+        issues.append(f"source folders never mentioned: {missed[:15]}")
+    return issues

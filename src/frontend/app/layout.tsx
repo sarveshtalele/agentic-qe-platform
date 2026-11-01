@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { AuthGate } from "../components/AuthGate";
 import { ToastProvider } from "../components/ui";
 import "./globals.css";
 
@@ -16,7 +17,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body className="antialiased bg-slate-50 dark:bg-[#030712] text-slate-900 dark:text-slate-100 min-h-screen">
-        <ToastProvider>{children}</ToastProvider>
+        <ToastProvider><AuthGate>{children}</AuthGate></ToastProvider>
       </body>
     </html>
   );

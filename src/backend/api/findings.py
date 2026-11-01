@@ -4,7 +4,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
-from backend.core import ledger
+from backend.core import auth, ledger
 from backend.db import db, row, rows
 from backend.maf import agui, engine, evals, governance, llm, workflows  # noqa: F401 - workflows registers definitions
 
@@ -14,9 +14,10 @@ router = APIRouter()
 @router.get("/api/findings")
 def all_findings():
     with db() as con:
-        return rows(con.execute("""SELECT f.*, p.name AS project FROM findings f JOIN projects p ON p.id=f.project_id
+        found = rows(con.execute("""SELECT f.*, p.name AS project FROM findings f JOIN projects p ON p.id=f.project_id
                                    WHERE f.status='open' AND p.archived=0 AND p.id!='prj_agent_evals'
                                    ORDER BY CASE f.severity WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END, f.created_at DESC LIMIT 500"""))
+    return [f for f in found if auth.can_see_project(f["project_id"])]
 
 
 class FindingPatch(BaseModel):

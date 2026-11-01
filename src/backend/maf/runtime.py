@@ -20,7 +20,7 @@ from agent_framework import (
 from pydantic import BaseModel, ValidationError
 
 from backend.config import MODEL_CONCURRENCY, RUN_TOKEN_LIMIT
-from backend.core import documents, ledger, prompts
+from backend.core import auth, documents, ledger, prompts
 from backend.core.security import redact
 from backend.db import db, new_id, now, rows
 from backend.maf import governance, llm, observability, tools
@@ -100,6 +100,7 @@ def tool_audit(agent_key: str, project_id: str, run_id: str | None, source: str)
 
 def build(agent_key: str, project_id: str, tool_list=None, *, root=None, chat: bool = False, run_id: str | None = None, source: str = "workflow") -> Agent:
     governance.require_enabled(agent_key)
+    auth.check_allowance(project_id)
     instructions = prompts.active(agent_key)["body"]
     # deny by default: a tool reaches the model only if this agent's policy lists it
     tool_list = governance.allowed(agent_key, tools.repo_tools(project_id, root) + list(tool_list or []), chat)
@@ -107,7 +108,7 @@ def build(agent_key: str, project_id: str, tool_list=None, *, root=None, chat: b
     middleware = [tool_audit(agent_key, project_id, run_id, source), governance.telemetry(agent_key, project_id, run_id, source)]
     providers = [ProjectContext(project_id, full=chat)]
     return Agent(
-        client=llm.client(), name=agent_key, instructions=instructions, tools=tool_list, context_providers=providers, middleware=middleware,
+        client=llm.client(auth.model_for(project_id)), name=agent_key, instructions=instructions, tools=tool_list, context_providers=providers, middleware=middleware,
         compaction_strategy=SlidingWindowStrategy(keep_last_groups=30), default_options=options,
     )
 
@@ -117,19 +118,35 @@ def _strip_tool_markup(text: str) -> str:
     return re.sub(r"<[｜|]DSML[｜|].*", "", text, flags=re.S).strip()
 
 
-def extract_json(text: str):
-    """Models wrap JSON in prose or fences, and prose can hold brackets like [FR-001]. Return the first real object, or a list of objects."""
-    decoder = json.JSONDecoder()
+_LENIENT = json.JSONDecoder(strict=False)  # models put raw line breaks inside strings
+_BAD_ESCAPE = re.compile(r'\\(?!["\\/bfnrtu])')
+
+
+def _decode(text: str, start: int):
+    try:
+        return _LENIENT.raw_decode(text, start)[0]
+    except json.JSONDecodeError:
+        return _LENIENT.raw_decode(_BAD_ESCAPE.sub(r"\\\\", text[start:]))[0]  # paths and regexes often carry a lone backslash
+
+
+def extract_json(text: str, required: tuple[str, ...] = ()):
+    """Return the first real object or list of objects. Prose can hold brackets like [FR-001].
+
+    With required names, an object without them is skipped: when a large reply is malformed, an inner fragment
+    would otherwise pass as the answer and hide the real error.
+    """
+    problem = None
     for match in re.finditer(r"[\[{]", text):
         try:
-            found, _ = decoder.raw_decode(text, match.start())
-        except json.JSONDecodeError:
+            found = _decode(text, match.start())
+        except json.JSONDecodeError as exc:
+            problem = problem or f"not valid JSON near character {match.start() + exc.pos} of {len(text)}: {exc.msg}"
             continue
-        if isinstance(found, dict) and found:
+        if isinstance(found, dict) and found and all(name in found for name in required):
             return found
         if isinstance(found, list) and found and all(isinstance(item, dict) for item in found):
             return found
-    raise ValueError("No JSON object found in the model reply")
+    raise ValueError(f"The reply is {problem}" if problem else "No JSON object found in the model reply")
 
 
 def _fit_schema(found, schema: type[BaseModel]):
@@ -164,7 +181,11 @@ class AgentCall:
                 used = con.execute("SELECT tokens_in+tokens_out FROM runs WHERE id=?", (self.run_id,)).fetchone()[0]
             if used >= RUN_TOKEN_LIMIT:
                 raise RuntimeError(f"Run stopped: it used {used} tokens, over the limit of {RUN_TOKEN_LIMIT}. Raise ATLAS_RUN_TOKEN_LIMIT to allow more.")
+        auth.check_allowance(self.project_id)  # long runs can reach a limit part way through
         options = {"tool_choice": "none"} if not tools_allowed and self.has_tools else {}
+        emit = _emit.get()
+        if emit:
+            emit("agent_call", f"{self.key} is working, waiting for the model", {"agent": self.key})
         message = governance.guard_text(self.key, message, "input", self.project_id, self.run_id)
         try:
             async with _model_gate():
@@ -199,12 +220,13 @@ class AgentCall:
             # some models narrate after tool calls and never answer, so retries answer from what was already read
             reply = await self.text(prompt, tools_allowed=attempt == 0)
             # a cut-off reply can still hold a parseable fragment, so it never reaches the parser
-            if str(self.last_response.finish_reason or "") == "length":
+            if str(getattr(self.last_response.finish_reason, "value", self.last_response.finish_reason) or "") == "length":
                 error = "the reply was cut off at the token limit"
                 prompt = f"Your reply was cut off at the token limit. Send the complete answer again with every text field much shorter. {rule}"
                 continue
             try:
-                return schema.model_validate(_fit_schema(extract_json(reply), schema))
+                required = tuple(name for name, field in schema.model_fields.items() if field.is_required())
+                return schema.model_validate(_fit_schema(extract_json(reply, required), schema))
             except (ValueError, ValidationError) as exc:
                 error = str(exc)[:1500]
                 # same session, so the agent keeps what it read and only has to format its answer

@@ -154,7 +154,7 @@ CopilotKit's headless hooks in the browser call a Next.js runtime route, which r
 
 ## Limits
 
-- Single user on loopback. There is no login or tenant isolation.
+- Users are separated by account and project ownership, but repository code runs on the same machine. See `docs/AZURE_SYSTEM_DESIGN.md` before admitting untrusted users.
 - Target test code runs with host permissions, in a scrubbed environment, after G4 approval. There is no OS sandbox.
 - Keyword document search has no embeddings.
 - JavaScript static rules are line patterns; JS depth comes from agent review.

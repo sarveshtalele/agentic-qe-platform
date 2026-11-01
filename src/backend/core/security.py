@@ -1,6 +1,7 @@
 """Secrets at rest, secret detection, redaction, path confinement, and shell-free command policy."""
 from __future__ import annotations
 
+import logging
 import base64
 import hashlib
 import hmac
@@ -97,11 +98,39 @@ def has_masked_secret(text: str) -> bool:
     return bool(re.search(r"\S{4}…\w{2}\b", text))
 
 
+_LOGIN_FIELD = re.compile(r"""(?i)(["']?\b(?:password|passwd|pwd)\b["']?\s*[:=]\s*)(["']?)[^\s"',}]+""")
+_known_secrets: set[str] = set()
+
+
+def register_secret(value: str) -> None:
+    """A value such as the admin password that must never appear in any text this app stores or logs."""
+    if len(value) >= 4:
+        _known_secrets.add(value)
+
+
 def redact(text: str) -> str:
     """Mask anything secret-shaped before it reaches logs, the ledger, or an LLM prompt."""
+    for value in _known_secrets:
+        text = text.replace(value, "***")
     for pattern, _ in SECRET_PATTERNS:
         text = pattern.sub(lambda m: redact_value(m.group(0)), text)
-    return text
+    return _LOGIN_FIELD.sub(lambda m: f"{m.group(1)}{m.group(2)}***", text)
+
+
+def install_log_mask() -> None:
+    """Every log line from every library passes through redact(), so a password can never reach a log file."""
+    make_record = logging.getLogRecordFactory()
+
+    def masked(*args, **kwargs):
+        record = make_record(*args, **kwargs)
+        record.msg, record.args = redact(record.getMessage()), ()
+        return record
+
+    logging.setLogRecordFactory(masked)
+
+
+def encryption_key() -> bytes:
+    return _key()
 
 
 class PathEscape(ValueError):

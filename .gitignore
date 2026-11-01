@@ -52,3 +52,6 @@ agent-framework.pdf
 
 # Azure packages and the clean export
 dist/
+
+# Personal editor settings
+.vscode/

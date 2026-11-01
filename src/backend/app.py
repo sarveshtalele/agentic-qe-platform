@@ -15,10 +15,13 @@ from fastapi.responses import (
 from backend import config
 from backend import db as database
 from backend.api import ROUTERS
-from backend.core import documents, files, gates, prompts
-from backend.core.security import PathEscape
+from backend.core import auth, documents, files, gates, prompts
+from backend.core.security import install_log_mask, PathEscape
 from backend.maf import agui, engine, evals, governance, llm, workflows  # noqa: F401 - workflows registers definitions
 from backend.repos import git, github, ingest
+
+
+install_log_mask()
 
 
 @asynccontextmanager
@@ -38,6 +41,24 @@ app = FastAPI(title="Agentic QE Platform", version="2.0.0", lifespan=lifespan)
 app.include_router(agui.router)
 for _router in ROUTERS:
     app.include_router(_router)
+
+
+PUBLIC_PATHS = {"/api/health", "/api/auth/login", "/api/auth/status"}
+
+
+@app.middleware("http")
+async def session_guard(request: Request, call_next):
+    """Deny by default: every API and chat path needs a session, and then access to the item it names."""
+    path = request.url.path
+    if path in PUBLIC_PATHS or not path.startswith(("/api/", "/agui/")):
+        return await call_next(request)
+    user = auth.session_user(request.cookies.get(auth.COOKIE))
+    if not user:
+        return JSONResponse({"detail": "Sign in first"}, status_code=401)
+    if status := auth.access_problem(request.method, path, user):
+        return JSONResponse({"detail": "Only an administrator can do this" if status == 403 else "Not found"}, status_code=status)
+    auth.current_user.set(user)
+    return await call_next(request)
 
 
 @app.middleware("http")
@@ -65,6 +86,7 @@ def _bad_request(_: Request, exc: Exception):
 for _error in (documents.DocumentError, files.UnsupportedFile, ingest.IngestError, git.GitError, github.GitHubError, gates.GateOrderError, PathEscape):
     app.add_exception_handler(_error, _bad_request)
 app.add_exception_handler(governance.AgentDisabled, lambda _r, e: JSONResponse({"detail": str(e)}, status_code=409))
+app.add_exception_handler(auth.AllowanceError, lambda _r, e: JSONResponse({"detail": str(e)}, status_code=403))
 app.add_exception_handler(llm.LLMNotConfigured, lambda _r, e: JSONResponse({"detail": str(e)}, status_code=412))
 
 

@@ -9,7 +9,7 @@ from backend.config import repo_dir
 from backend.db import db, new_id, now
 from backend.maf.engine import REGISTRY, Definition, FanOut, RunContext, StageSpec
 from backend.maf.runtime import AgentCall
-from backend.maf.workflows.shared import _analysis
+from backend.maf.workflows.shared import _analysis, review_artifact
 from backend.core.security import redact, safe_path
 from backend.repos import git, sandbox, scan, static_analysis
 
@@ -115,7 +115,8 @@ async def scan_merge(rc: RunContext, branches: list[dict]) -> dict:
     coverage = next(({k: b[k] for k in ("reviewed_files", "unreviewed_files", "source_files")} for b in branches if "reviewed_files" in b), {"reviewed_files": [], "unreviewed_files": [], "source_files": 0})
     rc.log(f"Reviewed {len(coverage['reviewed_files'])} of {coverage['source_files']} source files" + (f". Not reviewed: {coverage['unreviewed_files'][:20]}" if coverage["unreviewed_files"] else ""), kind="warning" if coverage["unreviewed_files"] else "artifact")
     rc.log(f"{len(static)} static and {len(verified)} verified agent findings; {rejected} agent claims rejected for missing evidence; {added} new", kind="artifact")
-    return {**base, "static_count": len(static), "agent_verified": len(verified), "agent_rejected": rejected, "new_findings": added, **coverage}
+    review = await review_artifact(rc, "agent findings", "\n".join(f"{f['severity']} {f['file']}:{f['line']} {f['title']}. Quote: {f['evidence']}" for f in verified[:60]), f"{rejected} other claims were dropped because their quotes are not in the code") if verified else None
+    return {**base, "findings_review": review, "static_count": len(static), "agent_verified": len(verified), "agent_rejected": rejected, "new_findings": added, **coverage}
 
 
 def bug_scan_definition() -> Definition:

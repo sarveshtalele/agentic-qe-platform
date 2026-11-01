@@ -14,6 +14,7 @@ from agent_framework.ag_ui import AgentFrameworkAgent
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
+from backend.core import auth
 from backend.core import ledger
 from backend.core.security import redact
 from backend.db import db, new_id, now, row, rows
@@ -66,6 +67,8 @@ async def agui(agent_key: str, request: Request):
     if not thread:
         raise HTTPException(404, "Unknown thread. Create one first")
     project_id = thread["project_id"]
+    if not auth.can_see_project(project_id):
+        raise HTTPException(404, "Unknown thread. Create one first")
     incoming = body.get("messages") or []
     last_user = next((m for m in reversed(incoming) if m.get("role") == "user"), None)
     if last_user:

@@ -9,7 +9,7 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 
 from backend.config import project_dir, repo_dir
-from backend.core import documents
+from backend.core import doc_checks, documents
 from backend.core.security import (
     safe_path,
 )
@@ -18,6 +18,9 @@ from backend.maf.runtime import AgentCall
 from backend.maf.workflows.ba import _strip_preamble
 from backend.maf.workflows.edits import ChangeSet, Edit, apply_edits, guarded_apply
 from backend.maf.workflows.shared import (
+    discovery_pack,
+    is_low,
+    review_artifact,
     _analysis,
     _brief_of_analysis,
     code_pack,
@@ -25,16 +28,29 @@ from backend.maf.workflows.shared import (
     intake_gate,
 )
 from backend.qe import execution, model, trace
-from backend.repos import git, static_analysis
+from backend.repos import git, scan, static_analysis
 
 
 async def qe_discover(rc: RunContext, state: dict) -> dict:
     a = _analysis(rc.project_id)
-    text = await (call := AgentCall(rc.run_id, rc.project_id, "repo_analyst")).text(f"Write the discovery summary from these scan facts and this code.\n\nSCAN:\n{_brief_of_analysis(a)}\n\nCODE:\n{code_pack(rc.project_id, limit=25_000)}")
-    text = _strip_preamble(text)
+    root = repo_dir(rc.project_id)
+    call = AgentCall(rc.run_id, rc.project_id, "repo_analyst")
+    evidence = f"SCAN:\n{_brief_of_analysis(a)}\n\nCODE:\n{discovery_pack(rc.project_id)}"
+    text = _strip_preamble(await call.text(f"Write the discovery summary from these scan facts and this code.\n\n{evidence}"))
+    tree = scan.tree(root, limit=100_000) if root.exists() else []
+    sources = static_analysis.review_targets(root) if root.exists() else []
+    issues = doc_checks.discovery_issues(text, tree, sources, evidence)
+    review = await review_artifact(rc, "discovery summary", text, evidence)
+    if issues or is_low(review):
+        rc.log(f"Discovery sent back: {issues or review['issues']}", kind="warning")
+        text = _strip_preamble(await call.text(f"Rewrite the complete discovery summary and fix these problems: {issues + review['issues']}. Use only paths that appear in the evidence."))
+        issues = doc_checks.discovery_issues(text, tree, sources, evidence)
+        review = await review_artifact(rc, "discovery summary", text, evidence)
+    if issues:
+        rc.log(f"Discovery still has gaps: {issues}", kind="warning")
     doc = documents.create(rc.project_id, "discovery", "Discovery summary", text, "agent:repo_analyst", data=a, prompt_ref=call.prompt_ref, run_id=rc.run_id)
     rc.log("Discovery saved", {"document_id": doc["id"]}, "artifact")
-    return {"discovery_id": doc["id"]}
+    return {"discovery_id": doc["id"], "discovery_review": review, "discovery_issues": issues}
 
 
 async def qe_requirements(rc: RunContext, state: dict) -> dict:
@@ -51,23 +67,28 @@ async def qe_requirements(rc: RunContext, state: dict) -> dict:
         + f"\nSCAN:\n{_brief_of_analysis(_analysis(rc.project_id))}\n"
         + (f"\nHUMAN FEEDBACK:\n{state['feedback']}" if state.get("feedback") else "")
     )
-    result = await call.typed(prompt, model.RequirementSet)
-    kept, dropped = [], []
-    for requirement in result.requirements:
-        if brownfield and requirement.tier != "specified":
-            ok, line = static_analysis.verify_quote(root, requirement.file, requirement.line, requirement.quote)
-            if not ok:
-                dropped.append(requirement.id)
-                continue
-            requirement.line = line
-        kept.append(requirement.model_dump())
-    if not kept:
-        raise RuntimeError("No requirement survived evidence verification")
-    rc.log(f"{len(kept)} requirements verified; {len(dropped)} dropped for missing evidence", {"dropped": dropped})
+    for attempt in range(2):
+        result = await call.typed(prompt, model.RequirementSet)
+        kept, dropped = [], []
+        for requirement in result.requirements:
+            if brownfield and requirement.tier != "specified":
+                ok, line = static_analysis.verify_quote(root, requirement.file, requirement.line, requirement.quote)
+                if not ok:
+                    dropped.append(requirement.id)
+                    continue
+                requirement.line = line
+            kept.append(requirement.model_dump())
+        if not kept:
+            raise RuntimeError("No requirement survived evidence verification")
+        rc.log(f"{len(kept)} requirements verified; {len(dropped)} dropped for missing evidence", {"dropped": dropped})
+        review = await review_artifact(rc, "requirements", json.dumps(kept), _brief_of_analysis(_analysis(rc.project_id)) if brownfield else stories)
+        if attempt or not is_low(review):
+            break
+        prompt = f"An independent reviewer scored your requirements {review['score']}. Send the complete corrected set. Issues: {review['issues']}. Requirements dropped for missing evidence: {dropped}."
     body = "| ID | Requirement | Priority | Tier | Evidence |\n|---|---|---|---|---|\n" + "\n".join(
         f"| {r['id']} | {_cell(r['title'])}: {_cell(r['statement'])} | {r['priority']} | {r['tier']} | {('`' + r['file'] + ':' + str(r['line']) + '`') if r['file'] else '-'} |" for r in kept)
     doc = documents.create(rc.project_id, "requirements", "Requirements", body, "agent:requirements_analyst", data=kept, prompt_ref=call.prompt_ref, run_id=rc.run_id)
-    return {"requirements": kept, "requirements_doc": doc["id"]}
+    return {"requirements": kept, "requirements_doc": doc["id"], "requirements_review": review}
 
 
 def _cell(text: str) -> str:
@@ -83,15 +104,20 @@ async def qe_plan(rc: RunContext, state: dict) -> dict:
     if score["verdict"] != "APPROVED":
         plan = (await call.typed(f"{prompt}\n\nAutomatic checks rejected your plan: {score['issues']}. Fix them.", model.TestPlan)).model_dump()
         score = model.plan_confidence(state["requirements"], plan)
-    review = await AgentCall(rc.run_id, rc.project_id, "confidence_reviewer").typed(f"Score this test plan against its requirements.\nREQUIREMENTS:\n{json.dumps(state['requirements'])}\nPLAN:\n{json.dumps(plan)}", model.ConfidenceReview)
-    rc.log(f"Plan score {score['score']} ({score['verdict']}), independent review {review.score} ({review.verdict})", {"deterministic": score, "review": review.model_dump()}, "review")
+    requirements_text = json.dumps(state["requirements"])
+    review = await review_artifact(rc, "test plan", json.dumps(plan), requirements_text)
+    if is_low(review):
+        plan = (await call.typed(f"An independent reviewer scored your plan {review['score']}. Fix these issues and send the complete plan: {review['issues']}", model.TestPlan)).model_dump()
+        score = model.plan_confidence(state["requirements"], plan)
+        review = await review_artifact(rc, "test plan", json.dumps(plan), requirements_text)
+    rc.log(f"Plan score {score['score']} ({score['verdict']}), independent review {review['score']} ({review['verdict']})", {"deterministic": score, "review": review}, "review")
     body = f"{plan['strategy']}\n\n| Area | Requirements | Risk | Level | Framework | Rationale |\n|---|---|---|---|---|---|\n" + "\n".join(
         f"| {_cell(x['name'])} | {', '.join(x['requirement_ids'])} | {x['risk']} | {x['level']} | {x['framework']} | {_cell(x['rationale'])} |" for x in plan["areas"])
-    doc = documents.create(rc.project_id, "test_plan", "Test plan", body, "agent:test_architect", data={"plan": plan, "score": score, "review": review.model_dump()}, prompt_ref=call.prompt_ref, run_id=rc.run_id)
-    return {"plan": plan, "plan_doc": doc["id"], "plan_score": score, "plan_review": review.model_dump()}
+    doc = documents.create(rc.project_id, "test_plan", "Test plan", body, "agent:test_architect", data={"plan": plan, "score": score, "review": review}, prompt_ref=call.prompt_ref, run_id=rc.run_id)
+    return {"plan": plan, "plan_doc": doc["id"], "plan_score": score, "plan_review": review}
 
 
-DESIGN_BATCH = 6
+DESIGN_BATCH = 4
 
 
 def _number_cases(cases: list[dict]) -> None:
@@ -106,12 +132,33 @@ async def qe_design(rc: RunContext, state: dict) -> dict:
     async def design(requirements: list[dict], note: str = "") -> list[dict]:
         # each batch has its own conversation, so batches can run together
         batch_call = AgentCall(rc.run_id, rc.project_id, "test_designer")
-        result = await batch_call.typed(f"Design test cases for only these requirements.\nREQUIREMENTS:\n{json.dumps(requirements)}\nPLAN:\n{json.dumps(state['plan'])}{feedback}{note}", model.CaseSet)
+        try:
+            result = await batch_call.typed(f"Design test cases for only these requirements.\nREQUIREMENTS:\n{json.dumps(requirements)}\nPLAN:\n{json.dumps(state['plan'])}{feedback}{note}", model.CaseSet, attempts=2)
+        except RuntimeError as exc:
+            if len(requirements) < 2:
+                raise
+            # a smaller request is the reliable answer to a reply that keeps breaking
+            rc.log(f"Splitting a design batch of {len(requirements)} requirements: {str(exc)[:160]}", kind="warning")
+            half = len(requirements) // 2
+            parts = await asyncio.gather(design(requirements[:half], note), design(requirements[half:], note))
+            return [case for part in parts for case in part]
         return [c.model_dump() for c in result.cases]
 
-    # one large reply breaks on real repositories, so requirements go in small batches and code merges the results
+    async def design_and_review(requirements: list[dict]) -> tuple[list[dict], dict]:
+        found = await design(requirements)
+        review = await review_artifact(rc, "test cases", json.dumps(found), json.dumps(requirements))
+        if is_low(review):
+            found = await design(requirements, f"\n\nAn independent reviewer scored an earlier set {review['score']}. Avoid these issues: {review['issues']}")
+            review = await review_artifact(rc, "test cases", json.dumps(found), json.dumps(requirements))
+        return found, review
+
+    # one large reply breaks on real repositories, so batches run in parallel, each with its own review, and code merges them
     batches = [state["requirements"][i : i + DESIGN_BATCH] for i in range(0, len(state["requirements"]), DESIGN_BATCH)]
-    cases = [c for found in await asyncio.gather(*(design(b) for b in batches)) for c in found]
+    outcomes = await asyncio.gather(*(design_and_review(b) for b in batches))
+    cases = [case for found, _ in outcomes for case in found]
+    reviews = [review for _, review in outcomes]
+    scored = [r["score"] for r in reviews if r["score"] is not None]
+    cases_review = {"score": min(scored) if scored else None, "verdict": "NOT RUN" if not scored else "APPROVED" if min(scored) >= 85 else "REVISE" if min(scored) >= 60 else "REJECTED", "issues": [issue for r in reviews for issue in r["issues"]][:30]}
     # batches number their cases separately, so ids are assigned here
     _number_cases(cases)
     gaps, dupes = model.coverage_gaps(state["requirements"], cases), model.duplicate_scenarios(cases)
@@ -130,7 +177,7 @@ async def qe_design(rc: RunContext, state: dict) -> dict:
     if fixtures:
         documents.create(rc.project_id, "test_data", "Test data", "```json\n" + json.dumps(fixtures, indent=2) + "\n```", "agent:test_designer", data=fixtures, run_id=rc.run_id)
     rc.log(f"{len(cases)} cases designed; {len(gaps)} remaining gaps", {"gaps": gaps}, "artifact")
-    return {"cases": cases, "cases_doc": doc["id"], "design_gaps": gaps, "fixtures": fixtures}
+    return {"cases": cases, "cases_doc": doc["id"], "design_gaps": gaps, "fixtures": fixtures, "cases_review": cases_review}
 
 
 class GeneratedFile(BaseModel):
@@ -163,6 +210,9 @@ def _generated_file_problems(item: GeneratedFile, known: set[str], worktree: Pat
     return errors
 
 
+GENERATE_BATCH = 10
+
+
 async def qe_generate(rc: RunContext, state: dict) -> dict:
     root = repo_dir(rc.project_id)
     if not state.get("worktree"):
@@ -179,33 +229,53 @@ async def qe_generate(rc: RunContext, state: dict) -> dict:
     worktree = Path(state["worktree"])
     call = AgentCall(rc.run_id, rc.project_id, "test_automation")
     a = _analysis(rc.project_id)
-    # the files under test go first, so the code pack limit never drops what the cases are about
-    under_test = list(dict.fromkeys(r["file"] for r in state["requirements"] if r.get("file")))
-    prompt = (f"Generate executable tests under tests/agentic_qe/ for these cases, one file per case.\nCASES:\n{json.dumps(state['cases'])}\nDETECTED RUNNERS: {a['test_runners']}\n"
-              f"Import only names you can see in this code. Name each test function with its case id, for example test_TC_APP_001_empty_input.\n\nCODE:\n{code_pack(rc.project_id, worktree, under_test or None, limit=60_000)}" + (f"\nFEEDBACK:\n{state['feedback']}" if state.get("feedback") else ""))
     known = {c["id"] for c in state["cases"]}
-    accepted: dict[str, GeneratedFile] = {}
-    errors: list[str] = []
-    framework = ""
-    request = prompt
-    for _ in range(3):
-        suite = await call.typed(request, GeneratedSuite)
-        framework = suite.framework
-        errors = []
-        for item in suite.files:
-            problems = _generated_file_problems(item, known, worktree)
-            if problems:
-                errors.extend(problems)
-                accepted.pop(item.path, None)
-            else:
-                accepted[item.path] = item
-        if not errors:
-            break
-        # only the refused files go round again, because resending a whole suite costs many thousands of tokens
-        request = "These generated test files were refused. Send corrected versions of only these files, with the same paths and case ids.\nPROBLEMS:\n" + "\n".join(errors[:40]) + f"\n\nCODE:\n{code_pack(rc.project_id, worktree, under_test or None, limit=60_000)}"
-    else:
+    files_of = {r["id"]: r.get("file") for r in state["requirements"]}
+    feedback = f"\nFEEDBACK:\n{state['feedback']}" if state.get("feedback") else ""
+
+    async def generate_batch(cases: list[dict]) -> tuple[dict[str, GeneratedFile], str, list[str]]:
+        # each batch sees only the code its cases test, which keeps every request small
+        batch_call = AgentCall(rc.run_id, rc.project_id, "test_automation")
+        code = code_pack(rc.project_id, worktree, list(dict.fromkeys(files_of[c["requirement_id"]] for c in cases if files_of.get(c["requirement_id"]))) or None, limit=30_000)
+        wanted = {c["id"] for c in cases}
+        request = (f"Generate executable tests under tests/agentic_qe/ for these cases, one file per case. Send a file for every case.\nCASES:\n{json.dumps(cases)}\nDETECTED RUNNERS: {a['test_runners']}\n"
+                   f"Import only names you can see in this code. Name each test function with its case id, for example test_TC_APP_001_empty_input.{feedback}\n\nCODE:\n{code}")
+        accepted: dict[str, GeneratedFile] = {}
+        errors: list[str] = []
+        framework = ""
+        for _ in range(3):
+            try:
+                suite = await batch_call.typed(request, GeneratedSuite)
+            except RuntimeError as exc:
+                errors = [str(exc)[:300]]
+                break
+            framework = suite.framework
+            errors = []
+            for item in suite.files:
+                problems = _generated_file_problems(item, known, worktree)
+                if problems:
+                    errors.extend(problems)
+                    accepted.pop(item.path, None)
+                else:
+                    accepted[item.path] = item
+            covered = {cid for f in accepted.values() for cid in f.case_ids}
+            missing = sorted(wanted - covered)
+            if not errors and not missing:
+                break
+            # only what is refused or missing goes round again, because resending a whole batch costs many thousands of tokens
+            request = "These generated test files were refused. Send corrected versions of only these files, with the same paths and case ids.\nPROBLEMS:\n" + "\n".join(errors[:40]) + (f"\nThese cases have no test yet, so send one file for each: {missing}" if missing else "") + f"\n\nCODE:\n{code}"
+        return accepted, framework, errors
+
+    batches = [state["cases"][i : i + GENERATE_BATCH] for i in range(0, len(state["cases"]), GENERATE_BATCH)]
+    outcomes = await asyncio.gather(*(generate_batch(batch) for batch in batches))
+    accepted = {path: item for found, _, _ in outcomes for path, item in found.items()}
+    errors = [problem for _, _, found in outcomes for problem in found]
+    if not accepted:
         raise RuntimeError(f"Generated tests failed checks: {errors}")
-    suite = GeneratedSuite(framework=framework, files=list(accepted.values()))
+    suite = GeneratedSuite(framework=next((framework for _, framework, _ in outcomes if framework), ""), files=list(accepted.values()))
+    missing = sorted(known - {cid for f in suite.files for cid in f.case_ids})
+    if missing:
+        rc.log(f"{len(missing)} of {len(known)} cases have no test: {missing[:30]}", {"problems": errors[:20]}, "warning")
     edits = [Edit(path=f.path, action="create", content=f.content) for f in suite.files]
     if state.get("fixtures"):
         edits.append(Edit(path="tests/agentic_qe/fixtures.json", action="create", content=json.dumps(state["fixtures"], indent=2)))
@@ -213,10 +283,11 @@ async def qe_generate(rc: RunContext, state: dict) -> dict:
     if errors:
         raise RuntimeError(f"Generated tests refused: {errors}")
     tests = [{"case_id": cid, "path": f.path} for f in suite.files for cid in f.case_ids]
+    tests_review = await review_artifact(rc, "generated tests", "\n\n".join(f"{f.path}:\n{f.content}" for f in suite.files), json.dumps(state["cases"]))
     body = "\n\n".join(f"## {f.path}\n\nCases: {', '.join(f.case_ids)}\n\n```\n{f.content}\n```" for f in suite.files)
     doc = documents.create(rc.project_id, "test_code", "Generated tests", body, "agent:test_automation", data=tests, prompt_ref=call.prompt_ref, run_id=rc.run_id)
     rc.log(f"{len(suite.files)} test files written to {state['branch']}", kind="artifact")
-    return {"worktree": state["worktree"], "branch": state["branch"], "tests": tests, "framework": suite.framework, "test_doc": doc["id"], "heal_attempts": state.get("heal_attempts", 0)}
+    return {"worktree": state["worktree"], "branch": state["branch"], "tests": tests, "framework": suite.framework, "test_doc": doc["id"], "heal_attempts": state.get("heal_attempts", 0), "tests_review": tests_review, "tests_missing": missing}
 
 
 async def qe_execute(rc: RunContext, state: dict) -> dict:
@@ -296,9 +367,15 @@ async def qe_sign(rc: RunContext, state: dict) -> dict:
     return {"release_doc": doc["id"], "release_review": review.model_dump()}
 
 
-def _doc_gate(gate: int, label: str, doc_key: str, summary):
+def _doc_gate(gate: int, label: str, doc_key: str, summary, review_key: str = ""):
     def build(rc: RunContext, state: dict):
-        return {"gate": gate, "title": f"Gate {gate}: approve {label}", "summary": summary(state), "payload": {"documents": [state[doc_key]], "titles": [documents.get(state[doc_key])["title"]]}}
+        review = state.get(review_key) if review_key else None
+        payload = {"documents": [state[doc_key]], "titles": [documents.get(state[doc_key])["title"]]}
+        if gate == 1 and state.get("discovery_id"):
+            payload = {"documents": [state["discovery_id"], *payload["documents"]], "titles": ["Discovery summary", *payload["titles"]]}
+        if review:
+            payload["confidence"] = review
+        return {"gate": gate, "title": f"Gate {gate}: approve {label}", "summary": summary(state), "payload": payload}
 
     return build
 
@@ -312,10 +389,10 @@ def qe_definition() -> Definition:
     return Definition("qe", [
         StageSpec("intake", intake, "Intake", approval=intake_gate, next="discover"),
         StageSpec("discover", qe_discover, "Discovery", next="requirements"),
-        StageSpec("requirements", qe_requirements, "Requirements", approval=_doc_gate(1, "requirements", "requirements_doc", lambda s: f"{len(s['requirements'])} requirements with verified evidence."), on_rejected="requirements", next="plan"),
-        StageSpec("plan", qe_plan, "Test plan", approval=_doc_gate(2, "test plan", "plan_doc", lambda s: f"Deterministic score {s['plan_score']['score']}, independent review {s['plan_review']['score']}."), on_rejected="plan", next="design"),
-        StageSpec("design", qe_design, "Test design", approval=_doc_gate(3, "test design", "cases_doc", lambda s: f"{len(s['cases'])} cases. Remaining gaps: {s['design_gaps'] or 'none'}."), on_rejected="design", next="generate"),
-        StageSpec("generate", qe_generate, "Generate tests", approval=_doc_gate(4, "generated tests", "test_doc", lambda s: f"{len(s['tests'])} test mappings on branch {s['branch']}. Approving also allows them to run on this machine."), on_approved=qe_commit, on_rejected="generate", next="execute"),
+        StageSpec("requirements", qe_requirements, "Requirements", approval=_doc_gate(1, "requirements", "requirements_doc", lambda s: f"{len(s['requirements'])} requirements with verified evidence.", "requirements_review"), on_rejected="requirements", next="plan"),
+        StageSpec("plan", qe_plan, "Test plan", approval=_doc_gate(2, "test plan", "plan_doc", lambda s: f"Deterministic score {s['plan_score']['score']}, independent review {s['plan_review']['score']}.", "plan_review"), on_rejected="plan", next="design"),
+        StageSpec("design", qe_design, "Test design", approval=_doc_gate(3, "test design", "cases_doc", lambda s: f"{len(s['cases'])} cases. Remaining gaps: {s['design_gaps'] or 'none'}.", "cases_review"), on_rejected="design", next="generate"),
+        StageSpec("generate", qe_generate, "Generate tests", approval=_doc_gate(4, "generated tests", "test_doc", lambda s: f"{len(s['tests'])} of {len(s['cases'])} cases have tests, on branch {s['branch']}. Approving also allows them to run on this machine.", "tests_review"), on_approved=qe_commit, on_rejected="generate", next="execute"),
         StageSpec("execute", qe_execute, "Execute"),
         StageSpec("heal", qe_heal, "Heal test drift"),
         StageSpec("trace", qe_trace, "Traceability"),

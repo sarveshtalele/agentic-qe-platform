@@ -4,13 +4,16 @@ This guide puts Agentic QE Platform on Azure App Service with the Azure portal a
 
 **Tested so far:** the ZIPs were unpacked and their startup scripts run locally on macOS, including the environment build, the second start that skips it, the UI proxy to the API, and the SQLite setting. **Not tested:** a real Azure deployment, which needs your subscription. Steps marked *check on first use* could not be confirmed from Microsoft's documentation.
 
+> This guide deploys the app as it runs today: one process with SQLite and local files, suited to one person or a small trusted team. For several users, read `docs/AZURE_SYSTEM_DESIGN.md`, which covers PostgreSQL, Blob Storage, and isolated sandboxes.
+
 ## What it costs
 
 Prices come from the [Azure Retail Prices API](https://learn.microsoft.com/en-us/rest/api/cost-management/retail-prices/azure-retail-prices) with `currencyCode=INR`, fetched on 1 November 2026. Monthly figures use 730 hours and exclude taxes.
 
 | Plan | Region | ₹ per hour | ₹ per month |
 |---|---|---|---|
-| **Basic B1 Linux (recommended)** | **East US** | **1.6189** | **1,181.80** |
+| **Basic B1 Linux (recommended)** | **East US 2** | **1.6189** | **1,181.80** |
+| Basic B1 Linux | East US | 1.6189 | 1,181.80 |
 | Basic B1 Linux | Central India | 1.7141 | 1,251.29 |
 | Basic B1 Linux | Southeast Asia | 1.7141 | 1,251.29 |
 | Basic B1 Linux | South India, West India | 1.8093 | 1,320.79 |
@@ -20,15 +23,14 @@ Prices come from the [Azure Retail Prices API](https://learn.microsoft.com/en-us
 
 | Total for Agentic QE Platform | ₹ per month |
 |---|---|
-| One B1 Linux plan in East US, holding both apps | 1,181.80 |
+| One B1 Linux plan in East US 2, holding both apps | 1,181.80 |
 | Storage, 10 GB included with Basic | 0 |
 | Outbound data, first 100 GB | 0 (then ₹10.48 per GB, Central India rate) |
-| Microsoft sign-in with App Service Authentication | 0 |
 | **Total** | **about ₹1,182** |
 
 Your model provider bills separately and is not included.
 
-**Why B1 in East US.** It is the cheapest plan that can run Agentic QE Platform, and one plan holds both apps. East US is also the region closest to the model endpoint you use now, so agent calls stay short. Choose Central India instead if your data must stay in India: it costs ₹69.49 more a month and pages load faster from India.
+**Why B1 in East US 2.** It is the cheapest plan that can run Agentic QE Platform, and one plan holds both apps. East US 2 is also where your model endpoint runs, so agent calls stay short. Choose Central India instead if your data must stay in India: it costs ₹69.49 more a month and pages load faster from India.
 
 **Why not Free F1.** Microsoft limits it to 60 CPU minutes a day and 1 GB of storage, with no Always On. Agent workflows run in the background, so they would stop when the app goes idle.
 
@@ -53,7 +55,7 @@ This creates `dist/agentic-qe-backend.zip` and `dist/agentic-qe-frontend.zip`. T
    - **Publish:** Code
    - **Runtime stack:** Python 3.12
    - **Operating System:** Linux
-   - **Region:** East US
+   - **Region:** East US 2
    - **Linux Plan:** create `agentic-qe-plan`
    - **Pricing plan:** Basic B1. It may be under **Explore pricing plans**.
 3. On **Monitoring**, turn **Application Insights** off, because it can add cost.
@@ -80,6 +82,8 @@ Open each app, then **Settings > Environment variables**. Add these, choose **Ap
 |---|---|
 | `ATLAS_ALLOWED_HOSTS` | Backend default domain |
 | `ATLAS_ALLOWED_ORIGINS` | `https://` + frontend default domain |
+| `ATLAS_ADMIN_USERNAME` | The admin's username. Required for anyone to sign in |
+| `ATLAS_ADMIN_PASSWORD` | A long, unique password. Azure encrypts this setting at rest |
 | `WEBSITES_CONTAINER_START_TIME_LIMIT` | `1800` |
 | `SCM_DO_BUILD_DURING_DEPLOYMENT` | `false` |
 
@@ -159,14 +163,7 @@ Start the backend first and wait for it to finish, because both apps share 1.75 
 
 ## 8. Protect it before anyone uses it
 
-Agentic QE Platform has no login of its own, and it can run repository code. **Do both of these before sharing the address.**
-
-**Require sign-in on the frontend**
-
-1. Open the frontend app, then **Settings > Authentication > Add identity provider**.
-2. Choose **Microsoft**, and create a new app registration.
-3. Set **Restrict access** to **Require authentication**, and unauthenticated requests to **HTTP 302 redirect**.
-4. Under **Current tenant**, keep the app limited to your organization, or to the users you assign.
+The app now has its own sign-in, but it can run repository code, so also keep the backend private.
 
 **Allow only the frontend to reach the backend**
 
@@ -175,14 +172,17 @@ Agentic QE Platform has no login of its own, and it can run repository code. **D
 3. Set unmatched public traffic to **Deny**, and add an **Allow** rule for each address, written as `address/32`.
 4. Keep the **Advanced tool site** (Kudu) rules at their defaults, so you can still upload.
 
-Check that the backend's address now refuses your browser and that the frontend asks you to sign in.
+Check that the backend's address now refuses your browser and that the frontend shows the sign-in page.
+
+**Optional second layer.** To limit who can even reach the sign-in page, turn on **Settings > Authentication** with Microsoft as the provider on the frontend.
 
 ## 9. First run checks
 
-1. Open the frontend address and sign in.
-2. Open **Settings**, enter the model details, and choose **Test connection**.
-3. Check that **System health** shows Git and Ruff as ready. *Check on first use: Git and Node.js come from Azure's Python image.*
-4. Create a project from a small public repository and run a bug scan.
+1. Open the frontend address and sign in as the admin.
+2. Open **Users** and create the first user.
+3. Open **Settings**, enter the model details, and choose **Test connection**.
+4. Check that **System health** shows Git and Ruff as ready. *Check on first use: Git and Node.js come from Azure's Python image.*
+5. Create a project from a small public repository and run a bug scan.
 
 ## Updating
 

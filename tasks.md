@@ -91,8 +91,22 @@
 - [x] In-place editing, table grids, images, live preview
 - [x] BA Studio links to current and recent documents
 
+## Accounts, accuracy, live views
+
+- [x] Admin login, users, allocations, owner-scoped data
+- [x] Confidence review at every gate; reliable JSON handling
+- [x] Discovery structure and checks
+- [x] Live run log, document cards, agent cards and pages
+- [x] `docs/AZURE_SYSTEM_DESIGN.md`, including multi-user sandboxes (design only)
+- [ ] Build the design: PostgreSQL, Blob Storage, Key Vault, sandbox jobs
+
+## Next, after your approval
+
+- [ ] `docs/PLUGIN_AND_UI_PLAN.md`: 13 phases including Skill Studio, ready once approved
+
 ## Awaiting your decision
 
 - [ ] Rotate the model API key, which is in old Git history on `origin/main`
 - [ ] Rewrite Git history to remove that key, if wanted
 - [ ] Migrate old `data/sdlc.sqlite3` projects
+- [x] A change review cannot show above 60 beside a failing test verdict; discovery accepts paths the repository itself mentions

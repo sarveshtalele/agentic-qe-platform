@@ -10,6 +10,9 @@ export async function api<T = any>(path: string, init: RequestInit & { json?: un
     ...rest,
     ...(json !== undefined ? { method: rest.method || "POST", body: JSON.stringify(json), headers: { "Content-Type": "application/json" } } : {}),
   });
+  if (response.status === 401 && !path.startsWith("/auth/") && typeof window !== "undefined") {
+    window.location.href = "/login";
+  }
   if (!response.ok) {
     let detail = response.statusText;
     try {

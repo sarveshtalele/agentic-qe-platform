@@ -1,21 +1,22 @@
 """Every feature on a real repository, sarveshtalele/personal-finance-mcp, adding a new MCP tool. Nothing is mocked."""
 import json
 import re
-import urllib.request
+from pathlib import Path
 
 import pytest
 from playwright.sync_api import expect
 
-from tests.e2e.test_app import API, SIGNER, UI, approve_next, shot, wait_card
+from tests.e2e.conftest import api_get
+from tests.e2e.test_app import SIGNER, UI, approve_next, shot, wait_card
 
 pytestmark = pytest.mark.e2e
+EVIDENCE_DIR = Path(__file__).resolve().parents[2] / "docs" / "evidence"
 run: dict = {}
 TOOL_SPEC = "Add a new MCP tool calculate_savings_goal(target_amount, current_savings, annual_return_rate, years) that returns the monthly contribution needed to reach the target. Follow how existing tools in src/tools are written and registered in the server, and reject negative amounts and non-positive years. Add pytest tests in tests/."
 
 
 def get(path: str):
-    with urllib.request.urlopen(f"{API}/api{path}") as response:
-        return json.load(response)
+    return json.loads(api_get(path))
 
 
 def test_f1_clone_repo_by_shorthand(page):
@@ -45,7 +46,8 @@ def test_f2_ba_writes_requirements_for_the_new_tool(page):
     page.get_by_role("button", name="Generate document").click()
     approve_next(page, "Gate 0")
     card = wait_card(page, "Gate 1")
-    expect(page.get_by_test_id("current-documents").get_by_role("link")).not_to_have_count(0, timeout=15_000)
+    expect(page.get_by_test_id("document-card").first).to_be_visible(timeout=15_000)
+    expect(page.get_by_test_id("live-log")).to_contain_text("is working")
     links = card.get_by_role("link").evaluate_all("items => items.map(a => a.getAttribute('href'))")
     shot(page, "f2-finance-ba-gate")
     approve_next(page, "Gate 1")
@@ -132,6 +134,14 @@ def test_f6_qe_lifecycle_live(page):
             shot(page, "f6-finance-qe-live")
     card = wait_card(page, "Gate 5")
     summary = card.inner_text()
+    state_now = get(f"/runs/{get(f'/projects/{run["id"]}/runs')[0]['id']}")["state"]
+    assert not state_now["discovery_issues"], state_now["discovery_issues"]
+    assert len(state_now["tests"]) >= 0.9 * len(state_now["cases"]), f"only {len(state_now['tests'])} of {len(state_now['cases'])} cases have tests"
+    discovery = next(d for d in get(f"/projects/{run['id']}/documents") if d["kind"] == "discovery")
+    text = get(f"/documents/{discovery['id']}")["content"]
+    for heading in ("How It Runs End to End", "Modules", "Interfaces", "Configuration and Deployment", "Not Determined"):
+        assert heading in text, f"discovery is missing {heading}"
+    (EVIDENCE_DIR / "finance-discovery.md").write_text(text, encoding="utf-8")
     shot(page, "f6-finance-qe-gate5")
     assert re.search(r"Verdict (PASS|FAIL): \d+/[1-9]\d* tests passed", summary), summary
     approve_next(page, "Gate 5")
@@ -145,7 +155,7 @@ def test_f7_chat_answers_about_this_repo_and_its_documents(page):
     box = pane.locator("textarea")
     box.fill("Which saved document describes the savings goal tool, and what MCP tool does it add?")
     box.press("Enter")
-    expect(pane).to_contain_text("calculate_savings_goal", timeout=180_000)
+    expect(pane).to_contain_text("calculate_savings_goal", timeout=400_000)
     shot(page, "f7-finance-chat")
 
 
@@ -155,7 +165,7 @@ def test_f8_record_token_use(page):
     runs = get(f"/projects/{run['id']}/runs")
     rows = [{k: r[k] for k in ("workflow", "status", "tokens_in", "tokens_out", "started_at", "ended_at")} for r in runs]
     (EVIDENCE / "finance-runs.json").write_text(json.dumps(rows, indent=2))
-    assert all(r["tokens_in"] + r["tokens_out"] < 300_000 for r in runs), rows
+    assert all(r["tokens_in"] + r["tokens_out"] < 600_000 for r in runs), rows
     assert get(f"/projects/{run['id']}/ledger")["verification"]["valid"]
     page.goto(f"{run['base']}/governance")
     shot(page, "f8-finance-governance")

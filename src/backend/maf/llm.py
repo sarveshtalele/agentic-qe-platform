@@ -63,10 +63,12 @@ def set_client_override(client) -> None:
     _override = client
 
 
-def client():
+def client(model: str = ""):
+    """A project owner's allocated model replaces the default. All models share the configured endpoint and key."""
     if _override is not None:
         return _override
     cfg = current()
+    cfg["model"] = model or cfg["model"]
     if not cfg["api_key"] or not cfg["model"]:
         raise LLMNotConfigured("No model configured. Open Settings and set the base URL, model, and API key.")
     # MAF allows 100 tool rounds by default. Long tool loops outgrow model context, so agents get a hard limit.
