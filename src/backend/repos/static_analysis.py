@@ -35,7 +35,7 @@ def _ruff() -> list[str]:
 
 
 def run_ruff(root: Path) -> list[dict]:
-    command = [*_ruff(), "check", ".", "--isolated", "--exit-zero", "--output-format", "json", "--select", "F,E9,B,S,PLE", "--ignore", "S101,S311", "--exclude", "tests,test,**/test_*.py"]
+    command = [*_ruff(), "check", ".", "--isolated", "--exit-zero", "--output-format", "json", "--select", "F,E9,B,S,PLE", "--ignore", "S101,S311", "--exclude", "tests,test"]
     done = subprocess.run(command, cwd=root.resolve(), capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=300, env={**os.environ, "NO_COLOR": "1"})
     if done.stderr.strip():
         LOG.warning("ruff: %s", done.stderr.strip()[:500])
@@ -44,6 +44,9 @@ def run_ruff(root: Path) -> list[dict]:
     findings = []
     for item in json.loads(done.stdout):
         path = Path(item["filename"]).resolve().relative_to(root.resolve()).as_posix()
+        # filtered here, because a ruff glob for test files crosses folders on Windows and can drop a whole repository
+        if scan.TEST_NAME.search(path):
+            continue
         line = item["location"]["row"]
         code = item.get("code") or "syntax"
         severity = next((v for k, v in SEVERITY_BY_PREFIX.items() if code.startswith(k)), "medium")

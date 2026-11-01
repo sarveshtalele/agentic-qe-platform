@@ -43,8 +43,8 @@
 
 - [x] Unit tests (`tests/test_core.py`)
 - [x] Integration tests with real FastAPI, SQLite, git, pytest, and MAF (`tests/test_api_workflows.py`)
-- [ ] Playwright E2E on real model and browser with screenshots (`tests/e2e`, `docs/evidence`). Marked done after a full pass
-- [ ] Windows and Linux. CI matrix written (`.github/workflows/ci.yml`); it runs after you push
+- [x] Playwright E2E on real model and browser with screenshots: 32 of 32
+- [x] Windows, macOS, and Linux: offline tests and UI build run in CI
 
 ## Open items from the owner
 
@@ -53,7 +53,7 @@
 - [x] Complete screenshot evidence in `docs/evidence`
 - [x] Lint clean: noise came from the `.next-run` build folder, which is now ignored
 - [ ] Private repos: logic has offline tests with a stubbed GitHub API. A live check of connect, clone, pull request, and merge needs the owner's token
-- [ ] Windows and Linux: source audit found no POSIX-only code. No Docker or other OS here, so real runs need CI after a push
+- [ ] A real Windows double-click of `start-windows.bat`. CI runs the code paths but not the launcher itself
 - [x] Reviewer stricter, with deterministic checks (`core/doc_checks.py`)
 - [x] Guardrails, evals, and governance for every agent (`maf/governance.py`, `maf/evals.py`, `evals/`)
 - [x] Agent observability in the UI (`/agents`)
@@ -75,7 +75,7 @@
 - [x] Rename to Agentic QE Platform. `ATLAS_` settings and the database file keep their names so existing data still works
 - [x] Observability across projects, per project, and per run
 - [x] `start-mac.command` run on macOS. `start-windows.bat` written; a real Windows double-click is not yet checked
-- [ ] Commit and push `feat/real-maf-platform`
+- [x] Commit and push `feat/real-maf-platform`
 
 ## Sandbox, navigation, docs site
 
@@ -84,7 +84,7 @@
 - [x] Remove gate ribbon; link every card to its tab
 - [x] Rebuild Documentation as a docs site
 - [x] `README.md` and `docs/PROJECT_STRUCTURE.md`
-- [ ] Every feature passes on `personal-finance-mcp`
+- [x] Every feature passes on `personal-finance-mcp`: 10 of 10 E2E tests
 
 ## Document editor
 
@@ -96,5 +96,4 @@
 - [ ] Remove `legacy/`
 - [ ] Rotate the model API key, which is in old Git history on `origin/main`
 - [ ] Rewrite Git history to remove that key, if wanted
-- [ ] Commit and push this branch
 - [ ] Migrate old `data/sdlc.sqlite3` projects

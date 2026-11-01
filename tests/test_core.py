@@ -705,3 +705,13 @@ def test_test_runs_leave_no_bytecode_in_the_worktree(tmp_path, monkeypatch):
     (tmp_path / "test_calc.py").write_text("from calc import add\n\n\ndef test_add():\n    assert add(1, 1) == 2\n")
     result = execution.run_suite("pytest", tmp_path, ".", tmp_path.parent / "results")
     assert result["passed"] == 1 and not list(tmp_path.rglob("__pycache__"))
+
+
+def test_ruff_skips_test_files_but_not_folders_named_like_tests(tmp_path):
+    inner = tmp_path / "test_project"
+    inner.mkdir()
+    bad = "import subprocess\n\n\ndef f(x):\n    subprocess.call(x, shell=True)\n"
+    (inner / "app.py").write_text(bad)
+    (inner / "test_app.py").write_text(bad)
+    files = {f["file"] for f in static_analysis.run_ruff(inner)}
+    assert files == {"app.py"}
