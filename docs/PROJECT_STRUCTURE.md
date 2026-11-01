@@ -221,9 +221,9 @@ The project has 211 files, not counting screenshots.
 | `src/frontend/app/docs/layout.tsx` | Documentation site frame: search and sidebar | `ui/components/ui.tsx`, `ui/content/docs.ts` |  |
 | `src/frontend/app/docs/page.tsx` | Page at `/docs` |  |  |
 | `src/frontend/app/documents/page.tsx` | Page at `/documents` | `ui/components/AppShell.tsx`, `ui/components/ui.tsx`, `ui/lib/api.ts` |  |
-| `src/frontend/app/error.tsx` |  | `ui/components/ui.tsx` |  |
+| `src/frontend/app/error.tsx` | Page error screen with its error id and a retry button | `ui/components/ui.tsx` |  |
 | `src/frontend/app/findings/page.tsx` | Page at `/findings` | `ui/components/AppShell.tsx`, `ui/components/ui.tsx`, `ui/lib/api.ts` |  |
-| `src/frontend/app/global-error.tsx` |  |  |  |
+| `src/frontend/app/global-error.tsx` | Last-resort error screen for a failure in the root layout |  |  |
 | `src/frontend/app/globals.css` | Design tokens and document styles |  | `ui/app/layout.tsx` |
 | `src/frontend/app/layout.tsx` | Root HTML layout, theme, and toasts | `ui/app/globals.css`, `ui/components/AuthGate.tsx`, `ui/components/ui.tsx` |  |
 | `src/frontend/app/login/page.tsx` | Page at `/login` | `ui/components/ui.tsx`, `ui/lib/api.ts` |  |

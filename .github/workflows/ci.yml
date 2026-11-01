@@ -30,7 +30,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 10
+    timeout-minutes: 25  # on Windows, installing the browser and npm packages alone takes about 8 minutes
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
