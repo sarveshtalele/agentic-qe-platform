@@ -228,17 +228,22 @@ class AgentCall:
         self.has_tools = bool(self.agent.default_options.get("tools"))
         self.last_response = None
         self.last_call: dict = {}
+        self.tokens = 0  # everything this call object has used, retries included, so a stage can report what a review really cost
 
     def _facts(self, **more) -> dict:
         """What a failure record needs to prove what was asked of which model."""
         return {"agent": self.key, "prompt_ref": self.prompt_ref, "model": self.model or str(getattr(self.agent.client, "model", "") or ""), **self.last_call, **more}
 
-    async def text(self, message: str, tools_allowed: bool = True, *, cut_off_ok: bool = False) -> str:
+    def _check_run_limit(self) -> None:
+        """Stops the run at its token limit. Checked again once a call has its turn at the model gate: calls queued behind the concurrency limit were otherwise all admitted before the first one had spent anything."""
         if self.run_id:
             with db() as con:
                 used = con.execute("SELECT tokens_in+tokens_out FROM runs WHERE id=?", (self.run_id,)).fetchone()[0]
             if used >= RUN_TOKEN_LIMIT:
                 raise AllowanceError(f"Run stopped: it used {used} tokens, over the limit of {RUN_TOKEN_LIMIT}.", action="Raise ATLAS_RUN_TOKEN_LIMIT, or ask your administrator, then retry the stage.", agent=self.key)
+
+    async def text(self, message: str, tools_allowed: bool = True, *, cut_off_ok: bool = False) -> str:
+        self._check_run_limit()
         auth.check_allowance(self.project_id, self.user_id, self.model)  # long runs can reach a limit part way through
         options = {"tool_choice": "none"} if not tools_allowed and self.has_tools else {}
         emit = _emit.get()
@@ -257,7 +262,10 @@ class AgentCall:
         started = time.perf_counter()
         try:
             async with _model_gate():
+                self._check_run_limit()
                 response = await self.agent.run(message, session=self.session, options=options)
+        except AllowanceError:
+            raise
         except Exception as exc:
             self.last_call = {"duration_ms": int((time.perf_counter() - started) * 1000)}
             error = governance.typed_error(self.key, exc, self.project_id, self.run_id)
@@ -268,6 +276,7 @@ class AgentCall:
         tokens = (usage.get("input_token_count") or 0) + (usage.get("output_token_count") or 0)
         self.last_call = {"tokens_in": usage.get("input_token_count") or 0, "tokens_out": usage.get("output_token_count") or 0, "duration_ms": int((time.perf_counter() - started) * 1000),
                           "finish_reason": str(getattr(response.finish_reason, "value", response.finish_reason) or "")}
+        self.tokens += tokens
         if self.run_id:
             with db() as con:
                 con.execute("UPDATE runs SET tokens_in=tokens_in+?, tokens_out=tokens_out+? WHERE id=?",

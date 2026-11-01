@@ -12,10 +12,13 @@ from backend import db as database
 from backend.core import auth, models
 from backend.db import db, now, rows
 from backend.maf import llm
+from tests.reviewing import reviewer
+from tests.reviewing import rules as case_rules
 from tests.scripted_client import ScriptedClient
 from tests.test_api_workflows import GOOD_REVIEW, USER_PASSWORD, client, make_user, pending, project, rules, sign_in, unique, upload_repo, wait_run  # noqa: F401 - fixtures
 from tests.test_errors import IDS, Designer, qe_client  # noqa: F401
 
+STOP_AT = 4  # each design batch of 16 cases is reviewed in two requests of 8
 BA_BRIEF = {"brief": "Password reset link that expires in 30 minutes", "template_id": "builtin_brd", "title": "Reset BRD"}
 
 
@@ -315,18 +318,19 @@ def test_a_limit_during_a_qe_run_stops_it_keeps_finished_batches_and_retry_conti
     designer, reviews = Designer(), []
     designer.healed = True
 
+    perfect = reviewer()
+
     def review(text):
-        if "Score this test cases" in text:
-            reviews.append(1)
-            if len(reviews) == 2:  # other work by the same account uses up the day while the second batch is being reviewed
-                spend(user["id"], 1_000_000, created_at="2026-11-04T10:00:00+00:00")
-        return GOOD_REVIEW.replace("90", "95")
+        reviews.append(1)
+        if len(reviews) == STOP_AT:  # other work by the same account uses up the day while the second batch is being reviewed
+            spend(user["id"], 1_000_000, created_at="2026-11-04T10:00:00+00:00")
+        return perfect(text)
 
     upload_repo(mine, project, {"calc.py": "def add(a, b):\n    return a + b\n", "conftest.py": ""})
     from tests.test_errors import PLAN, REQUIREMENTS
 
     llm.set_client_override(ScriptedClient([("You are a repository intelligence analyst", "## Purpose\nCalculator"), ("You are a requirements analyst", REQUIREMENTS), ("You are a principal test architect", PLAN),
-                                            ("You are an independent reviewer", review), ("You are a test design architect", designer)]))
+                                            ("Review type: design cases.", review), *case_rules(), ("You are an independent reviewer", GOOD_REVIEW), ("You are a test design architect", designer)]))
     run = mine.post(f"/api/projects/{project['id']}/runs", json={"workflow": "qe"}).json()
     for _ in range(4):
         run = wait_run(mine, run["id"])
@@ -375,7 +379,7 @@ def test_admin_work_and_evals_never_count_against_a_user(client):
     from backend.maf import evals
 
     user, mine, project = account(client)
-    llm.set_client_override(ScriptedClient([("You are an independent reviewer", "ok")]))
+    llm.set_client_override(ScriptedClient([*case_rules(), ("You are an independent reviewer", "ok")]))
     evals._sandbox()
 
     async def as_admin():

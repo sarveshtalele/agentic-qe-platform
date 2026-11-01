@@ -13,6 +13,7 @@ from fastapi.testclient import TestClient
 
 from backend.app import app
 from backend.maf import llm
+from tests.reviewing import rules as case_rules
 from tests.scripted_client import ScriptedClient
 
 BRD = """# Business Requirements Document
@@ -367,7 +368,7 @@ def test_qe_lifecycle_all_six_gates_with_real_execution(client, project):
         ("You are a repository intelligence analyst", "## Purpose\nCalculator"),
         ("You are a requirements analyst", REQUIREMENTS),
         ("You are a principal test architect", PLAN),
-        ("You are an independent reviewer", '{"score": 95, "verdict": "APPROVED", "issues": []}'),
+        *case_rules(), ("You are an independent reviewer", '{"score": 95, "verdict": "APPROVED", "issues": []}'),
         ("You are a test design architect", CASES),
         ("You are a test automation engineer", TESTS),
     ]))
@@ -453,7 +454,7 @@ def test_generated_tests_with_placeholders_are_refused(client, project):
     placeholder = json.dumps({"framework": "pytest", "files": [{"path": "tests/agentic_qe/test_x.py", "case_ids": ["TC-APP-001"], "content": "# CASE_ID: TC-APP-001\ndef test_x():\n    pass\n"}]})
     llm.set_client_override(ScriptedClient([
         ("You are a repository intelligence analyst", "## Purpose\nCalculator"), ("You are a requirements analyst", REQUIREMENTS), ("You are a principal test architect", PLAN),
-        ("You are an independent reviewer", '{"score": 95, "verdict": "APPROVED", "issues": []}'), ("You are a test design architect", CASES), ("You are a test automation engineer", placeholder),
+        *case_rules(), ("You are an independent reviewer", '{"score": 95, "verdict": "APPROVED", "issues": []}'), ("You are a test design architect", CASES), ("You are a test automation engineer", placeholder),
     ]))
     run = client.post(f"/api/projects/{project['id']}/runs", json={"workflow": "qe"}).json()
     for _ in range(4):
@@ -608,7 +609,7 @@ def test_healing_guard_refuses_weakened_assertion(client, project):
     app_edit = ("replace_text", {"path": "calc.py", "search": "a + b", "replace": "a - b"})
     llm.set_client_override(ScriptedClient([
         ("You are a repository intelligence analyst", "## Purpose\nCalculator"), ("You are a requirements analyst", REQUIREMENTS), ("You are a principal test architect", PLAN),
-        ("You are an independent reviewer", '{"score": 95, "verdict": "APPROVED", "issues": []}'), ("You are a test design architect", CASES), ("You are a test automation engineer", drifted),
+        *case_rules(), ("You are an independent reviewer", '{"score": 95, "verdict": "APPROVED", "issues": []}'), ("You are a test design architect", CASES), ("You are a test automation engineer", drifted),
         ("You diagnose failures", edit_script(weaken, app_edit)),
     ]))
     run = client.post(f"/api/projects/{project['id']}/runs", json={"workflow": "qe"}).json()
@@ -856,7 +857,7 @@ def test_only_refused_generated_files_go_back_to_the_agent(client, project):
     replies = iter([json.dumps({"framework": "pytest", "files": [first, second]}), json.dumps({"framework": "pytest", "files": [fixed]})])
     scripted = ScriptedClient([
         ("You are a repository intelligence analyst", "## Purpose\nCalculator"), ("You are a requirements analyst", REQUIREMENTS), ("You are a principal test architect", PLAN),
-        ("You are an independent reviewer", '{"score": 95, "verdict": "APPROVED", "issues": []}'), ("You are a test design architect", CASES), ("You are a test automation engineer", lambda _: next(replies)),
+        *case_rules(), ("You are an independent reviewer", '{"score": 95, "verdict": "APPROVED", "issues": []}'), ("You are a test design architect", CASES), ("You are a test automation engineer", lambda _: next(replies)),
     ])
     llm.set_client_override(scripted)
     run = client.post(f"/api/projects/{project['id']}/runs", json={"workflow": "qe"}).json()
@@ -904,7 +905,7 @@ def test_large_design_runs_in_batches_and_revises_only_what_failed(client, proje
 
     llm.set_client_override(ScriptedClient([
         ("You are a repository intelligence analyst", "## Purpose\nCalculator"), ("You are a requirements analyst", requirements), ("You are a principal test architect", plan),
-        ("You are an independent reviewer", '{"score": 95, "verdict": "APPROVED", "issues": []}'), ("You are a test design architect", designer),
+        *case_rules(), ("You are an independent reviewer", '{"score": 95, "verdict": "APPROVED", "issues": []}'), ("You are a test design architect", designer),
     ]))
     run = client.post(f"/api/projects/{project['id']}/runs", json={"workflow": "qe"}).json()
     for _ in range(5):
@@ -1185,9 +1186,10 @@ def test_every_qe_gate_shows_a_confidence_review(client, project):
     upload_repo(client, project, {"calc.py": "def add(a, b):\n    return a + b\n", "conftest.py": ""})
     scores = iter([40] + [92] * 30)
     review = lambda _: json.dumps({"score": next(scores), "verdict": "APPROVED", "issues": ["checked"]})
+    ninety_two = {"design": {"fixture_validity": 12}, "code": {"import_safety": 12}, "plan": {"level_fit": 22}}  # each per-case record totals 92
     good = "\n".join(f"## {h}\ntext `calc.py`" for h in DISCOVERY_HEADINGS)
     scripted = ScriptedClient([("You are a repository intelligence analyst", good), ("You are a requirements analyst", REQUIREMENTS), ("You are a principal test architect", PLAN),
-                               ("You are an independent reviewer", review), ("You are a test design architect", CASES), ("You are a test automation engineer", TESTS)])
+                               *case_rules(lambda kind, key: {"scores": ninety_two[kind]}), ("You are an independent reviewer", review), ("You are a test design architect", CASES), ("You are a test automation engineer", TESTS)])
     llm.set_client_override(scripted)
     run = client.post(f"/api/projects/{project['id']}/runs", json={"workflow": "qe"}).json()
     seen = {}
@@ -1228,7 +1230,7 @@ def test_design_splits_a_batch_that_keeps_breaking(client, project):
 
     llm.set_client_override(ScriptedClient([
         ("You are a repository intelligence analyst", "## Purpose\nCalculator"), ("You are a requirements analyst", requirements), ("You are a principal test architect", plan),
-        ("You are an independent reviewer", '{"score": 95, "verdict": "APPROVED", "issues": []}'), ("You are a test design architect", designer),
+        *case_rules(), ("You are an independent reviewer", '{"score": 95, "verdict": "APPROVED", "issues": []}'), ("You are a test design architect", designer),
     ]))
     run = client.post(f"/api/projects/{project['id']}/runs", json={"workflow": "qe"}).json()
     for _ in range(6):
@@ -1242,10 +1244,15 @@ def test_design_splits_a_batch_that_keeps_breaking(client, project):
 
 def test_every_case_gets_a_test_across_batches_and_gaps_are_reported(client, project):
     upload_repo(client, project, {"calc.py": "def add(a, b):\n    return a + b\n", "conftest.py": ""})
-    ids = ["REQ-001"]
-    requirements = json.dumps({"requirements": [{"id": "REQ-001", "title": "A", "statement": "add", "priority": "P2", "tier": "observed", "file": "calc.py", "line": 2, "quote": "return a + b"}]})
-    plan = json.dumps({"strategy": "Unit first", "areas": [{"id": "A1", "name": "Add", "requirement_ids": ids, "risk": "P2", "level": "Unit", "framework": "pytest", "rationale": "Pure logic"}], "skipped_levels": {"Integration": "No IO", "E2E": "No UI"}})
-    cases = json.dumps({"cases": [{"id": f"TC-{n}", "requirement_id": "REQ-001", "scenario": f"Case {n}", "type": "Positive", "level": "Unit", "steps": ["call add"], "expected_result": "returns the sum 2", "oracle": "specified"} for n in range(25)]})
+    ids = [f"REQ-{n:03d}" for n in range(1, 8)]  # 7 P1 requirements, 4 cases each, which the case budget allows (28 of 60)
+    requirements = json.dumps({"requirements": [{"id": i, "title": "A", "statement": "add", "priority": "P1", "tier": "observed", "file": "calc.py", "line": 2, "quote": "return a + b"} for i in ids]})
+    plan = json.dumps({"strategy": "Unit first", "areas": [{"id": "A1", "name": "Add", "requirement_ids": ids, "risk": "P1", "level": "Unit", "framework": "pytest", "rationale": "Pure logic"}], "skipped_levels": {"Integration": "No IO", "E2E": "No UI"}})
+    kinds = ["Positive", "Negative", "Negative (Boundary)", "Exception"]
+
+    def cases(text: str) -> str:
+        wanted = re.findall(r'"id": "(REQ-\d+)"', text.rsplit("REQUIREMENTS:", 1)[-1].split("CASE QUOTA")[0])
+        return json.dumps({"cases": [{"id": "x", "requirement_id": r, "scenario": f"{r} {kind}", "type": kind, "level": "Unit", "steps": ["call add"], "expected_result": "returns the sum 2", "oracle": "specified"} for r in wanted for kind in kinds]})
+
     numbers = []
 
     def author(text: str) -> str:
@@ -1257,7 +1264,7 @@ def test_every_case_gets_a_test_across_batches_and_gaps_are_reported(client, pro
 
     llm.set_client_override(ScriptedClient([
         ("You are a repository intelligence analyst", "## Purpose\nCalculator"), ("You are a requirements analyst", requirements), ("You are a principal test architect", plan),
-        ("You are an independent reviewer", '{"score": 95, "verdict": "APPROVED", "issues": []}'), ("You are a test design architect", cases), ("You are a test automation engineer", author),
+        *case_rules(), ("You are an independent reviewer", '{"score": 95, "verdict": "APPROVED", "issues": []}'), ("You are a test design architect", cases), ("You are a test automation engineer", author),
     ]))
     run = client.post(f"/api/projects/{project['id']}/runs", json={"workflow": "qe"}).json()
     for _ in range(7):
@@ -1266,8 +1273,8 @@ def test_every_case_gets_a_test_across_batches_and_gaps_are_reported(client, pro
         if pending(run)["gate"] == 4:
             break
         client.post(f"/api/approvals/{pending(run)['id']}/decide", json={"approved": True})
-    assert "25 of 25 cases have tests" in pending(run)["summary"]
-    assert sum(1 for n in numbers if n >= 4) == 3, "25 cases split into batches of 10"
+    assert "28 of 28 cases have tests" in pending(run)["summary"]
+    assert sum(1 for n in numbers if n >= 4) == 3, "28 cases split into batches of 10"
 
 
 def test_signer_is_the_signed_in_account_never_a_typed_name(client):

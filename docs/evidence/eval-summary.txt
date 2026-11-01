@@ -4,74 +4,81 @@ Answers from project data and starts workflows on request
 enabled
 v1
 evals 2/2
-6 calls · 9,960 tokens · 0 errors
+6 calls · 10,542 tokens · 0 errors
 Bug reviewer
 medium risk
 Finds defects in code it is given
 enabled
 v1
 evals 3/3
-5 calls · 2,871 tokens · 0 errors
+5 calls · 3,029 tokens · 0 errors
 Business analyst
 low risk
 Writes requirements documents from a brief and sources, and converts them to validated Gherkin
 enabled
 v1
 evals 6/6
-15 calls · 26,706 tokens · 0 errors
+14 calls · 19,325 tokens · 0 errors
 Confidence reviewer
 low risk
 Scores requirements documents, plans, and releases from evidence
 enabled
 v1
-evals 4/6
-20 calls · 38,846 tokens · 0 errors
+evals 5/6
+24 calls · 86,031 tokens · 0 errors
 Defect diagnostician
 Impact: changes code
 Fixes defects and test drift on a branch
 enabled
 v1
 evals 2/2
-3 calls · 1,775 tokens · 0 errors
+3 calls · 1,650 tokens · 0 errors
 Feature engineer
 Impact: changes code
 Implements features on a branch
 enabled
 v1
 evals 1/1
-2 calls · 1,597 tokens · 0 errors
+2 calls · 1,590 tokens · 0 errors
 Test architect
 low risk
 Plans tests by risk and level
 enabled
 v1
 evals 3/3
-6 calls · 7,595 tokens · 0 errors
+6 calls · 8,187 tokens · 0 errors
+QA execution engineer
+low risk
+Explains test results from the recorded evidence
+enabled
+v1
+evals 2/2
+3 calls · 3,118 tokens · 0 errors
 Repository analyst
 medium risk
 Summarizes a repository from scan facts and code
 enabled
 v1
 evals 2/2
-4 calls · 7,994 tokens · 0 errors
+4 calls · 7,311 tokens · 0 errors
 Requirements analyst
 medium risk
 Derives testable requirements with quoted evidence
 enabled
 v1
 evals 2/2
-3 calls · 3,946 tokens · 0 errors
+3 calls · 4,349 tokens · 0 errors
 Test automation
 medium risk
 Generates executable tests for approved cases
 enabled
 v1
 evals 2/2
-5 calls · 15,170 tokens · 0 errors
+4 calls · 12,091 tokens · 0 errors
 Test designer
 low risk
 Designs test cases with oracles
 enabled
 v1
 evals 2/2
-6 calls · 20,969 tokens · 0 errors
+6 calls · 19,562 tokens · 0 errors

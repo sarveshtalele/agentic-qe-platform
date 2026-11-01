@@ -1127,6 +1127,21 @@ A new workflow, `maf/workflows/app_build.py`, which builds a working application
 
 Two builders never edit the same files at once.
 
+## Results so far
+
+**Phase 5, finance repository, one real run per row.** Runs vary widely, so this does not yet prove a better pass rate. Only repeated runs can show that.
+
+| Run | Tests run | Passed | Coverage | Tokens for the QE run |
+|---|---|---|---|---|
+| Before skills, 1 | 86 | 74% | 85% | Not recorded |
+| Before skills, 2 | 83 | 51% | 65% | Not recorded |
+| Before skills, 3 | 68 | 26% | 47% | Not recorded |
+| Before skills, 4 | 64 | 25% | 50% | Not recorded |
+| With skills (phase 4) | 66 | 61% | 73% | 372,223 |
+| **With per-case review and fixes (phase 5)** | **60** | **48%** | **75%** | **572,948** |
+
+**What phase 5 clearly improved:** every case and test now has its own score, code recomputes each verdict, no case went unreviewed, no citation was missing, a failed test's score is capped, and all 31 failures were sorted: 17 defects and 14 environment. **What it cost:** about 54% more tokens than the phase 4 run, close to the 600,000 limit per run.
+
 ## Part 13: Review of this plan
 
 I reviewed the whole plan twice against the code, the latest end-to-end runs, and live measurements. Each gap is now covered, with its phase.

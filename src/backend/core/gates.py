@@ -15,6 +15,10 @@ GATES = {
 }
 
 
+# the gate that rests on each kind of document, so editing an approved one reopens that gate and every later gate
+DOC_GATE = {"discovery": 1, "requirements": 1, "test_plan": 2, "test_cases": 3, "test_code": 4, "release": 5}
+
+
 class GateOrderError(ValueError):
     pass
 
@@ -63,3 +67,26 @@ def decide(project_id: str, gate: int, approved: bool, by: str, reason: str = ""
         if not approved:  # later approvals rested on this gate, so they no longer hold
             con.execute("DELETE FROM gates WHERE project_id=? AND gate>?", (project_id, gate))
     ledger.append(project_id, by, f"gate.{state}", f"G{gate}", {"reason": reason, "run_id": run_id})
+
+
+def would_reopen(project_id: str, kind: str) -> list[int]:
+    """The gates an edit of a document of this kind would reopen: its gate and every later one that holds a decision, when its own gate is approved."""
+    gate = DOC_GATE.get(kind)
+    if gate is None or not is_approved(project_id, gate):
+        return []
+    return [g["gate"] for g in status(project_id) if g["gate"] >= gate and g["decided_by"]]
+
+
+def reopen_for_document(project_id: str, kind: str, by: str, doc_id: str, cause: str) -> list[int]:
+    """Editing an approved document: its gate and the later ones return to pending. Each earlier decision, with its signer and signature, stays in the ledger."""
+    reopened = would_reopen(project_id, kind)
+    if not reopened:
+        return []
+    with db() as con:
+        before = {r["gate"]: r for r in rows(con.execute("SELECT * FROM gates WHERE project_id=? AND gate>=?", (project_id, min(reopened))))}
+        con.execute("DELETE FROM gates WHERE project_id=? AND gate>=?", (project_id, min(reopened)))
+    for number in reopened:
+        old = before.get(number, {})
+        ledger.append(project_id, by, "gate.reopened", f"G{number}", {"cause": cause, "document": doc_id, "kind": kind, "was": old.get("status"), "decided_by": old.get("decided_by"),
+                                                                   "decided_at": old.get("decided_at"), "signature": old.get("signature"), "run_id": old.get("run_id")})
+    return reopened

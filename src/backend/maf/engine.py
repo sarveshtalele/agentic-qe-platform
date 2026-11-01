@@ -29,6 +29,7 @@ from backend.core.errors import AllowanceError, classify, stack_of
 from backend.core.security import redact, safe_path
 from backend.db import db, new_id, now, row, rows
 from backend.maf import runtime as agent_module
+from backend.qe import confidence
 
 # rework loops back to the same stage on purpose, guarded by routing conditions and max_iterations
 logging.getLogger("agent_framework._workflows._validation").setLevel(logging.ERROR)
@@ -414,9 +415,14 @@ async def decide(approval_id: str, approved: bool, by: str, feedback: str = "", 
         raise ValueError(f"Approval already {approval['status']}")
     if approved and (partial := json.loads(approval["payload"]).get("partial")):
         raise ValueError(f"This result is partial and cannot be approved. Missing: {partial['missing']}. Send it back, or approve nothing and retry after fixing the cause.")
+    rejected = confidence.reject_ids(json.loads(approval["payload"])) if approved and approval["gate"] is not None else []
+    if rejected and not feedback.strip():  # code judged these REJECT; a person may still approve them, but must say why
+        raise ValueError(f"These items were judged REJECT: {', '.join(rejected[:12])}{' and more' if len(rejected) > 12 else ''}. Approving them needs a reason. Write it in the reason field.")
     if approval["gate"] is not None:
         auth.require_gate_signer(approval["project_id"], approval["gate"])  # the account's role, not a name in the request
         gates.decide(approval["project_id"], approval["gate"], approved, by, feedback, approval["run_id"])
+        if rejected:
+            ledger.append(approval["project_id"], by, "gate.reject_accepted", f"G{approval['gate']}", {"reason": feedback, "items": rejected, "run_id": approval["run_id"]})
     else:
         ledger.append(approval["project_id"], by, "approval." + ("approved" if approved else "rejected"), approval["title"], {"run_id": approval["run_id"], "feedback": feedback})
     with db() as con:

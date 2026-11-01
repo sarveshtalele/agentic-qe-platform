@@ -17,6 +17,7 @@ from backend.core import errors
 from backend.db import db, rows
 from backend.maf import llm
 from backend.maf.runtime import AgentCall, extract_json
+from tests.reviewing import rules as case_rules
 from tests.scripted_client import ScriptedClient
 from tests.test_api_workflows import GOOD_REVIEW, USER_PASSWORD, client, make_user, pending, project, sign_in, unique, upload_repo, wait_run  # noqa: F401 - fixtures
 
@@ -51,7 +52,7 @@ class Designer:
 def qe_client(designer):
     llm.set_client_override(ScriptedClient([
         ("You are a repository intelligence analyst", "## Purpose\nCalculator"), ("You are a requirements analyst", REQUIREMENTS), ("You are a principal test architect", PLAN),
-        ("You are an independent reviewer", GOOD_REVIEW.replace("90", "95")), ("You are a test design architect", designer)]))
+        *case_rules(), ("You are an independent reviewer", GOOD_REVIEW.replace("90", "95")), ("You are a test design architect", designer)]))
 
 
 def run_to_design(client, project, designer):
@@ -229,7 +230,7 @@ def test_each_error_code_comes_from_a_real_failure(client, project, tmp_path):
     execution.install_dependencies = timed_out
     try:
         with pytest.raises(errors.ExecutionError) as caught:
-            client.portal.call(qe.qe_execute, RunContext("run_x", project["id"], "execute"), {"worktree": str(tmp_path), "install_deps": True, "framework": "pytest", "mode": "brownfield"})
+            client.portal.call(qe.qe_prepare, RunContext("run_x", project["id"], "prepare"), {"worktree": str(tmp_path), "install_deps": True, "framework": "pytest", "mode": "brownfield"})
     finally:
         execution.install_dependencies = original
     assert caught.value.code == "AQE-TEST-001" and "install dependencies" in caught.value.action
@@ -243,7 +244,7 @@ def test_each_error_code_comes_from_a_real_failure(client, project, tmp_path):
 def test_evidence_failure_is_aqe_evid_001_on_the_run(client, project):
     upload_repo(client, project, {"calc.py": "def add(a, b):\n    return a + b\n", "conftest.py": ""})
     fake = json.dumps({"requirements": [{"id": "REQ-001", "title": "x", "statement": "invented", "priority": "P0", "tier": "observed", "file": "calc.py", "line": 1, "quote": "not in the file"}]})
-    llm.set_client_override(ScriptedClient([("You are a repository intelligence analyst", "## Purpose\nCalc"), ("You are a requirements analyst", fake), ("You are an independent reviewer", GOOD_REVIEW)]))
+    llm.set_client_override(ScriptedClient([("You are a repository intelligence analyst", "## Purpose\nCalc"), ("You are a requirements analyst", fake), *case_rules(), ("You are an independent reviewer", GOOD_REVIEW)]))
     run = client.post(f"/api/projects/{project['id']}/runs", json={"workflow": "qe"}).json()
     run = wait_run(client, run["id"])
     client.post(f"/api/approvals/{pending(run)['id']}/decide", json={"approved": True})

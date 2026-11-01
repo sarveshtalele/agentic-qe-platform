@@ -52,7 +52,8 @@ def test_the_mapping_matches_the_plan_table():
     assert {key: policy.skills for key, policy in POLICIES.items() if policy.skills} == {
         "repo-intelligence-analyst": ("analyzing-repositories",), "requirements-analyst": ("extracting-requirements",), "business-analyst": ("authoring-user-stories",),
         "principal-test-architect": ("planning-tests",), "test-design-architect": ("designing-test-cases", "generating-test-data"), "test-automation-engineer": ("generating-test-code",),
-        "defect-diagnostician": ("healing-tests",), "confidence-reviewer": ("tracing-coverage",)}
+        "defect-diagnostician": ("healing-tests",), "confidence-reviewer": ("tracing-coverage",), "qa-execution-engineer": ("executing-tests",)}
+    assert len(POLICIES) == 12
     for key in ("bug-reviewer", "feature-engineer", "project-copilot"):
         assert POLICIES[key].skills == () and skill_lib.for_agent(key) == []
     assert skill_lib.agent_of("building-qe-dashboard") == [] and skill_lib.agent_of("generating-test-data") == ["test-design-architect"]

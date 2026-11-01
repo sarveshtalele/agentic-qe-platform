@@ -62,8 +62,8 @@ def detect_python(worktree: Path) -> str:
     return str(candidate) if candidate.exists() else sys.executable
 
 
-def _pytest(worktree: Path, target: str, junit: Path) -> list[str]:
-    return [detect_python(worktree), "-m", "pytest", target, "-q", "--tb=short", "-p", "no:cacheprovider", "--continue-on-collection-errors", f"--junitxml={junit}"]
+def _pytest(worktree: Path, target: str, junit: Path, extra: tuple[str, ...] = ()) -> list[str]:
+    return [detect_python(worktree), "-m", "pytest", target, "-q", "--tb=short", "-p", "no:cacheprovider", "--continue-on-collection-errors", f"--junitxml={junit}", *extra]
 
 
 def _node_tool(name: str, *args: str) -> list[str] | None:
@@ -71,10 +71,10 @@ def _node_tool(name: str, *args: str) -> list[str] | None:
     return [npx, "--no-install", name, *args] if npx else None
 
 
-def build_command(runner: str, worktree: Path, target: str, junit: Path) -> tuple[list[str] | None, dict]:
+def build_command(runner: str, worktree: Path, target: str, junit: Path, extra: tuple[str, ...] = ()) -> tuple[list[str] | None, dict]:
     env: dict = {}
     if runner == "pytest":
-        return _pytest(worktree, target, junit), env
+        return _pytest(worktree, target, junit, extra), env
     if runner == "vitest":
         return _node_tool("vitest", "run", target, "--reporter=junit", f"--outputFile={junit}"), env
     if runner == "jest":
@@ -87,12 +87,13 @@ def build_command(runner: str, worktree: Path, target: str, junit: Path) -> tupl
 REGISTERED = ("pytest", "vitest", "jest", "playwright")
 
 
-def run_suite(runner: str, worktree: Path, target: str, results_dir: Path, timeout: int = 300) -> dict:
+def run_suite(runner: str, worktree: Path, target: str, results_dir: Path, timeout: int = 300, extra: tuple[str, ...] = ()) -> dict:
+    """`extra` is added to the pytest command line only, so the setup step can set options for generated tests without editing the repository's config."""
     if runner not in REGISTERED:
         return {"runner": runner, "target": target, "verdict": "INCONCLUSIVE", "reason": f"Runner {runner} is not registered", "exit_code": None, "total": 0, "passed": 0, "failed": 0, "skipped": 0, "cases": [], "output": ""}
     results_dir.mkdir(parents=True, exist_ok=True)
     junit = results_dir / f"{runner}-{int(time.time() * 1000)}.xml"
-    command, env = build_command(runner, worktree, target, junit)
+    command, env = build_command(runner, worktree, target, junit, extra)
     if not command:
         return {"runner": runner, "target": target, "verdict": "INCONCLUSIVE", "reason": "Node.js tooling not found on PATH", "exit_code": None, "total": 0, "passed": 0, "failed": 0, "skipped": 0, "cases": [], "output": ""}
     started = time.time()
@@ -237,8 +238,10 @@ def _module_names(path: Path) -> set[str] | None:
     return None if "__getattr__" in names else names
 
 
-def invalid_test_code(worktree: Path, path: str, code: str) -> list[str]:
-    """Generated tests must import names that exist and use only plugins the repository has. Agents invent both."""
+def invalid_test_code(worktree: Path, path: str, code: str, async_ok: bool = False) -> list[str]:
+    """Generated tests must import names that exist and use only plugins the repository has. Agents invent both.
+
+    `async_ok` is true when the platform will make pytest-asyncio available (it is installed, or the run installs dependencies)."""
     if not path.endswith(".py"):
         return []
     try:
@@ -260,22 +263,218 @@ def invalid_test_code(worktree: Path, path: str, code: str) -> list[str]:
         missing = [a.name for a in node.names if available is not None and a.name != "*" and a.name not in available and a.name not in submodules]
         if missing:
             issues.append(f"{path}: {node.module} has no {', '.join(missing)}")
-    if re.search(r"pytest\.mark\.asyncio|^\s*async def test_", code, re.M):
+    if not async_ok and re.search(r"pytest\.mark\.asyncio|^\s*async def test_", code, re.M):
         manifests = " ".join(p.read_text(encoding="utf-8", errors="replace") for p in worktree.glob("*") if p.name.startswith(("requirements", "pyproject", "setup")) and p.is_file())
         if "pytest-asyncio" not in manifests and "pytest_asyncio" not in manifests:
             issues.append(f"{path}: this repository does not have pytest-asyncio. Write a normal test and call asyncio.run() if needed")
     return issues
 
 
+CLASSIFICATION = {"DEFECT": "defect", "SELECTOR_DRIFT": "test problem", "FIXTURE_DRIFT": "test problem", "ENVIRONMENT": "environment"}
+ENV_EVIDENCE = re.compile(
+    r"modulenotfounderror|importerror|command not found|connection refused|econnrefused|cannot find module|no module named|browser.*not found|timed out waiting for server|not natively supported"
+    r"|connecterror|all connection attempts failed|max retries exceeded with url|errno 111|errno 61|winerror 10061|actively refused|name or service not known|nodename nor servname"
+    r"|429 too many requests")
+ASSERTION_LINE = re.compile(r"(?i)^(assert\b|assertionerror\b)")
+
+
+def _first_line(message: str) -> str:
+    return next((line.strip() for line in message.splitlines() if line.strip()), "")
+
+
+def _rate_limited(message: str) -> bool:
+    """A test that expected another status and got 429 was stopped by the application's rate limiter, which is the environment."""
+    first = _first_line(message)
+    for pattern in (r"(?i)^assert\s+429\s*==\s*(\d{3})\b", r"(?i)^assertionerror:\s*429\s*!=\s*(\d{3})\b"):
+        if (found := re.match(pattern, first)) and found.group(1) != "429":
+            return True
+    if (found := re.match(r"(?i)^assert\s+(\d{3})\s*==\s*429\b", first)) and found.group(1) != "429":
+        return "where 429 =" in message  # the 429 is the response, not the expectation
+    listed = re.match(r"(?i)^assert\s+429\s+in\s+[(\[]([^)\]]*)[)\]]", first)
+    return bool(listed) and "429" not in listed.group(1)
+
+
 def classify_failure(message: str) -> str:
-    """Port of diagnose-failure.ts. Only drift classes may be healed; DEFECT stays a failing test."""
+    """Port of diagnose-failure.ts, with the failures seen on real repositories. Only drift classes may be healed; DEFECT stays a failing test.
+
+    A failure whose first line is an assertion is never ENVIRONMENT, so words inside an assertion cannot hide a real failure.
+    The one exception is a 429 where the test expected another status: the application's own rate limiter answered.
+    """
     text = message.lower()
+    if _rate_limited(message):
+        return "ENVIRONMENT"
+    if ASSERTION_LINE.match(_first_line(message)):
+        return "SELECTOR_DRIFT" if re.search(r"locator|selector|getby|strict mode violation", text) else "DEFECT"
     if "cannot import name" in text:  # the module exists but the test asks for a wrong name: the test is wrong, not the machine
         return "FIXTURE_DRIFT"
-    if re.search(r"modulenotfounderror|importerror|command not found|connection refused|econnrefused|cannot find module|no module named|browser.*not found|timed out waiting for server|not natively supported", text):
+    if ENV_EVIDENCE.search(text):
         return "ENVIRONMENT"
     if re.search(r"locator|selector|getby|element not found|no element|waiting for|strict mode violation", text):
         return "SELECTOR_DRIFT"
-    if re.search(r"fixture|keyerror|filenotfounderror|seed|attributeerror: 'nonetype'|typeerror: .*argument", text):
+    if re.search(r"fixture|keyerror|filenotfounderror|seed|attributeerror: 'nonetype'|typeerror: .*(argument|keyword)", text):
         return "FIXTURE_DRIFT"
     return "DEFECT"
+
+
+# The rows of skills/healing-tests/references/HEALING_PATTERNS.md, plus the environment signatures seen on real repositories.
+HEALING_PATTERNS = {
+    "DEFECT": {"pattern": "Real App Bug", "cause": "The test ran and its assertion about the application's behaviour failed.",
+               "fix": "Fix the application so it meets the requirement. The test is not changed and stays failing until then. Forbidden: weakening the assertion."},
+    "SELECTOR_DRIFT": {"pattern": "Selector Drift", "cause": "The page no longer has the element the test looks for.",
+                       "fix": "Update the selector to a stable one such as getByRole or getByTestId. Forbidden: deleting the interaction step."},
+    "FIXTURE_DRIFT": {"pattern": "Fixture Outdated", "cause": "The test passes data or arguments the code does not accept, or reads data that is not there.",
+                      "fix": "Correct the fixture or the call to match the real signature or schema. Forbidden: removing the request or the assertion."},
+    "ENVIRONMENT": {"pattern": "Environment", "cause": "The test could not run properly in this environment.",
+                    "fix": "Fix the environment: install the missing package, or provide the service. The application is not at fault."},
+}
+SPECIFIC = (  # evidence signature to a more exact cause and fix; the first match wins
+    (re.compile(r"(?i)429 too many|assert 429|where 429"), "The application's rate limiter answered 429 because the test sent more requests than it allows.", "Reset or disable the limiter in a fixture, or send fewer requests. Expect 429 only when the case says so."),
+    (re.compile(r"(?i)no module named '([^']+)'"), "The package '{0}' is not installed in the test environment.", "Install '{0}' as a dependency of the repository, or stop importing it in the test."),
+    (re.compile(r"(?i)not natively supported|pytest.mark.asyncio"), "The test is async and pytest-asyncio is not installed.", "Install pytest-asyncio and run with asyncio_mode=auto, or write a synchronous test."),
+    (re.compile(r"(?i)connecterror|connection refused|econnrefused|all connection attempts failed|errno 111|errno 61|winerror 10061"), "The test needs a running server and nothing is listening.", "Call the application object through a test client, or start the application before the test."),
+    (re.compile(r"(?i)got an unexpected keyword argument '([^']+)'"), "The test passes the keyword '{0}', which the function or class does not accept.", "Call it with the parameter names of the real signature."),
+    (re.compile(r"(?i)missing (\d+) required (?:positional|keyword-only) arguments?"), "The test omits arguments the function requires.", "Pass every required argument of the real signature."),
+    (re.compile(r"(?i)cannot import name '([^']+)'"), "The test imports the name '{0}', which the module does not have.", "Import a name the module really defines."),
+)
+
+
+def failure_record(case: dict, klass: str, healed: bool = False, note: dict | None = None) -> dict:
+    """One failed test as a defect record: what failed, how it is classified, the evidence, and the cause and fix from the healing patterns.
+
+    `note` may carry sharper `cause` and `fix` text from the defect diagnostician. The classification is never taken from it.
+    """
+    from backend.core.security import redact
+
+    message = case.get("message", "")
+    pattern = HEALING_PATTERNS[klass]
+    cause, fix = pattern["cause"], pattern["fix"]
+    for regex, specific_cause, specific_fix in SPECIFIC:
+        if klass != "DEFECT" and (found := regex.search(message)):
+            cause, fix = specific_cause.format(*found.groups()), specific_fix.format(*found.groups())
+            break
+    if note:
+        cause, fix = (str(note.get("cause") or cause)[:600], str(note.get("fix") or fix)[:600])
+    case_id = next(iter(re.findall(r"TC[-_][\w-]*\d+", f"{case.get('classname', '')} {case.get('name', '')}", re.I)), "")
+    return {"test": f"{case.get('classname', '')}::{case.get('name', '')}", "case_id": case_id.upper().replace("_", "-"), "classification": CLASSIFICATION[klass], "class": klass,
+            "evidence": redact(message)[:600], "cause": cause, "fix": fix, "pattern": pattern["pattern"], "healed": healed}
+
+
+def failure_counts(results: list[dict]) -> dict:
+    """Failed tests by class, from the JUnit results. Every failure is counted once and none is hidden."""
+    counts = {"defect": 0, "test problem": 0, "environment": 0}
+    for suite in results:
+        for case in suite.get("cases", []):
+            if case["status"] == "failed":
+                counts[CLASSIFICATION[classify_failure(case["message"])]] += 1
+    return counts
+
+
+def environment_facts(worktree: Path, declared: set[str] | frozenset = frozenset()) -> dict:
+    """What the sandbox Python has, read without changing anything: httpx version, pytest-asyncio, and rate limiters in the application."""
+    from backend.qe import emit
+    from backend.repos import scan
+
+    python = detect_python(worktree)
+    inv = emit.inventory(python)
+    versions = inv["versions"] if inv else {}
+    limiters = [{"kind": name, "where": "dependency"} for name in LIMITER_PACKAGES if name in versions or name in declared]
+    sources = [p for p in scan.tree(worktree, 5000) if p.endswith(".py") and not p.startswith(("tests/", "test/")) and "/tests/" not in p]
+    for rel in sources[:600]:
+        text = scan._read(worktree / rel)
+        if found := LIMITER_CODE.search(text):
+            limiters.append({"kind": "in-repository", "where": f"{rel}:{text.count(chr(10), 0, found.start()) + 1}"})
+        if len(limiters) >= 6:
+            break
+    return {"python": python, "inventory": inv is not None, "httpx": versions.get("httpx"), "httpx_declared": "httpx" in declared, "pytest_asyncio": "pytest-asyncio" in versions,
+            "pytest_asyncio_declared": "pytest-asyncio" in declared, "rate_limiters": limiters}
+
+
+LIMITER_PACKAGES = ("slowapi", "flask-limiter", "fastapi-limiter", "django-ratelimit", "ratelimit")
+LIMITER_CODE = re.compile(r"\bLimiter\(|@\w*limiter\.limit|\bRateLimit\w*\(|\brate_limit\w*|\bratelimit\b|slowapi|flask_limiter|status_code\s*=\s*429|HTTP_429")
+
+
+def environment_notes(facts: dict, install_deps: bool = False) -> str:
+    """Instructions for the generation prompt, built only from what was detected."""
+    notes = []
+    version = tuple(int(x) for x in re.findall(r"\d+", facts.get("httpx") or "")[:2])
+    if version >= (0, 28):
+        notes.append(f"httpx {facts['httpx']} is installed. It no longer accepts app=. For an ASGI app use httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://test'); for a WSGI app use httpx.WSGITransport(app=app).")
+    elif version:
+        notes.append(f"httpx {facts['httpx']} is installed. Use app= only if that version accepts it; httpx.ASGITransport(app=app) works on it too.")
+    elif facts.get("httpx_declared"):
+        notes.append("httpx is a dependency but its version is not known yet. Use transport=httpx.ASGITransport(app=app) and never app=, which new versions removed.")
+    if facts.get("pytest_asyncio"):
+        notes.append("pytest-asyncio is available and the platform runs with asyncio_mode=auto, so async def tests need no marker.")
+    elif install_deps:
+        notes.append("pytest-asyncio will be installed before the tests run, and the platform runs with asyncio_mode=auto, so async def tests need no marker.")
+    else:
+        notes.append("pytest-asyncio is NOT available. Write only synchronous tests and call asyncio.run() for any coroutine.")
+    if facts.get("rate_limiters"):
+        where = ", ".join(f"{x['kind']} ({x['where']})" for x in facts["rate_limiters"][:4])
+        notes.append(f"The application has a rate limiter: {where}. Reset or disable it in a fixture (for example limiter.reset() or limiter.enabled = False) and send as few requests as the case needs. Never expect 429 unless the case says so.")
+    notes.append("Do not assume a server is running on any port. Call the application object through its test client.")
+    return "ENVIRONMENT (detected on this machine):\n" + "\n".join(f"- {n}" for n in notes)
+
+
+def async_test_files(worktree: Path, target: str = "tests/agentic_qe") -> list[str]:
+    folder = worktree / target
+    if not folder.is_dir():
+        return []
+    return sorted(p.relative_to(worktree).as_posix() for p in folder.rglob("*.py") if re.search(r"^\s*async def test_|pytest\.mark\.asyncio", p.read_text(encoding="utf-8", errors="replace"), re.M))
+
+
+def install_pytest_asyncio(worktree: Path, log) -> bool:
+    """Argument list, no shell, a timeout, and the scrubbed environment. Only reached after the run's install opt-in."""
+    python = detect_python(worktree)
+    done = subprocess.run([python, "-m", "pip", "install", "-q", "pytest-asyncio"], cwd=worktree, env=clean_env(), capture_output=True, text=True, errors="replace", timeout=300)
+    log(f"pip exit {done.returncode}: pytest-asyncio" + (f" {done.stderr.strip()[-200:]}" if done.returncode else ""))
+    return done.returncode == 0
+
+
+def code_summary(result: dict) -> str:
+    """The summary code writes itself. It is what is shown when the agent's summary is missing or refused."""
+    text = f"{result['runner']}: {result['verdict']}. {result['passed']} passed, {result['failed']} failed, {result['skipped']} skipped."
+    if result["failed"]:
+        counts = failure_counts([result])
+        text += f" Failures by class: {counts['defect']} defect, {counts['test problem']} test problem, {counts['environment']} environment. Environment failures count as not passed."
+    return text + (f" {result['reason']}." if result.get("reason") else "")
+
+
+def summary_evidence(result: dict, limit: int = 15) -> dict:
+    """What the qa-execution-engineer is given: counts, the verdict, and the first failures with their class. Nothing else."""
+    failures = [{"test": f"{c['classname']}::{c['name']}", "class": CLASSIFICATION[classify_failure(c["message"])], "first_line": _first_line(c["message"])[:200]}
+                for c in result["cases"] if c["status"] == "failed"]
+    return {"runner": result["runner"], "verdict": result["verdict"], "exit_code": result["exit_code"], "reason": result.get("reason", ""), "executed": result["passed"] + result["failed"],
+            "passed": result["passed"], "failed": result["failed"], "skipped": result["skipped"], "failures_by_class": failure_counts([result]), "failures": failures[:limit], "failures_not_shown": max(0, len(failures) - limit)}
+
+
+def summary_problems(claim: dict, result: dict) -> list[str]:
+    """Checks the agent's summary against the JUnit counts. Any problem means the summary is refused."""
+    problems = [f"it says {key} {claim.get(key)} but the report has {result[key]}" for key in ("passed", "failed", "skipped") if claim.get(key) != result[key]]
+    if str(claim.get("verdict", "")).upper() != result["verdict"]:
+        problems.append(f"it says the verdict is {claim.get('verdict')} but it is {result['verdict']}")
+    text = str(claim.get("summary", ""))
+    counted = {"passed": result["passed"], "failed": result["failed"], "errors": result["failed"], "error": result["failed"], "skipped": result["skipped"]}
+    for number, word in re.findall(r"(\d+)\s+(passed|failed|skipped|errors?)\b", text, re.I):
+        if int(number) != counted[word.lower()]:
+            problems.append(f"its text says {number} {word} but the report has {counted[word.lower()]}")
+    totals = {result["passed"] + result["failed"], result["passed"] + result["failed"] + result["skipped"]}
+    for number in re.findall(r"(\d+)\s+(?:tests?|test cases)\b", text, re.I):
+        if int(number) not in totals:
+            problems.append(f"its text says {number} tests but the report has {' or '.join(map(str, sorted(totals)))}")
+    for word in set(re.findall(r"\b(PASS|FAIL|INCONCLUSIVE)\b", text)):
+        if word != result["verdict"]:
+            problems.append(f"its text says {word} but the verdict is {result['verdict']}")
+    return problems
+
+
+def heal_allowed(failures: list[dict], path: str) -> bool:
+    """Healing may change only a test file whose failure is drift, or a support file of the generated tests (fixtures, conftest). Never application code, never a test that found a defect."""
+    path = path.replace("\\", "/")
+    if not path.startswith("tests/"):
+        return False
+    if not re.search(r"(^|/)test_[^/]*\.py$|\.test\.[jt]sx?$|\.spec\.[jt]sx?$", path):
+        return True
+    norm = lambda text: re.sub(r"[^a-z0-9]+", "_", text.lower())
+    mine = re.compile(rf"(?<![a-z0-9]){re.escape(norm(Path(path).stem))}(?![a-z0-9])")
+    return any(f["class"] in {"SELECTOR_DRIFT", "FIXTURE_DRIFT"} and mine.search(norm(f"{f['classname']} {f['name']}")) for f in failures)

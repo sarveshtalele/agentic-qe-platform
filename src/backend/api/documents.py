@@ -13,7 +13,7 @@ from fastapi.responses import (
 from pydantic import BaseModel, Field
 
 from backend.api.common import _project
-from backend.core import auth, doc_checks, documents, files
+from backend.core import auth, doc_checks, documents, files, gates
 from backend.maf import agui, engine, evals, governance, llm, workflows  # noqa: F401 - workflows registers definitions
 from backend.maf import runtime as agents
 
@@ -63,7 +63,8 @@ def create_document(project_id: str, body: DocIn):
 
 @router.get("/api/documents/{doc_id}")
 def get_document(doc_id: str, version: int | None = None):
-    return _named([documents.get(doc_id, version)])[0]
+    doc = documents.get(doc_id, version)
+    return {**_named([doc])[0], "would_reopen": gates.would_reopen(doc["project_id"], doc["kind"])}
 
 
 @router.put("/api/documents/{doc_id}")

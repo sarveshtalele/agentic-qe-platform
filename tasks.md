@@ -108,7 +108,7 @@
 
 ## Next, after your approval
 
-- [ ] `docs/PLUGIN_AND_UI_PLAN.md`: 15 phases, approved 2026-11-01. Phases 1 to 4 done, phase 5 next
+- [ ] `docs/PLUGIN_AND_UI_PLAN.md`: 15 phases, approved 2026-11-01. Phases 1 to 5 done, phase 6 next
 - [x] Phase 1, agent names: agents use the plugin's hyphenated keys; `doc_reviewer` merged into `confidence-reviewer` and `gherkin_author` into `business-analyst`; migration `006_agent_plugin_names.sql` moves stored history (checked by `test_migration_006_*`)
 - [ ] Phase 1, agent names: live evals of the merged prompts on the real model not yet run
 - [ ] Phase 1, `qa-execution-engineer` arrives with phase 5
@@ -182,3 +182,40 @@
 - [ ] Not verified: e2e, a live workflow run with skills (the model SDK could not reach the proxy from the sandbox; token cost was measured with raw HTTP), the browser UI
 - [ ] 28 of 33 plugin eval cases need a grader (phase 6)
 - [ ] `qa-execution-engineer` and Skill Studio are later phases; `executing-tests` and `building-qe-dashboard` have no agent yet
+
+## Phase 5a: per-case confidence and gate reopening (CNF), 2026-11-02
+
+- [x] specs.md CNF-1 to CNF-12 written first
+- [x] `qe/confidence.py`: rubric, verdict by code, citation checks through `safe_path`, low confidence, post-execution cap
+- [x] `maf/workflows/shared.py` and `qe.py`: per-case review in batches of 8, send-back of REJECT cases alone (one round), NOT RUN on a failed batch, token report
+- [x] `engine.decide`: a gate with a REJECT record needs a reason, written to the ledger
+- [x] `core/gates.py`, `core/documents.py`, API: editing an approved document reopens its gate and the later ones; `reopened` and `would_reopen`
+- [x] Prompts: requirements rules; reviewer sections for cases, tests and plan; eval fixes
+- [x] UI (type-checked only): per-case table in the approval card, reason field, reopen warning on the document page
+- [x] `scripts/gen_structure.py` describes `skills/` files
+- [ ] Not verified: a live run on the real model, the browser UI, e2e (the owner runs these)
+- [ ] Not built, on purpose, next: test signature checks, setup step, data stage, defect records, case limits
+
+## Phase 5b: test checks, setup, data, defects, limits, execution agent (TST), 2026-11-02
+
+- [x] specs.md TST-1 to TST-14 written first
+- [x] `qe/emit.py`: import, signature, and third-party checks with `ast`; signatures for the prompt; send-back alone, one round
+- [x] `qe/execution.py`: sandbox inventory, `environment_facts`, `environment_notes`, `HEALING_PATTERNS`, new `classify_failure`, pytest extra arguments
+- [x] `workflows/qe.py`: stage `prepare` (install moved here), stage `data` carrying Gate 3, defect records, heal guard, case limit, token estimate, execution summary
+- [x] `qe/test_data.py`: port of `synthesize-data.ts`
+- [x] Agent `qa-execution-engineer`: policy, prompt, evals, mapping; 12 agents; `tests/e2e/test_app.py` count 11 to 12
+- [x] Tests with ScriptedClient and real small modules in `tests/test_emit.py` and `tests/test_execution_stages.py`
+- [ ] Not verified: a live run on the finance repository (the owner runs it), e2e, the browser UI
+- [ ] Not built, on purpose: starting the app for tests that need a server (phase 7)
+
+## Phase 5c: token budget (TST-12, TST-15 to TST-17), 2026-11-02
+
+- [x] specs.md TST-12 rewritten, TST-15 to TST-17 added first
+- [x] `model.case_quota`, quota in the design prompt, excess dropped before review, gap revision obeys it; `limit_cases` kept as a final check
+- [x] Review evidence per batch capped at 12,000 characters (design and generated tests)
+- [x] Review batch split-retry; reviewer id matching
+- [x] Token limit re-checked inside the model gate; Gate token line
+- [x] e2e `approve_next` fills `reject-reason` when visible
+- [x] Tests in `tests/test_token_budget.py`
+- [ ] Not verified: a live run on the finance repository, e2e, the browser UI
+- [ ] `tracing-coverage #2` eval still fails on the real model (`contains:NOT_RUN`)

@@ -51,6 +51,7 @@ Each agent has its own file in `src/backend/maf/agents/`, which declares its pol
 | Provider blocks | `governance.explain_error` | Plain error plus a recorded event |
 | Telemetry | `governance.telemetry`, table `agent_calls` | Shown on the Agents page and in Runs & Metrics |
 | Deterministic review | `core/doc_checks.py`, `cap_for_failed_tests` in `maf/workflows/change.py` | The lower of the model score and the checks wins. A failing change is capped at 60 |
+| Per-case confidence | `qe/confidence.py`, `review_cases` and `review_with_send_back` in `maf/workflows/shared.py`, used by `qe_plan`, `qe_design`, `qe_generate` | `AgentCall.typed` with the `Review` schema, batches of 8 run together with `asyncio.gather` inside the model limit. Code recomputes totals and verdicts and checks every cited `file:line` through `safe_path`. A REJECT goes back alone to its agent once. `AgentCall.tokens` reports what each review used |
 
 ## Agentic QE Platform agents
 
@@ -64,7 +65,7 @@ Each agent has its own file in `src/backend/maf/agents/`, which declares its pol
 | `test-design-architect` | `prompts/test-design-architect.md` | `Agent` | `qe` design, chat |
 | `test-automation-engineer` | `prompts/test-automation-engineer.md` | `Agent`, code supplied in the message | `qe` generate |
 | `defect-diagnostician` | `prompts/defect-diagnostician.md` | `Agent`, code in the message, replies with structured edits; read tools in chat | `qe` heal, `change`, chat |
-| `confidence-reviewer` | `prompts/confidence-reviewer.md` | `Agent`, with a section per review type: requirements document and evidence | `ba` review, on-demand document review, `qe` plan and sign |
+| `confidence-reviewer` | `prompts/confidence-reviewer.md` | `Agent`, with a section per review type: requirements document, evidence, design cases, generated tests, and plan | `ba` review, on-demand document review, `qe` plan and sign |
 | `feature-engineer` | `prompts/feature-engineer.md` | `Agent`, code in the message, replies with structured edits | `change` |
 | `bug-reviewer` | `prompts/bug-reviewer.md` | `Agent`, code supplied in the message | `bug_scan`, chat |
 

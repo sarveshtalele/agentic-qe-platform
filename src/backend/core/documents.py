@@ -12,7 +12,7 @@ import re
 from pathlib import Path
 
 from backend.config import project_dir
-from backend.core import gherkin, ledger
+from backend.core import gates, gherkin, ledger
 from backend.core.security import redact, safe_path, sha256
 from backend.qe import model
 from backend.db import db, new_id, now, row, rows
@@ -54,9 +54,10 @@ def save_version(doc_id: str, content: str, author: str, *, data=None, note="", 
         con.execute("BEGIN IMMEDIATE")
         latest = row(con.execute("SELECT version, sha256 FROM document_versions WHERE document_id=? ORDER BY version DESC LIMIT 1", (doc_id,)))
         if latest and latest["sha256"] == digest and data is None:
-            return get(doc_id)
+            return {**get(doc_id), "reopened": []}
         data = derived if data is None else data
         version = (latest["version"] if latest else 0) + 1
+        edited = bool(latest)  # a first version is a new document, not a change to one a gate may rest on
         con.execute(
             "INSERT INTO document_versions VALUES (?,?,?,?,?,?,?,?,?,?)",
             (doc_id, version, content, json.dumps(data), digest, author, note, prompt_ref, run_id, stamp),
@@ -67,7 +68,8 @@ def save_version(doc_id: str, content: str, author: str, *, data=None, note="", 
     folder.mkdir(parents=True, exist_ok=True)
     (folder / f"v{version:04d}.{EXT.get(doc['kind'], 'md')}").write_text(content, encoding="utf-8")
     ledger.append(doc["project_id"], author, "document.version", doc_id, {"version": version, "sha256": digest, "prompt": prompt_ref})
-    return get(doc_id)
+    reopened = gates.reopen_for_document(doc["project_id"], doc["kind"], author, doc_id, f"{doc['kind']} edited to v{version}") if edited else []
+    return {**get(doc_id), "reopened": reopened}
 
 
 def _doc(doc_id: str) -> dict:

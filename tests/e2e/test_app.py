@@ -51,9 +51,17 @@ def wait_card(page, title_part: str):
     raise AssertionError(f"Timed out waiting for {title_part}")
 
 
+def approve(card) -> None:
+    """The real flow: Approve stays disabled while REJECT items exist until a person gives a reason, so the reason is filled whenever its input is shown."""
+    reason = card.get_by_test_id("reject-reason")
+    if reason.count() and reason.first.is_visible():
+        reason.first.fill("Reviewed by the tester: the open REJECT items are accepted for this end-to-end run")
+    card.get_by_role("button", name="Approve").click()
+
+
 def approve_next(page, title_part: str) -> None:
     card = wait_card(page, title_part)
-    card.get_by_role("button", name="Approve").click()
+    approve(card)
     expect(card.filter(has_text=title_part)).to_have_count(0, timeout=30_000)
 
 
@@ -303,7 +311,7 @@ def test_10_feature_builder_runs_real_tests_on_a_branch(page):
     expect(card).to_contain_text("stock + quantity")
     expect(card).to_contain_text("PASS")
     shot(page, "11-feature-diff")
-    card.get_by_role("button", name="Approve").click()
+    approve(card)
     expect(page.get_by_test_id("run-status")).to_contain_text("completed", timeout=60_000)
     expect(page.get_by_text("Commit", exact=False).first).to_be_visible()
     shot(page, "12-feature-committed")
@@ -316,7 +324,7 @@ def test_10b_fix_a_finding_on_a_branch(page):
     card = wait_card(page, "Review change")
     expect(card).to_contain_text("diff --git a/admin.py")
     shot(page, "12b-bug-fix-diff")
-    card.get_by_role("button", name="Approve").click()
+    approve(card)
     expect(page.get_by_test_id("run-status")).to_contain_text("completed", timeout=60_000)
 
 
@@ -420,7 +428,7 @@ def test_15_prompt_version_and_real_eval(page):
 def test_15b_agents_page_evals_kill_switch_and_real_numbers(page):
     page.goto(f"{UI}/agents")
     cards = page.get_by_test_id("agent-card")
-    expect(cards).to_have_count(11)  # doc_reviewer and gherkin_author merged into their plugin-named agents
+    expect(cards).to_have_count(12)  # the plugin's 8 agents and 4 platform agents
     expect(page.get_by_test_id("risk-legend")).to_contain_text("can change code")
     page.get_by_role("button", name="Run all evaluations").click()
     expect(page.get_by_role("button", name="Running evaluations")).to_be_visible()

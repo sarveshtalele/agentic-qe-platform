@@ -10,6 +10,8 @@ import { DocumentEditor } from "../../../../../components/DocumentEditor";
 import { Badge, Button, Card, ErrorNote, inputClass, Spinner, useToast } from "../../../../../components/ui";
 import { api, when } from "../../../../../lib/api";
 
+const reopenText = (gates: number[]) => (gates.length > 1 ? `Gates G${gates[0]} to G${gates[gates.length - 1]}` : `Gate G${gates[0]}`);
+
 export default function DocumentPage() {
   const { project } = useProject();
   const { docId } = useParams<{ docId: string }>();
@@ -52,10 +54,10 @@ export default function DocumentPage() {
     setBusy(true);
     setError("");
     try {
-      await api(`/documents/${docId}`, { method: "PUT", json: { content: draft, note: note || "Edited" } });
+      const saved = await api(`/documents/${docId}`, { method: "PUT", json: { content: draft, note: note || "Edited" } });
       setNote("");
       await load();
-      toast("Saved as a new version");
+      toast(saved.reopened?.length ? `Saved as a new version. ${reopenText(saved.reopened)} reopened and need a new approval.` : "Saved as a new version");
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -68,7 +70,8 @@ export default function DocumentPage() {
     toast("Document approved");
   };
   const restore = async (version: number) => {
-    await api(`/documents/${docId}/restore/${version}`, { method: "POST" });
+    const restored = await api(`/documents/${docId}/restore/${version}`, { method: "POST" });
+    if (restored.reopened?.length) toast(`${reopenText(restored.reopened)} reopened and need a new approval.`);
     setViewing(null);
     setDiff("");
     await load();
@@ -158,6 +161,7 @@ export default function DocumentPage() {
         <div className="sticky bottom-0 z-10 mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white/95 p-2 backdrop-blur dark:border-slate-800 dark:bg-[#0b1329]/95" data-testid="save-bar">
           <span className="text-xs text-slate-500" data-testid="signing-as">Signing as {user.username}</span>
           <input aria-label="Change note" className={`${inputClass} max-w-md`} placeholder="What changed" value={note} onChange={(e) => setNote(e.target.value)} />
+          {doc.would_reopen?.length > 0 && <span className="text-xs text-amber-600 dark:text-amber-400" data-testid="reopen-warning">Saving a change reopens {reopenText(doc.would_reopen)}. Each needs a new approval on the Governance page.</span>}
           <Button onClick={save} busy={busy} disabled={!dirty}><Save className="h-4 w-4" /> Save version</Button>
           {dirty ? <><Button variant="secondary" onClick={() => setDraft(doc.content)}>Discard changes</Button><span className="text-xs text-amber-500">Unsaved changes</span></> : <span className="text-xs text-slate-500">Select any text or table cell to edit it</span>}
         </div>

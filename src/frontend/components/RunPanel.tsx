@@ -7,13 +7,43 @@ import { api, when } from "../lib/api";
 import { useAuth } from "./AuthGate";
 import { Badge, Button, Card, ErrorNote, Field, inputClass, useToast } from "./ui";
 
+const verdictTone = (v: string) => (v === "APPROVED" ? "emerald" : v === "REVISE" ? "amber" : v === "REJECT" ? "rose" : "slate");
+
+/** One row per case, as code judged it: the total is the sum of the scores and the verdict follows the rule, whatever the reviewer wrote. */
+function CaseTable({ records }: { records: any[] }) {
+  return (
+    <div className="max-h-96 overflow-auto rounded-lg border border-slate-200 dark:border-slate-700" data-testid="case-table">
+      <table className="w-full text-left text-xs">
+        <thead className="sticky top-0 bg-slate-100 dark:bg-slate-800"><tr><th className="p-1.5">Case</th><th className="p-1.5">Total</th><th className="p-1.5">Verdict</th><th className="p-1.5">Evidence</th><th className="p-1.5">Low</th><th className="p-1.5">Flaws, with file, line and fix</th></tr></thead>
+        <tbody>
+          {records.map((r: any) => (
+            <tr key={r.tc_id} className="border-t border-slate-200 align-top dark:border-slate-700" data-testid="case-row" data-verdict={r.verdict}>
+              <td className="mono p-1.5">{r.tc_id}{r.round === 2 && <span className="ml-1 text-[10px] text-slate-500">revised once</span>}</td>
+              <td className="p-1.5">{r.total === null || r.total === undefined ? "not run" : <>{r.total}{r.capped && <span className="ml-1 text-[10px] text-rose-500">capped from {r.total_before}</span>}</>}</td>
+              <td className="p-1.5"><Badge tone={verdictTone(r.verdict)}>{r.verdict}</Badge></td>
+              <td className="p-1.5">{r.evidence}</td>
+              <td className="p-1.5" title={r.low_reason}>{r.low ? "low" : ""}</td>
+              <td className="p-1.5">
+                {(r.flaws || []).map((f: any, i: number) => <div key={i}><span className="mono">{f.file ? `${f.file}${f.line ? `:${f.line}` : ""}` : f.evidence}</span>: {f.dimension ? `${f.dimension}. ` : ""}Fix: {f.fix}</div>)}
+                {(r.problems || []).map((p: string, i: number) => <div key={`p${i}`} className="text-slate-500">{p}</div>)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function ConfidenceNote({ review }: { review?: any }) {
   if (!review) return null;
   const tone = review.score === null ? "amber" : review.score >= 85 ? "emerald" : review.score >= 70 ? "amber" : "rose";
+  const c = review.counts;
   return (
-    <div className="text-sm" data-testid="confidence">
+    <div className="space-y-1.5 text-sm" data-testid="confidence">
       <span className="flex flex-wrap items-center gap-2"><b>Independent confidence review</b> <Badge tone={tone}>{review.score === null ? "not run" : `${review.score} of 100`}</Badge> <Badge>{review.verdict}</Badge></span>
-      {review.issues?.length > 0 && <ul className="mt-1 list-disc pl-5 text-xs text-slate-600 dark:text-slate-400">{review.issues.slice(0, 8).map((issue: string, i: number) => <li key={i}>{issue}</li>)}</ul>}
+      {c && <p className="text-xs text-slate-600 dark:text-slate-400" data-testid="confidence-counts">{c.cases} reviewed: {c.approved} approved, {c.revise} revise, {c.reject} reject, {c.not_run} not run. {c.evidence_missing} cite evidence that is not on disk.{review.capped ? ` ${review.capped} failed tests are capped at 60.` : ""}{review.tokens?.total ? ` Review used ${review.tokens.total} tokens (${review.tokens.review} reviewing, ${review.tokens.revise} revising).` : ""}</p>}
+      {review.records?.length > 0 ? <CaseTable records={review.records} /> : review.issues?.length > 0 && <ul className="mt-1 list-disc pl-5 text-xs text-slate-600 dark:text-slate-400">{review.issues.slice(0, 8).map((issue: string, i: number) => <li key={i}>{issue}</li>)}</ul>}
     </div>
   );
 }
@@ -116,6 +146,7 @@ export function ApprovalCard({ approval, projectId, onDecided }: { approval: any
   const [project, setProject] = useState<any>(null);
   useEffect(() => { api(`/projects/${projectId}`).then(setProject).catch(() => {}); }, [projectId]);
   const payload = approval.payload || {};
+  const rejects = (payload.confidence?.records || []).filter((r: any) => r.verdict === "REJECT");
   // The server is the real check; this only hides what it would refuse
   const allowed = !project || (approval.gate === null || approval.gate === undefined ? project.can_write : project.can_sign.includes(approval.gate));
   const decide = async (approved: boolean) => {
@@ -146,6 +177,16 @@ export function ApprovalCard({ approval, projectId, onDecided }: { approval: any
         </ul>
       )}
       <ConfidenceNote review={payload.confidence || payload.verification?.confidence} />
+      {payload.case_limit && <p className="text-sm" data-testid="case-limit">{payload.case_limit.message}{payload.case_limit.left_out_count ? `: ${payload.case_limit.left_out.join(", ")}` : ""}</p>}
+      {payload.estimate && <p className="text-xs text-slate-600 dark:text-slate-400" data-testid="token-estimate">Tokens used so far {payload.estimate.used_so_far}. Next: {payload.estimate.next_step}. {payload.estimate.estimated_tokens === null ? payload.estimate.basis : `Estimate about ${payload.estimate.estimated_tokens} tokens (${payload.estimate.expected_calls} calls at ${payload.estimate.average_tokens_per_call}). ${payload.estimate.basis}.`}</p>}
+      {payload.emit_unresolved?.length > 0 && <div role="alert" className="rounded-lg border border-amber-500/50 p-2 text-sm" data-testid="emit-unresolved"><b>{payload.emit_unresolved.length} tests still fail the static checks:</b>{payload.emit_unresolved.map((u: any) => <div key={u.path} className="mono text-xs">{u.path}: {u.findings[0]}</div>)}</div>}
+      {payload.execution_summary && <p className="text-sm" data-testid="execution-summary">{payload.execution_summary.text} <span className="text-xs">({payload.execution_summary.source === "agent" ? "written by the qa-execution-engineer and checked against the JUnit counts" : "written by code"})</span></p>}
+      {payload.defect_records?.length > 0 && (
+        <table className="w-full text-left text-xs" data-testid="defect-records">
+          <thead><tr><th>Test</th><th>Class</th><th>Cause</th><th>Fix</th></tr></thead>
+          <tbody>{payload.defect_records.map((r: any) => <tr key={r.test}><td className="mono">{r.test}</td><td>{r.classification}</td><td>{r.cause}</td><td>{r.fix}</td></tr>)}</tbody>
+        </table>
+      )}
       {payload.review && <p className="text-sm">Reviewer score <b>{payload.review.score}</b>: {payload.review.issues?.join("; ") || "no issues"}</p>}
       {payload.verification && (
         <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -164,13 +205,13 @@ export function ApprovalCard({ approval, projectId, onDecided }: { approval: any
       {payload.diff !== undefined && <pre className="mono max-h-96 overflow-auto rounded-lg bg-[#070d1f] p-3 text-xs text-slate-200">{payload.diff.split("\n").map((line: string, i: number) => <div key={i} className={line.startsWith("+") ? "text-emerald-400" : line.startsWith("-") ? "text-rose-400" : ""}>{line || " "}</div>)}</pre>}
       <div className="grid gap-3 md:grid-cols-2">
         <Field label="Signing as"><p className="py-2 text-sm font-semibold" data-testid="signing-as">{user.username}</p></Field>
-        <Field label="Feedback (required to send back)"><input className={inputClass} value={feedback} onChange={(e) => setFeedback(e.target.value)} placeholder="What should change" /></Field>
+        <Field label={rejects.length ? `Reason (required: ${rejects.length} item${rejects.length > 1 ? "s are" : " is"} REJECT, and it is written to the ledger if you approve)` : "Feedback (required to send back)"}><input className={inputClass} data-testid="reject-reason" value={feedback} onChange={(e) => setFeedback(e.target.value)} placeholder={rejects.length ? "Why these can be accepted" : "What should change"} /></Field>
       </div>
       {payload.can_open_pr && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={openPr} onChange={(e) => setOpenPr(e.target.checked)} /> Push the branch and open a pull request</label>}
       <ErrorNote message={error} />
       {!allowed && <p className="text-xs text-slate-500" data-testid="cannot-sign">Your role cannot {approval.gate == null ? "approve here" : `sign gate G${approval.gate}`}. Ask the project owner or an administrator.</p>}
       <div className="flex gap-2">
-        <Button variant="success" busy={busy} disabled={!!payload.partial || !allowed} onClick={() => decide(true)}>Approve</Button>
+        <Button variant="success" busy={busy} disabled={!!payload.partial || !allowed || (rejects.length > 0 && !feedback.trim())} onClick={() => decide(true)}>Approve</Button>
         <Button variant="danger" busy={busy} disabled={!feedback.trim() || !allowed} onClick={() => decide(false)}>Send back</Button>
       </div>
     </div>

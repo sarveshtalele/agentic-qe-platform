@@ -7,7 +7,7 @@ import pytest
 from playwright.sync_api import expect
 
 from tests.e2e.conftest import api_get
-from tests.e2e.test_app import UI, approve_next, shot, wait_card
+from tests.e2e.test_app import UI, approve, approve_next, shot, wait_card
 
 pytestmark = pytest.mark.e2e
 EVIDENCE_DIR = Path(__file__).resolve().parents[2] / "docs" / "evidence"
@@ -87,7 +87,7 @@ def test_f4_feature_builder_adds_the_tool(page):
     assert "undefined" not in page.get_by_test_id("run-metrics").locator("xpath=..").inner_text()
     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "a long diff must not widen the page"
     shot(page, "f4-finance-feature-diff")
-    card.get_by_role("button", name="Approve").click()
+    approve(card)
     expect(page.get_by_test_id("run-status")).to_contain_text("completed", timeout=60_000)
     assert re.search("PASS|NO NEW FAILURES", run["feature_verdict"]), run["feature_verdict"]
 
@@ -103,7 +103,7 @@ def test_f5_fix_a_real_finding(page):
     card = wait_card(page, "Review change")
     expect(card).to_contain_text(f"diff --git a/{target['file']}")
     shot(page, "f5-finance-fix-diff")
-    card.get_by_role("button", name="Approve").click()
+    approve(card)
     expect(page.get_by_test_id("run-status")).to_contain_text("completed", timeout=60_000)
 
 
@@ -114,7 +114,7 @@ def test_f5b_fix_all_open_findings(page):
     expect(card).to_contain_text("diff --git a/")
     run["fix_all_verdict"] = card.inner_text()[:300]
     shot(page, "f5b-finance-fix-all")
-    card.get_by_role("button", name="Approve").click()
+    approve(card)
     expect(page.get_by_test_id("run-status")).to_contain_text("completed", timeout=60_000)
     passed = any(word in run["fix_all_verdict"] for word in ("Test verdict PASS", "Test verdict NO NEW FAILURES"))
     if passed:

@@ -390,7 +390,7 @@ Use HTTPS outside your own machine, so sign-in details are encrypted in transit.
       {
         slug: "agents",
         title: "Agents and evaluations",
-        summary: "Policy, guardrails, and quality for all 11 agents.",
+        summary: "Policy, guardrails, and quality for all 12 agents.",
         body: `## What risk means
 
 Risk shows what an agent **could affect**, not how it is behaving.
@@ -399,7 +399,7 @@ Agents marked "Impact: changes code" are in the application because Feature Buil
 
 | Risk | Meaning | Agents |
 |---|---|---|
-| Low | Handles text only | business-analyst (documents and Gherkin), confidence-reviewer (document and evidence review), principal-test-architect, test-design-architect |
+| Low | Handles text only | business-analyst (documents and Gherkin), confidence-reviewer (document and evidence review), principal-test-architect, test-design-architect, qa-execution-engineer (explains test results from evidence) |
 | Medium | Reads code, or acts on project data in chat | project-copilot, repo-intelligence-analyst, requirements-analyst, test-automation-engineer, bug-reviewer |
 | Impact: changes code | Can change code, always on a branch with a person's review | feature-engineer, defect-diagnostician |
 
@@ -419,7 +419,7 @@ Select any agent's card to open its page, with its details, evaluations, and rec
 
 **Run all evaluations** runs each agent's cases on the real model, and stores results per prompt version. Model replies vary, so an occasional case can fail between runs.
 
-There are 26 cases across 11 agents today:
+There are 28 cases across 12 agents today:
 
 | Check | What it proves |
 |---|---|

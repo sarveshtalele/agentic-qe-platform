@@ -170,7 +170,7 @@ Where each rule lives. Every row names the code that enforces it.
 
 ## Agent governance
 
-`src/backend/maf/governance.py` holds the registry of 11 agents: risk tier, tools, token limit. The Agents page shows policy, eval scores, calls, tokens, latency, errors, and guardrail events from stored data, and lets a named person disable an agent. Text from briefs, sources, and repositories passes secret and injection filters before the model sees it. Model providers can reject such text, which would otherwise fail a whole run.
+`src/backend/maf/governance.py` holds the registry of 12 agents: risk tier, tools, token limit. The Agents page shows policy, eval scores, calls, tokens, latency, errors, and guardrail events from stored data, and lets a named person disable an agent. Text from briefs, sources, and repositories passes secret and injection filters before the model sees it. Model providers can reject such text, which would otherwise fail a whole run.
 
 ## Limits
 

@@ -43,7 +43,7 @@ PURPOSE = {
     "src/frontend/eslint.config.mjs": "Lint rules", "src/frontend/postcss.config.mjs": "CSS build settings", "src/frontend/app/globals.css": "Design tokens and document styles", "src/frontend/app/layout.tsx": "Root HTML layout, theme, and toasts",
     "src/frontend/app/api/copilotkit/[[...path]]/route.ts": "CopilotKit runtime, connecting chat to the AG-UI endpoint", "src/frontend/components/AppShell.tsx": "Workspace sidebar and header", "src/frontend/components/ProjectShell.tsx": "Project sidebar and header",
     "src/frontend/components/RunPanel.tsx": "Live run view, approval card, and past runs", "src/frontend/components/Chat.tsx": "Chat threads and conversation", "src/frontend/components/ApprovalsList.tsx": "List of pending approvals",
-    "src/frontend/components/DocumentEditor.tsx": "Formatted document with in-place editing, table grids, and images", "src/frontend/components/Observability.tsx": "Log with filters, run trace, and download", "src/frontend/components/ui.tsx": "Shared buttons, cards, badges, fields, and toasts", "src/frontend/lib/api.ts": "Browser calls to the API", "src/frontend/content/docs.ts": "All documentation pages",
+    "src/frontend/components/DocumentEditor.tsx": "Formatted document with in-place editing, table grids, and images", "src/frontend/components/Observability.tsx": "Log with filters, run trace, and download", "src/frontend/components/ModelPicker.tsx": "Menu to choose the model for a run or a chat thread", "src/frontend/components/ui.tsx": "Shared buttons, cards, badges, fields, and toasts", "src/frontend/lib/api.ts": "Browser calls to the API", "src/frontend/content/docs.ts": "All documentation pages",
     "deploy/azure/frontend_startup.js": "App Service startup for the frontend: builds when needed, then serves", "docs/ARCHITECTURE.md": "Plugin to platform mapping and workflow details", "docs/AZURE_DEPLOY.md": "Portal guide for Azure with INR costs",
     "docs/REUSE_AUDIT.md": "Which earlier code was reused and which was replaced", "docs/SYSTEM_DESIGN.md": "End-to-end system design", "src/frontend/app/error.tsx": "Page error screen with its error id and a retry button",
     "src/frontend/app/global-error.tsx": "Last-resort error screen for a failure in the root layout",
@@ -91,12 +91,25 @@ def _script(name: str, source: str, known: set[str]) -> set[str]:
     return uses
 
 
-def _purpose(name: str, doc: str) -> str:
+def _purpose(name: str, doc: str, source: str = "") -> str:
     if name in PURPOSE:
         return PURPOSE[name]
     if doc:
         return doc
     path = Path(name)
+    if name.startswith("skills/"):
+        skill = path.parts[1] if len(path.parts) > 2 else ""
+        heading = next((line.lstrip("# ").strip() for line in source.splitlines() if line.startswith("#")), path.stem)
+        described = re.search(r"(?m)^description:\s*(.+)$", source)
+        if not skill:
+            return "Overview of the plugin skills copied here"
+        if path.name == "SKILL.md":
+            return described.group(1).strip() if described else f"Instructions of the {skill} skill"
+        if path.name == "evals.json":
+            return f"Evaluation cases for the {skill} skill"
+        if "references" in path.parts:
+            return f"Reference for the {skill} skill: {heading}"
+        return f"Asset of the {skill} skill: {path.name}"
     if name.startswith("src/frontend/app/") and path.name == "page.tsx":
         route = "/" + "/".join(path.parts[3:-1])
         return f"Page at `{route if route != '/' else '/'}`".replace("[", "{").replace("]", "}")
@@ -126,7 +139,7 @@ def main() -> None:
             doc, links = _python(name, source, known)
         elif name.endswith((".ts", ".tsx")):
             links = _script(name, source, known)
-        purposes[name], uses[name] = _purpose(name, doc), links
+        purposes[name], uses[name] = _purpose(name, doc, source), links
     used_by = defaultdict(set)
     for name, links in uses.items():
         for link in links:
