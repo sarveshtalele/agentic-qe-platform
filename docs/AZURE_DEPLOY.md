@@ -42,7 +42,7 @@ From the project folder:
 python scripts/package_azure.py
 ```
 
-This creates `dist/agentic-qe-backend.zip` and `dist/agentic-qe-frontend.zip`. They exclude `legacy/`, tests, `.env`, runtime data, and `node_modules`.
+This creates `dist/agentic-qe-backend.zip` and `dist/agentic-qe-frontend.zip`. They exclude tests, `.env`, runtime data, and `node_modules`.
 
 ## 2. Create the backend app
 

@@ -584,7 +584,7 @@ def test_each_agent_tool_and_workflow_lives_in_its_own_file():
     assert len(names) == 12 and all((root / "src/backend/maf/tools" / f"{name}.py").is_file() for name in names)
 
 
-def test_packages_exclude_secrets_tests_and_legacy():
+def test_packages_exclude_secrets_and_tests():
     import importlib.util
 
     root = Path(__file__).resolve().parent.parent
@@ -596,7 +596,7 @@ def test_packages_exclude_secrets_tests_and_legacy():
         assert needed in backend
     assert {"startup.js", "package.json", "package-lock.json", "next.config.ts"} <= set(frontend)
     for name in [*backend, *frontend]:
-        assert not name.startswith(("legacy/", "tests/", "data/")) and "node_modules" not in name and ".next/" not in name and not name.endswith(".env")
+        assert not name.startswith(("tests/", "data/")) and "node_modules" not in name and ".next/" not in name and not name.endswith(".env")
 
 
 def test_sqlite_journal_mode_is_a_setting(tmp_path):

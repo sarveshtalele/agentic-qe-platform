@@ -1,7 +1,7 @@
 """Make the Azure ZIPs and a clean production repository in dist/. Nothing outside dist/ changes.
 
   python scripts/package_azure.py          backend and frontend ZIPs
-  python scripts/package_azure.py --repo   also dist/agentic-qe-platform, a clean copy with no legacy code
+  python scripts/package_azure.py --repo   also dist/agentic-qe-platform, a clean copy of the project
 """
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 SKIP_DIRS = {"__pycache__", "node_modules", ".pytest_cache", ".ruff_cache", ".venv", "test-results"}
 SKIP_NAMES = {".env", ".env.local", ".DS_Store"}
-NOT_IN_REPO = ("legacy/", "agent-framework.pdf", "dist/", ".mcp.json")
+NOT_IN_REPO = ("agent-framework.pdf", "dist/", ".mcp.json")
 
 
 def _files(folder: Path):
@@ -57,11 +57,7 @@ def export_repo(target: Path) -> None:
             continue
         destination = target / name
         destination.parent.mkdir(parents=True, exist_ok=True)
-        if name in {"README.md", "CLAUDE.md"}:
-            # the clean copy has no legacy folder, so its docs do not mention one
-            destination.write_text("".join(line for line in source.read_text(encoding="utf-8").splitlines(keepends=True) if "legacy" not in line.lower()), encoding="utf-8")
-        else:
-            shutil.copy2(source, destination)
+        shutil.copy2(source, destination)
         count += 1
     subprocess.run(["git", "init", "-q", "-b", "main"], cwd=target, check=True, timeout=30)
     print(f"{target.relative_to(ROOT)}  {count} files, new git repository with no commits")

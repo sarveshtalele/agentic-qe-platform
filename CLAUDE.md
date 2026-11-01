@@ -4,14 +4,14 @@ Agentic QE Platform is a Python and Next.js workspace for BAs and developers, bu
 
 ## Never without the owner's explicit permission
 
-- Delete, move, or overwrite files, directories, or branches. List what you propose to remove and wait for a yes. `legacy/` stays until the owner says otherwise.
+- Delete, move, or overwrite files, directories, or branches. List what you propose to remove and wait for a yes.
 - Commit, push, merge, or open pull requests.
 - Change `~/.claude`, global config, or anything outside this repository.
 - Run `git reset --hard`, `git clean`, `git push --force`, or `rm -rf`.
 
 ## Order of work
 
-1. Read the code a change touches, plus `legacy/` and the agentic-qe plugin where relevant.
+1. Read the code a change touches, plus the agentic-qe plugin where relevant.
 2. Update `plan.md`, `specs.md`, and `tasks.md` first.
 3. Make the smallest change that works, extending existing modules.
 4. Run the tests and report the real output. Update `maf-guide.md` when MAF usage changes.
@@ -72,7 +72,6 @@ Every change must work on Windows, macOS, and Linux. Use `pathlib`, `shutil.whic
 | `tests/` | Unit and integration tests; `tests/e2e` holds Playwright |
 | `deploy/azure` | App Service startup scripts |
 | `docs/` | Architecture, system design, Azure guide, test evidence |
-| `legacy/` | Unchanged copy of the previous code at commit 09f14fe |
 | `data/` | Runtime state, not in git |
 
 `progress.md` is written by the hooks in `.claude/settings.json`. Log decisions with `python scripts/hooks/activity_log.py decision "text"`.

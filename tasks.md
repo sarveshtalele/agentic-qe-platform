@@ -12,7 +12,7 @@
 - [x] Cross-platform launcher (`scripts/dev.py`)
 - [x] Activity hook writing `progress.md`
 - [x] `CLAUDE.md` guardrails including no deletion without permission
-- [x] Previous code preserved in `legacy/`
+- [x] Previous code preserved in Git at commit 09f14fe
 
 ## Backend features
 
@@ -67,7 +67,7 @@
 - [x] Clean UI pass from screenshots: fixed the undefined result line and page overflow from long diffs
 - [x] `docs/SYSTEM_DESIGN.md`, `docs/AZURE_DEPLOY.md` with INR prices
 - [x] `scripts/package_azure.py`, backend and frontend startup scripts, run locally from the unpacked ZIPs
-- [x] Clean production export with no `legacy/`: `python scripts/package_azure.py --repo`
+- [x] Clean production export: `python scripts/package_azure.py --repo`
 - [ ] Deploy on real Azure. Needs your subscription
 
 ## Rename, observability, launchers
@@ -93,7 +93,6 @@
 
 ## Awaiting your decision
 
-- [ ] Remove `legacy/`
 - [ ] Rotate the model API key, which is in old Git history on `origin/main`
 - [ ] Rewrite Git history to remove that key, if wanted
 - [ ] Migrate old `data/sdlc.sqlite3` projects

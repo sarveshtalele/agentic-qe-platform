@@ -80,7 +80,6 @@ Each agent, tool, workflow, and API area has its own file. To add an agent or wo
 | `tests` | Unit, integration, and Playwright tests |
 | `deploy/azure`, `scripts` | App Service startup, launcher, packaging, hooks |
 | `docs` | Design, Azure guide, file map, test screenshots |
-| `legacy` | Earlier code, kept until the owner removes it |
 
 `docs/PROJECT_STRUCTURE.md` lists every file, what it does, and what uses it. It is generated from the real imports by `python scripts/gen_structure.py`.
 
@@ -106,7 +105,7 @@ python scripts/dev.py e2e
 python scripts/package_azure.py
 ```
 
-This makes separate backend and frontend ZIPs in `dist/`. With `--repo`, it also makes a clean copy with no legacy code in `dist/agentic-qe-platform`. `docs/AZURE_DEPLOY.md` has the portal steps and costs: about ₹1,182 a month on one Basic B1 Linux plan in East US, at retail prices checked on 1 November 2026.
+This makes separate backend and frontend ZIPs in `dist/`. With `--repo`, it also makes a clean copy of the project in `dist/agentic-qe-platform`. `docs/AZURE_DEPLOY.md` has the portal steps and costs: about ₹1,182 a month on one Basic B1 Linux plan in East US, at retail prices checked on 1 November 2026.
 
 ## Documents
 

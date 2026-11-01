@@ -52,6 +52,3 @@ agent-framework.pdf
 
 # Azure packages and the clean export
 dist/
-
-# Holds a real API key in its old test code. Kept on disk unchanged, never pushed again
-legacy/tests/test_nextjs_e2e_playwright.py

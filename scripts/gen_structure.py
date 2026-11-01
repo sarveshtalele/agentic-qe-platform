@@ -12,7 +12,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 TARGET = ROOT / "docs" / "PROJECT_STRUCTURE.md"
-SKIP = ("legacy/", "docs/evidence/", "src/frontend/public/", "dist/")
+SKIP = ("docs/evidence/", "src/frontend/public/", "dist/")
 GROUPS = [
     ("Backend application", "src/backend/app.py", "src/backend/config.py", "src/backend/db.py"),
     ("REST API", "src/backend/api/"),
@@ -37,7 +37,7 @@ GROUPS = [
 PURPOSE = {
     "README.md": "Project overview, setup, and links", "CLAUDE.md": "Rules for changing this project", "plan.md": "Design decisions and reuse audit", "specs.md": "Requirements with acceptance checks",
     "tasks.md": "Status of all work", "Design.md": "UI design rules", "maf-guide.md": "Microsoft Agent Framework features used, by file", "progress.md": "Timestamped activity log written by hooks",
-    "requirements.txt": "Python dependencies", "pytest.ini": "Test settings", ".env.example": "Settings template", ".gitignore": "Files kept out of Git", ".mcp.json": "Developer MCP servers for Claude Code",
+    "requirements.txt": "Python dependencies", "pytest.ini": "Test settings", ".env.example": "Settings template", ".gitignore": "Files kept out of Git", ".gitattributes": "Line endings for launcher scripts", ".mcp.json": "Developer MCP servers for Claude Code",
     ".github/workflows/ci.yml": "Tests on Windows, macOS, and Linux", ".claude/settings.json": "Hooks that write progress.md", "start-windows.bat": "Double-click launcher for Windows", "start-mac.command": "Double-click launcher for macOS",
     "src/frontend/package.json": "Node dependencies and scripts", "src/frontend/package-lock.json": "Exact Node dependency versions", "src/frontend/next.config.ts": "Next.js settings and the API proxy", "src/frontend/tsconfig.json": "TypeScript settings",
     "src/frontend/eslint.config.mjs": "Lint rules", "src/frontend/postcss.config.mjs": "CSS build settings", "src/frontend/app/globals.css": "Design tokens and document styles", "src/frontend/app/layout.tsx": "Root HTML layout, theme, and toasts",
@@ -133,7 +133,7 @@ def main() -> None:
              "In this table, `ui/` means `src/frontend/`, and backend paths start from `src/backend/`.", "", "## How the parts connect", "", "```mermaid", "flowchart LR",
              "  UI[Next.js pages and components] -->|/api proxy| API[api routers]", "  UI -->|CopilotKit route| AGUI[maf/agui.py]", "  API --> ENGINE[maf/engine.py]", "  API --> CORE[core services]", "  ENGINE --> WF[maf/workflows]",
              "  WF --> RT[maf/runtime.py]", "  AGUI --> RT", "  RT --> AG[maf/agents policies]", "  RT --> TOOLS[maf/tools]", "  RT --> GOV[maf/governance.py]", "  RT --> LLM[maf/llm.py]", "  WF --> REPOS[repos]", "  WF --> QE[qe]", "  WF --> CORE",
-             "  GOV --> OBS[maf/observability.py]", "  TOOLS --> OBS", "  CORE --> DB[(SQLite)]", "  OBS --> DB", "  REPOS --> SBX[(Project sandbox)]", "  QE --> SBX", "```", "", f"The project has {len(names)} files, not counting `legacy/` and screenshots.", ""]
+             "  GOV --> OBS[maf/observability.py]", "  TOOLS --> OBS", "  CORE --> DB[(SQLite)]", "  OBS --> DB", "  REPOS --> SBX[(Project sandbox)]", "  QE --> SBX", "```", "", f"The project has {len(names)} files, not counting screenshots.", ""]
     remaining = list(names)
     for title, *prefixes in [*GROUPS, ("Project root", "")]:
         members = [n for n in remaining if any(n.startswith(p) for p in prefixes)]

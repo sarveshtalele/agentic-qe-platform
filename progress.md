@@ -917,3 +917,23 @@ Written by `scripts/hooks/activity_log.py`. Times are local.
 | 2026-11-01 18:16:26 | before | Bash: Fix Windows scan, commit, push, wait for CI |
 | 2026-11-01 18:16:30 | after | Bash: Fix Windows scan, commit, push, wait for CI |
 | 2026-11-01 18:16:33 | turn end |  |
+| 2026-11-01 18:21:52 | user | <ta[redacted]> <task-id>by1d8mzm5</task-id> <tool-use-id>toolu_0199sadE8TRXvW8qhtgNaqKG</tool-use-id> <output-file>/private/tmp/claude-501/-Users-sarveshtalele… |
+| 2026-11-01 18:21:56 | before | Read: /private/tmp/claude-501/-Users-sarveshtalele-Downloads-atlas-ba-mvp/cd2f6ff4-fef4-41bd-800f-a6f490e04cf8/tasks/by1d8mzm5.output |
+| 2026-11-01 18:21:56 | after | Read: /private/tmp/claude-501/-Users-sarveshtalele-Downloads-atlas-ba-mvp/cd2f6ff4-fef4-41bd-800f-a6f490e04cf8/tasks/by1d8mzm5.output |
+| 2026-11-01 18:22:03 | before | mcp__ccd_turn__wrap_up |
+| 2026-11-01 18:22:03 | after | mcp__ccd_turn__wrap_up |
+| 2026-11-01 18:22:23 | turn end |  |
+| 2026-11-01 18:26:47 | user | Yes, remove legacy |
+| 2026-11-01 18:26:54 | before | mcp__ccd_turn__update_plan |
+| 2026-11-01 18:26:54 | after | mcp__ccd_turn__update_plan |
+| 2026-11-01 18:26:56 | before | Bash: List legacy contents and references to it |
+| 2026-11-01 18:26:57 | after | Bash: List legacy contents and references to it |
+| 2026-11-01 18:27:18 | before | Bash: Remove legacy, update references, run tests |
+| 2026-11-01 18:27:20 | DECISION | Owner approved removing legacy/. Earlier code stays in Git history at 09f14fe |
+| 2026-11-01 18:27:49 | after | Bash: Remove legacy, update references, run tests |
+| 2026-11-01 18:27:50 | before | mcp__ccd_turn__update_plan |
+| 2026-11-01 18:27:50 | after | mcp__ccd_turn__update_plan |
+| 2026-11-01 18:27:54 | before | Bash: Inspect leftover folder and finish file map |
+| 2026-11-01 18:27:55 | after | Bash: Inspect leftover folder and finish file map |
+| 2026-11-01 18:28:02 | before | Bash: Remove empty folders, commit, push, wait for CI |
+| 2026-11-01 18:28:03 | after | Bash: Remove empty folders, commit, push, wait for CI |

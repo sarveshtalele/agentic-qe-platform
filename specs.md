@@ -99,7 +99,7 @@ Each requirement has an acceptance check. "E2E" means `tests/e2e`, "API" means `
 | ARC-1 | Each agent, tool, workflow, and API area has its own file. Adding a workflow or agent needs no edit to existing workflows | Unit |
 | ARC-2 | A process-wide limit bounds concurrent model calls (`ATLAS_MODEL_CONCURRENCY`) | Unit |
 | ARC-3 | A reply cut off by the token limit is reported as cut off, never parsed as complete | Unit |
-| DEP-1 | `scripts/package_azure.py` makes separate backend and frontend ZIPs with startup scripts, excluding `legacy/`, tests, secrets, and runtime data | Unit |
+| DEP-1 | `scripts/package_azure.py` makes separate backend and frontend ZIPs with startup scripts, excluding tests, secrets, and runtime data | Unit |
 | DEP-2 | Startup scripts build the environment on the server when the package changes, and skip the build otherwise | Local run; Azure run is the owner's |
 | DEP-3 | SQLite journal mode is configurable, because WAL fails on network storage | Unit |
 | DEP-4 | Published costs come from the Azure Retail Prices API in INR, with the date | Doc |

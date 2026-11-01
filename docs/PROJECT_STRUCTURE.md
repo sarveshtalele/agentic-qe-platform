@@ -30,7 +30,7 @@ flowchart LR
   QE --> SBX
 ```
 
-The project has 195 files, not counting `legacy/` and screenshots.
+The project has 196 files, not counting screenshots.
 
 ## Backend application
 
@@ -312,6 +312,7 @@ The project has 195 files, not counting `legacy/` and screenshots.
 |---|---|---|---|
 | `.claude/settings.json` | Hooks that write progress.md |  |  |
 | `.env.example` | Settings template |  |  |
+| `.gitattributes` | Line endings for launcher scripts |  |  |
 | `.github/workflows/ci.yml` | Tests on Windows, macOS, and Linux |  |  |
 | `.gitignore` | Files kept out of Git |  |  |
 | `.mcp.json` | Developer MCP servers for Claude Code |  |  |

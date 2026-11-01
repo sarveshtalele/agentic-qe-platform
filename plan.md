@@ -1,10 +1,10 @@
 # Plan
 
-Modify the existing project into a production-ready app for BAs and developers, on branch `feat/real-maf-platform`. Nothing is deleted without the owner's permission. The previous code stays in `legacy/`.
+Modify the existing project into a production-ready app for BAs and developers, on branch `feat/real-maf-platform`. Nothing is deleted without the owner's permission. The previous code stays in Git history at commit 09f14fe.
 
 ## Audit of the previous code
 
-| Problem | Evidence (paths under `legacy/`) | Resolution |
+| Problem | Evidence (paths at commit 09f14fe) | Resolution |
 |---|---|---|
 | "MAF" was hand-written, and the real package was not installed | `src/backend/maf/core.py`, `requirements.txt` | Real `agent-framework` packages |
 | Engine had a dead code path calling a missing method | `maf/core.py` `step` calls `should_route` | Replaced by MAF workflows |
@@ -57,7 +57,6 @@ The MAF PDF and the installed package source are primary. Context7 and Firecrawl
 
 | Item | Default until told otherwise |
 |---|---|
-| Remove `legacy/` | Keep |
 | Commit and push | Not done |
 | Old `data/sdlc.sqlite3` and `workspaces/` | Left untouched and not migrated |
 
