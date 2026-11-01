@@ -100,9 +100,18 @@
 - [x] `docs/AZURE_SYSTEM_DESIGN.md`, including multi-user sandboxes (design only)
 - [ ] Build the design: PostgreSQL, Blob Storage, Key Vault, sandbox jobs
 
+## Integrity fixes (Phase 1, done 2026-11-01)
+
+- [x] The signer is the signed-in account id, never a typed name; `by` and `author` removed from request models
+- [x] Fix all marks findings `fix_attempted`, not `fixed`, unless the verdict is PASS or NO NEW FAILURES; still open for the next Fix all
+- [x] Saving a test case table rebuilds the stored cases from it, validated; an invalid table is refused with a 400
+
 ## Next, after your approval
 
-- [ ] `docs/PLUGIN_AND_UI_PLAN.md`: 13 phases including Skill Studio, ready once approved
+- [ ] `docs/PLUGIN_AND_UI_PLAN.md`: 15 phases, approved 2026-11-01. Phase 1 done, phase 2 next
+- [x] Phase 1, agent names: agents use the plugin's hyphenated keys; `doc_reviewer` merged into `confidence-reviewer` and `gherkin_author` into `business-analyst`; migration `006_agent_plugin_names.sql` moves stored history (checked by `test_migration_006_*`)
+- [ ] Phase 1, agent names: live evals of the merged prompts on the real model not yet run
+- [ ] Phase 1, `qa-execution-engineer` arrives with phase 5
 
 ## Awaiting your decision
 
@@ -110,3 +119,4 @@
 - [ ] Rewrite Git history to remove that key, if wanted
 - [ ] Migrate old `data/sdlc.sqlite3` projects
 - [x] A change review cannot show above 60 beside a failing test verdict; discovery accepts paths the repository itself mentions
+- [x] A generated test file that cannot import no longer stops the other tests from running

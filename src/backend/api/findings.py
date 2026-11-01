@@ -15,21 +15,22 @@ router = APIRouter()
 def all_findings():
     with db() as con:
         found = rows(con.execute("""SELECT f.*, p.name AS project FROM findings f JOIN projects p ON p.id=f.project_id
-                                   WHERE f.status='open' AND p.archived=0 AND p.id!='prj_agent_evals'
+                                   WHERE f.status IN ('open','fix_attempted') AND p.archived=0 AND p.id!='prj_agent_evals'
                                    ORDER BY CASE f.severity WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END, f.created_at DESC LIMIT 500"""))
     return [f for f in found if auth.can_see_project(f["project_id"])]
 
 
 class FindingPatch(BaseModel):
-    status: str = Field(pattern="^(open|dismissed|fixed)$")
+    status: str = Field(pattern="^(open|dismissed|fixed|fix_attempted)$")
 
 
 @router.get("/api/projects/{project_id}/findings")
 def findings(project_id: str, status: str = "open"):
+    """Open means still to do: it includes findings a fix was tried on whose tests did not pass."""
     with db() as con:
         return rows(con.execute(
-            "SELECT * FROM findings WHERE project_id=? AND status=? ORDER BY CASE severity WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 ELSE 4 END, file, line",
-            (project_id, status)))
+            "SELECT * FROM findings WHERE project_id=? AND (status=? OR (?='open' AND status='fix_attempted')) ORDER BY CASE severity WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 ELSE 4 END, file, line",
+            (project_id, status, status)))
 
 
 @router.patch("/api/findings/{finding_id}")
@@ -39,5 +40,5 @@ def patch_finding(finding_id: str, body: FindingPatch):
         if not found:
             raise KeyError(finding_id)
         con.execute("UPDATE findings SET status=? WHERE id=?", (body.status, finding_id))
-    ledger.append(found["project_id"], "user", f"finding.{body.status}", finding_id)
+    ledger.append(found["project_id"], auth.signer(), f"finding.{body.status}", finding_id)
     return {"id": finding_id, "status": body.status}

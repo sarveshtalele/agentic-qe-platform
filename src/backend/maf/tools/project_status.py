@@ -15,7 +15,7 @@ def build(project_id: str, thread_id: str, start_run):
         with db() as con:
             runs = rows(con.execute("SELECT id, workflow, status, started_at, ended_at, error FROM runs WHERE project_id=? ORDER BY started_at DESC LIMIT 10", (project_id,)))
             pending = rows(con.execute("SELECT id, run_id, gate, title FROM approvals WHERE project_id=? AND status='pending'", (project_id,)))
-            findings = rows(con.execute("SELECT severity, COUNT(*) AS count FROM findings WHERE project_id=? AND status='open' GROUP BY severity", (project_id,)))
+            findings = rows(con.execute("SELECT severity, COUNT(*) AS count FROM findings WHERE project_id=? AND status IN ('open','fix_attempted') GROUP BY severity", (project_id,)))
         return json.dumps({"gates": [{k: g[k] for k in ("gate", "name", "status", "decided_by")} for g in gates.status(project_id)], "runs": runs, "pending_approvals": pending, "open_findings": findings})
 
     return project_status

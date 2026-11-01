@@ -1,6 +1,6 @@
 # Plan
 
-Modify the existing project into a production-ready app for BAs and developers, on branch `feat/real-maf-platform`. Nothing is deleted without the owner's permission. The previous code stays in Git history at commit 09f14fe.
+Modify the existing project into a production-ready app for BAs and developers, on branch `feat/real-maf-platform`. Nothing is deleted without the owner's permission. The previous code stays in Git history at commit 09f14fe. The `legacy/` folder was removed in commit f1a7070.
 
 ## Audit of the previous code
 
@@ -44,6 +44,10 @@ Modify the existing project into a production-ready app for BAs and developers, 
 | 7 | Tests and evidence | `tests/`, `docs/evidence/` |
 | 8 | Final guide | `maf-guide.md`, `README.md` |
 | 9 | Agent governance: policy, guardrails, evals, observability | `maf/governance.py`, `maf/evals.py`, `/agents` |
+| 10 | Sign-in, per-user allocations, confidence review beside each stage | `core/auth.py`, `api/auth.py`, `core/doc_checks.py`, `/login`, `/users` |
+| 11 | Roadmap: Skill Studio, repository-aware changes, application builder, chatbot, new UI | `docs/PLUGIN_AND_UI_PLAN.md`. Approved, not built |
+
+Latest results: offline 183 passed, end-to-end 33 of 33 passed, CI green on Windows, macOS, and Linux at commit 34f6dda. The finance repository QE run executed 86 tests, with 64 passed, 22 failed, coverage 85%, and verdict FAIL. Azure has never been deployed for real.
 
 ## How MAF is used
 
@@ -91,10 +95,10 @@ Source: Harness Patterns (ashishpatel26.github.io/agent-harness-engineering-patt
 | Append-only log, Immutable records (7.09, 4.13) | Have | `core/ledger.py`, document versions |
 | Checkpoint and resume (1.07) | Have | `FileCheckpointStorage` in `engine.py` |
 | Health check (7.08) | Have | `/api/health`, wired to App Service Health check |
-| One-door gateway (8.11) | Platform | App Service Authentication on the frontend, access restriction on the backend |
+| One-door gateway (8.11) | Have | `session_guard` denies every API path by default, and Azure adds an access restriction on the backend |
 | Scripted stand-in tests (12.04) | Have | `tests/scripted_client.py` |
 
-Skipped: circuit breaker, fallback chain, semantic cache, sharding, CQRS, tenant rate limits, durable execution engines, and CodeAct. Agentic QE Platform is single-user on one instance with one model, so none of these fixes a problem it has. Add them when it serves several tenants or models.
+Skipped: circuit breaker, fallback chain, semantic cache, sharding, CQRS, tenant rate limits, durable execution engines, and CodeAct. Agentic QE Platform runs on one instance with one model, and sandboxes do not isolate untrusted users yet, so none of these fixes a problem it has. Add them when it serves several tenants or models.
 
 ### Azure target
 

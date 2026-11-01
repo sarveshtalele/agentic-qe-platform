@@ -7,20 +7,29 @@ import { useCallback, useEffect, useState } from "react";
 import { AppShell } from "../../../components/AppShell";
 import { useAuth } from "../../../components/AuthGate";
 import { Badge, Button, Card, ErrorNote, Field, inputClass, PageTitle, Spinner, useToast } from "../../../components/ui";
-import { api, getSigner, setSigner, when } from "../../../lib/api";
+import { api, when } from "../../../lib/api";
 
 const RISK_MEANING: Record<string, string> = {
   low: "Low: reads and writes text only. It cannot reach code by itself.",
   medium: "Medium: reads the repository's code, or can act on project data in chat.",
-  high: "High: can change code. Its edits land on a separate branch and need a person's review.",
+  high: "Impact: changes code. Its edits land on a separate branch and need a person's review.",
 };
+
+// what contains an agent that changes code, so the badge reads as a description of its job and not a warning
+const CHANGE_CONTROLS: [string, string][] = [
+  ["No tools in workflows", "It can only return proposed edits as text."],
+  ["Guarded edits", "Code refuses path escapes, secrets, overwrites, deletions, out-of-scope files, and edits that break syntax."],
+  ["Separate branch", "Your main code is never touched."],
+  ["Real tests and a confidence review", "Run before anyone is asked to decide."],
+  ["Named human approval", "Nothing is committed without it, and agents cannot approve."],
+  ["Disable switch and token limits", "The admin can stop it at once."],
+];
 
 function Detail({ agentKey }: { agentKey: string }) {
   const { user } = useAuth();
   const admin = user?.role === "admin";
   const onChange = () => {};
   const [item, setItem] = useState<any>(null);
-  const [by, setBy] = useState("");
   const [reason, setReason] = useState("");
   const [limit, setLimit] = useState("");
   const [running, setRunning] = useState(false);
@@ -33,14 +42,12 @@ function Detail({ agentKey }: { agentKey: string }) {
   }, [agentKey]);
   useEffect(() => {
     load();
-    setBy(getSigner());
   }, [load]);
   if (!item) return <Spinner />;
   const save = async (enabled: boolean) => {
     setError("");
     try {
-      setSigner(by);
-      await api(`/agents/${agentKey}/settings`, { method: "PUT", json: { enabled, max_tokens: Number(limit) || null, by, reason } });
+      await api(`/agents/${agentKey}/settings`, { method: "PUT", json: { enabled, max_tokens: Number(limit) || null, reason } });
       setReason("");
       await load();
       onChange();
@@ -69,6 +76,7 @@ function Detail({ agentKey }: { agentKey: string }) {
         <table className="w-full text-left text-sm" data-testid="agent-details-table"><tbody className="[&_th]:w-48 [&_th]:py-1.5 [&_th]:pr-3 [&_th]:align-top [&_th]:font-semibold [&_tr]:border-t [&_tr]:border-slate-200 dark:[&_tr]:border-slate-800">
           <tr><th>Purpose</th><td>{item.purpose}</td></tr>
           <tr><th>Risk</th><td>{RISK_MEANING[item.risk]}</td></tr>
+          {item.risk === "high" && <tr data-testid="impact-controls"><th>Controls on code changes</th><td><ul className="space-y-1 text-xs">{CHANGE_CONTROLS.map(([name, effect]) => <li key={name}><b>{name}.</b> {effect}</li>)}</ul></td></tr>}
           <tr><th>Status</th><td>{item.enabled ? "Enabled" : "Disabled"}</td></tr>
           <tr><th>Prompt version</th><td className="mono text-xs">{item.prompt_ref}</td></tr>
           <tr><th>Workflow tools</th><td className="mono text-xs">{item.workflow_tools.join(", ") || "None. It works only from the text it is given"}</td></tr>
@@ -81,19 +89,19 @@ function Detail({ agentKey }: { agentKey: string }) {
           <tr><th>Average response</th><td>{item.avg_latency_ms === null || item.avg_latency_ms === undefined ? "No calls yet" : `${item.avg_latency_ms} ms`}</td></tr>
           <tr><th>Errors</th><td>{item.errors}</td></tr>
           <tr><th>Guardrail events</th><td>{item.guardrail_events}</td></tr>
-          {item.settings_by && <tr><th>Last changed by</th><td>{item.settings_by}{item.settings_reason ? `: ${item.settings_reason}` : ""}</td></tr>}
+          {item.settings_by && <tr><th>Last changed by</th><td>{item.settings_by_name}{item.settings_reason ? `: ${item.settings_reason}` : ""}</td></tr>}
         </tbody></table>
       </Card>
       {admin && <Card title="Controls">
         <div className="mt-3 grid gap-2 md:grid-cols-3">
-          <Field label="Your name"><input className={inputClass} value={by} onChange={(e) => setBy(e.target.value)} /></Field>
+          <Field label="Signing as"><p className="py-2 text-sm font-semibold" data-testid="signing-as">{user.username}</p></Field>
           <Field label="Reason"><input className={inputClass} value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
           <Field label="Tokens per model call"><input type="number" min={500} max={64000} className={inputClass} value={limit} onChange={(e) => setLimit(e.target.value)} /></Field>
         </div>
         <ErrorNote message={error} />
         <div className="mt-2 flex gap-2">
-          <Button variant="secondary" disabled={!by.trim()} onClick={() => save(item.enabled)}>Save limit</Button>
-          {item.enabled ? <Button variant="danger" disabled={!by.trim() || !reason.trim()} onClick={() => save(false)}>Disable agent</Button> : <Button variant="success" disabled={!by.trim()} onClick={() => save(true)}>Enable agent</Button>}
+          <Button variant="secondary" onClick={() => save(item.enabled)}>Save limit</Button>
+          {item.enabled ? <Button variant="danger" disabled={!reason.trim()} onClick={() => save(false)}>Disable agent</Button> : <Button variant="success" onClick={() => save(true)}>Enable agent</Button>}
         </div>
       </Card>}
       <Card title="Evaluations" actions={admin && item.has_evals && <Button variant="secondary" busy={running} disabled={!item.enabled} onClick={evaluate}><Play className="h-4 w-4" /> Run on the real model</Button>}>

@@ -35,7 +35,7 @@ def _project_summary(item: dict) -> dict:
         counts = con.execute(
             """SELECT (SELECT COUNT(*) FROM documents WHERE project_id=:p) AS documents,
                       (SELECT COUNT(*) FROM runs WHERE project_id=:p) AS runs,
-                      (SELECT COUNT(*) FROM findings WHERE project_id=:p AND status='open') AS findings,
+                      (SELECT COUNT(*) FROM findings WHERE project_id=:p AND status IN ('open','fix_attempted')) AS findings,
                       (SELECT COUNT(*) FROM approvals WHERE project_id=:p AND status='pending') AS pending,
                       (SELECT COUNT(*) FROM gates WHERE project_id=:p AND status='approved') AS gates_approved""",
             {"p": item["id"]},
@@ -58,7 +58,7 @@ def create_project(body: ProjectIn):
     item = {"id": new_id("prj"), "name": body.name.strip(), "description": body.description.strip(), "owner_id": auth.current_user.get()["id"], "created_at": now(), "updated_at": now()}
     with db() as con:
         con.execute("INSERT INTO projects (id, name, description, owner_id, created_at, updated_at) VALUES (:id,:name,:description,:owner_id,:created_at,:updated_at)", item)
-    ledger.append(item["id"], "user", "project.created", item["id"], {"name": item["name"]})
+    ledger.append(item["id"], auth.signer(), "project.created", item["id"], {"name": item["name"]})
     return _project_summary(_project(item["id"]))
 
 

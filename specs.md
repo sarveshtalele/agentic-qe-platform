@@ -91,6 +91,7 @@ Each requirement has an acceptance check. "E2E" means `tests/e2e`, "API" means `
 | AGT-6 | Every agent call records agent, prompt version, tokens, latency, tool calls, status, and source (run, chat, eval) | API |
 | AGT-7 | An Agents page shows policy, status, prompt version, eval score, calls, tokens, latency, errors, and guardrail events, from stored data only | E2E |
 | AGT-8 | Requirements documents get deterministic checks that cap the reviewer score: requirement ids, vague wording, leftover template text, empty sections | Unit |
+| AGT-9 | Agent keys are the agentic-qe plugin names with hyphens, one file per agent (`maf/agents/<key with underscores>.py`, `prompts/<key>.md`, `evals/<key>.json`). A document review is the `confidence-reviewer` and Gherkin writing is the `business-analyst`, each chosen by an artifact line in the request. A migration renames stored agent keys without losing history, folds a disabled merged agent into a disabled target, and never rewrites the ledger | Unit, API |
 
 ## Architecture and deployment
 
@@ -195,3 +196,29 @@ Full design in `docs/PLUGIN_AND_UI_PLAN.md`, Part 9.
 - SKL-6: Trigger tests use a held-out set, and the best description is chosen by held-out score.
 - SKL-7: A named person signs S0 to S4. Agents never do.
 - SKL-8: A skill reaches an agent only after publishing. `allowed-tools` never widens an agent's tools.
+
+## Skill bundles (SKL, continued)
+
+- SKL-9: Skill Studio has its own harness from `create_harness_agent`, with a live check that picks full or structured mode.
+- SKL-10: At S0 the user chooses instructions only, Python scripts, or TypeScript scripts.
+- SKL-11: The install ZIP holds a `skill-name/` folder that MAF can load.
+
+## Repository-aware changes and delivery (CHG), planned
+
+- CHG-1: A code map covers every file in the repository.
+- CHG-2: The agent can request more files, and the review sees whole files, callers, and the impact list.
+- CHG-3: A delivery ZIP holds a code-written guide, files in real paths, a patch, and evidence.
+- CHG-4: The ZIP is applied to a clean copy of the base commit and its tests rerun, and the result is shown as Verified or Not verified.
+- CHG-5: Secrets, `.env`, and `.git` never enter a ZIP.
+
+## Application builder (APP), planned
+
+- APP-1: `app_build` builds an application from approved BA documents, with human decisions A0 to A3.
+- APP-2: Every requirement traces to architecture, files, test cases, tests, and results.
+- APP-3: The generated application goes through the QE lifecycle, and runs in the sandbox before delivery.
+
+## Integrity (INT)
+
+- INT-1: Gates, approvals, document versions, prompts, agent settings, findings, and run starts record the signed-in account id from the session. A name or `by` sent by a client is ignored. Display names are resolved on read for people who may see the project.
+- INT-2: A change run marks findings `fixed` only when its test verdict is PASS or NO NEW FAILURES. Otherwise they are `fix_attempted`, which counts as open and is shown in the Bugs and Findings pages.
+- INT-3: Saving a new version of a test case document parses its table back into cases and checks each with `TestCase`. Exports read the result. A table that does not parse or validate is refused with a 400 listing the problems.

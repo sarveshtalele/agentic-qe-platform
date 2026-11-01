@@ -1,6 +1,6 @@
 # Agentic QE Platform end-to-end system design
 
-Agentic QE Platform is a single-user workspace on Microsoft Agent Framework (MAF). `docs/ARCHITECTURE.md` maps each plugin command to its code. This document explains how the whole system fits together and how to extend it. `docs/AZURE_DEPLOY.md` covers deployment.
+Agentic QE Platform is a workspace on Microsoft Agent Framework (MAF) where everyone signs in and sees only their own projects. `docs/ARCHITECTURE.md` maps each plugin command to its code. This document explains how the whole system fits together and how to extend it. `docs/AZURE_DEPLOY.md` covers deployment.
 
 ## System context
 
@@ -26,7 +26,7 @@ src/backend/
   api/                   REST routers
     projects, repository, documents, templates, runs, findings, governance, settings, chat
   maf/
-    agents/              One file per agent, holding its policy. Scanned into POLICIES
+    agents/              One file per agent, holding its policy. Scanned into POLICIES, keyed by the file name with hyphens (plugin names)
     tools/               One file per tool, assembled into project-scoped sets
     workflows/           ba, bug_scan, change, qe, plus shared.py and edits.py. Scanned into REGISTRY
     runtime.py           AgentCall, build, ProjectContext, model call limit, JSON repair
@@ -81,7 +81,7 @@ sequenceDiagram
 2. **Implement.** Send the selected code in the message. The agent replies with structured edits and has no tools.
 3. **Guard.** `guarded_apply` refuses path escapes, secrets, overwrites, deletions, stray files, and out-of-scope edits. Refusals and current files go back for another round.
 4. **Verify.** Run the real tests. Only new failures count. Up to two retries get the failing test files first.
-5. **Review.** A person sees the verdict, the diff, and any existing assertion the change altered. Nothing is committed until they approve.
+5. **Review.** A confidence review runs beside the tests. If the tests fail, code caps its score at 60. A person sees the verdict, the score, the diff, and any existing assertion the change altered. Nothing is committed until they approve.
 
 ### Chat
 
@@ -89,7 +89,7 @@ The browser uses CopilotKit hooks, which call the runtime route, which calls `/a
 
 ## Why agents edit without tools
 
-Agent loops with tools were measured on `personal-finance-mcp` and failed badly on this model endpoint, which loses older tool results. The agent reread files, drifted to other work, and used 170,000 to 955,000 tokens without finishing. Sending code in the message and applying structured edits finished the same task at about 86,000 tokens, with the real suite passing at 148 tests.
+On 2026-11-01, tool calls through the configured proxy were measured as unreliable on every model tried, so workflow agents get code in the message and no tools. Agent loops with tools were also measured on `personal-finance-mcp` and failed badly on this model endpoint, which loses older tool results. The agent reread files, drifted to other work, and used 170,000 to 955,000 tokens without finishing. Sending code in the message and applying structured edits finished the same task at about 86,000 tokens, with the real suite passing at 148 tests.
 
 ## Harness patterns
 
@@ -114,7 +114,7 @@ Source: [Harness Patterns](https://ashishpatel26.github.io/agent-harness-enginee
 | Agent edits | Confined to a branch | `safe_path`, `guarded_apply` |
 | Test code | Cannot see platform secrets | `clean_env` |
 | Approvals | Named person only | `gates`, `decide` |
-| Network | Loopback locally. Sign-in and IP restriction on Azure | Host and origin guard, App Service |
+| Network | Loopback locally. On Azure, the backend sits behind an access restriction | Host and origin guard, `session_guard`, App Service |
 
 ## Failure handling
 
@@ -135,12 +135,12 @@ Every API and chat path passes `session_guard` in `app.py`, which denies by defa
 
 | Stage | Checks by code | Independent review |
 |---|---|---|
-| Discovery | Required sections, every cited path exists, every source folder covered | Before the requirements gate, with one automatic revision |
+| Discovery | Required sections, every cited path exists, every source folder covered (`core/doc_checks.py`) | Before the requirements gate, with one automatic revision |
 | Requirements | Each quote must exist in the file | Before Gate 1, with one automatic revision |
 | Test plan | Plan score and coverage | Before Gate 2, with one automatic revision |
-| Test design | Case mix per requirement, duplicates | Per batch, in parallel, before Gate 3 |
-| Generated tests | Imports exist, syntax, no placeholders, one case per file | Before Gate 4 |
-| Code change | Baseline comparison, named functions present, assertions flagged | In parallel with the tests, before review |
+| Test design | Case mix per requirement, duplicates | Per batch of 4 requirements (`DESIGN_BATCH`), before Gate 3 |
+| Generated tests | Imports exist, syntax, no placeholders, one case per file. Batches of 10 (`GENERATE_BATCH`) | Before Gate 4 |
+| Code change | Baseline comparison, named functions present, assertions flagged | In parallel with the tests. Score capped at 60 when tests fail (`cap_for_failed_tests`) |
 | Bug scan | Each quote must exist in the file | Once, on the verified findings |
 
 A review that cannot run shows as **not run**, never as a score.
@@ -149,7 +149,7 @@ A review that cannot run shows as **not run**, never as a score.
 
 ```mermaid
 flowchart TB
-  U[Signed-in user] -->|HTTPS, Microsoft sign-in| F
+  U[Signed-in user] -->|HTTPS, app sign-in| F
   subgraph P[App Service plan: Basic B1 Linux]
     F[Frontend app: Node, Next.js standalone]
     B[Backend app: Python, uvicorn, 1 worker]
@@ -160,4 +160,4 @@ flowchart TB
   B --> G[Git hosts]
 ```
 
-On each start, the startup scripts compare a stamp, rebuild only what changed, and then serve. `docs/AZURE_SYSTEM_DESIGN.md` has the multi-user target design.
+On each start, the startup scripts compare a stamp, rebuild only what changed, and then serve. `docs/AZURE_SYSTEM_DESIGN.md` has the multi-user target design. Azure has not been deployed for real yet.

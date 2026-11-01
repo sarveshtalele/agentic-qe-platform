@@ -45,7 +45,7 @@ export default function OverviewPage() {
             {data.gates.map((g: any) => (
               <li key={g.gate}><Link href={`${base}/qe`} className="flex items-center justify-between gap-2 rounded hover:text-indigo-500">
                 <span>G{g.gate} {g.name}</span>
-                <span className="flex items-center gap-2 text-xs text-slate-500">{g.decided_by}<Badge>{g.status}</Badge></span>
+                <span className="flex items-center gap-2 text-xs text-slate-500">{g.decided_by_name}<Badge>{g.status}</Badge></span>
               </Link></li>
             ))}
           </ul>

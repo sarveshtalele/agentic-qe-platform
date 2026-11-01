@@ -8,6 +8,7 @@ from fastapi.responses import (
 from pydantic import BaseModel, Field
 
 from backend.api.common import _project
+from backend.core import auth
 from backend.db import db, row, rows
 from backend.maf import agui, engine, evals, governance, llm, workflows  # noqa: F401 - workflows registers definitions
 from backend.maf import runtime as agents
@@ -16,7 +17,7 @@ router = APIRouter()
 
 
 class ThreadIn(BaseModel):
-    agent: str = "copilot"
+    agent: str = "project-copilot"
     title: str = "New chat"
 
 
@@ -86,7 +87,7 @@ def list_memories(project_id: str):
 @router.post("/api/projects/{project_id}/memories", status_code=201)
 def add_memory(project_id: str, body: MemoryIn):
     _project(project_id)
-    return agents.memory_add(project_id, body.content, "user")
+    return agents.memory_add(project_id, body.content, auth.signer())
 
 
 @router.delete("/api/memories/{memory_id}", status_code=204)

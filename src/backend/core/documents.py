@@ -14,6 +14,7 @@ from pathlib import Path
 from backend.config import project_dir
 from backend.core import gherkin, ledger
 from backend.core.security import redact, safe_path, sha256
+from backend.qe import model
 from backend.db import db, new_id, now, row, rows
 
 EXT = {"gherkin": "feature", "patch": "patch"}
@@ -41,12 +42,20 @@ def save_version(doc_id: str, content: str, author: str, *, data=None, note="", 
         if not check["valid"]:
             raise DocumentError("Invalid Gherkin: " + "; ".join(check["errors"]))
     content = redact(content)
+    derived = None
+    if doc["kind"] == "test_cases" and data is None and isinstance(get(doc_id)["data"], list):
+        # the table is what people edit and the exports read stored data, so the data is rebuilt from the table or the save is refused
+        try:
+            derived = model.cases_from_table(content, get(doc_id)["data"])
+        except ValueError as exc:
+            raise DocumentError(f"The test case table is not valid, so nothing was saved: {exc}") from exc
     digest, stamp = sha256(content), now()
     with db() as con:
         con.execute("BEGIN IMMEDIATE")
         latest = row(con.execute("SELECT version, sha256 FROM document_versions WHERE document_id=? ORDER BY version DESC LIMIT 1", (doc_id,)))
         if latest and latest["sha256"] == digest and data is None:
             return get(doc_id)
+        data = derived if data is None else data
         version = (latest["version"] if latest else 0) + 1
         con.execute(
             "INSERT INTO document_versions VALUES (?,?,?,?,?,?,?,?,?,?)",

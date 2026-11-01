@@ -34,7 +34,7 @@ from backend.repos import git, scan, static_analysis
 async def qe_discover(rc: RunContext, state: dict) -> dict:
     a = _analysis(rc.project_id)
     root = repo_dir(rc.project_id)
-    call = AgentCall(rc.run_id, rc.project_id, "repo_analyst")
+    call = AgentCall(rc.run_id, rc.project_id, "repo-intelligence-analyst")
     evidence = f"SCAN:\n{_brief_of_analysis(a)}\n\nCODE:\n{discovery_pack(rc.project_id)}"
     text = _strip_preamble(await call.text(f"Write the discovery summary from these scan facts and this code.\n\n{evidence}"))
     tree = scan.tree(root, limit=100_000) if root.exists() else []
@@ -48,7 +48,7 @@ async def qe_discover(rc: RunContext, state: dict) -> dict:
         review = await review_artifact(rc, "discovery summary", text, evidence)
     if issues:
         rc.log(f"Discovery still has gaps: {issues}", kind="warning")
-    doc = documents.create(rc.project_id, "discovery", "Discovery summary", text, "agent:repo_analyst", data=a, prompt_ref=call.prompt_ref, run_id=rc.run_id)
+    doc = documents.create(rc.project_id, "discovery", "Discovery summary", text, "agent:repo-intelligence-analyst", data=a, prompt_ref=call.prompt_ref, run_id=rc.run_id)
     rc.log("Discovery saved", {"document_id": doc["id"]}, "artifact")
     return {"discovery_id": doc["id"], "discovery_review": review, "discovery_issues": issues}
 
@@ -56,7 +56,7 @@ async def qe_discover(rc: RunContext, state: dict) -> dict:
 async def qe_requirements(rc: RunContext, state: dict) -> dict:
     root = repo_dir(rc.project_id)
     brownfield = state["mode"] == "brownfield"
-    call = AgentCall(rc.run_id, rc.project_id, "requirements_analyst")
+    call = AgentCall(rc.run_id, rc.project_id, "requirements-analyst")
     approved = [d for d in documents.list_for(rc.project_id) if d["kind"] in {"brd", "prd", "stories", "gherkin"} and d["status"] == "approved"]
     stories = "\n\n".join(documents.get(d["id"])["content"][:20000] for d in approved[:3])
     if not brownfield and not stories:
@@ -87,7 +87,7 @@ async def qe_requirements(rc: RunContext, state: dict) -> dict:
         prompt = f"An independent reviewer scored your requirements {review['score']}. Send the complete corrected set. Issues: {review['issues']}. Requirements dropped for missing evidence: {dropped}."
     body = "| ID | Requirement | Priority | Tier | Evidence |\n|---|---|---|---|---|\n" + "\n".join(
         f"| {r['id']} | {_cell(r['title'])}: {_cell(r['statement'])} | {r['priority']} | {r['tier']} | {('`' + r['file'] + ':' + str(r['line']) + '`') if r['file'] else '-'} |" for r in kept)
-    doc = documents.create(rc.project_id, "requirements", "Requirements", body, "agent:requirements_analyst", data=kept, prompt_ref=call.prompt_ref, run_id=rc.run_id)
+    doc = documents.create(rc.project_id, "requirements", "Requirements", body, "agent:requirements-analyst", data=kept, prompt_ref=call.prompt_ref, run_id=rc.run_id)
     return {"requirements": kept, "requirements_doc": doc["id"], "requirements_review": review}
 
 
@@ -96,7 +96,7 @@ def _cell(text: str) -> str:
 
 
 async def qe_plan(rc: RunContext, state: dict) -> dict:
-    call = AgentCall(rc.run_id, rc.project_id, "test_architect")
+    call = AgentCall(rc.run_id, rc.project_id, "principal-test-architect")
     a = _analysis(rc.project_id)
     prompt = f"Create the test plan.\nREQUIREMENTS:\n{json.dumps(state['requirements'])}\nDETECTED RUNNERS: {a['test_runners']}\nFRAMEWORKS: {a['frameworks']}\nEXISTING TESTS: {a.get('test_files', [])[:40]}" + (f"\nFEEDBACK:\n{state['feedback']}" if state.get("feedback") else "")
     plan = (await call.typed(prompt, model.TestPlan)).model_dump()
@@ -113,7 +113,7 @@ async def qe_plan(rc: RunContext, state: dict) -> dict:
     rc.log(f"Plan score {score['score']} ({score['verdict']}), independent review {review['score']} ({review['verdict']})", {"deterministic": score, "review": review}, "review")
     body = f"{plan['strategy']}\n\n| Area | Requirements | Risk | Level | Framework | Rationale |\n|---|---|---|---|---|---|\n" + "\n".join(
         f"| {_cell(x['name'])} | {', '.join(x['requirement_ids'])} | {x['risk']} | {x['level']} | {x['framework']} | {_cell(x['rationale'])} |" for x in plan["areas"])
-    doc = documents.create(rc.project_id, "test_plan", "Test plan", body, "agent:test_architect", data={"plan": plan, "score": score, "review": review}, prompt_ref=call.prompt_ref, run_id=rc.run_id)
+    doc = documents.create(rc.project_id, "test_plan", "Test plan", body, "agent:principal-test-architect", data={"plan": plan, "score": score, "review": review}, prompt_ref=call.prompt_ref, run_id=rc.run_id)
     return {"plan": plan, "plan_doc": doc["id"], "plan_score": score, "plan_review": review}
 
 
@@ -126,12 +126,12 @@ def _number_cases(cases: list[dict]) -> None:
 
 
 async def qe_design(rc: RunContext, state: dict) -> dict:
-    call = AgentCall(rc.run_id, rc.project_id, "test_designer")
+    call = AgentCall(rc.run_id, rc.project_id, "test-design-architect")
     feedback = f"\nFEEDBACK:\n{state['feedback']}" if state.get("feedback") else ""
 
     async def design(requirements: list[dict], note: str = "") -> list[dict]:
         # each batch has its own conversation, so batches can run together
-        batch_call = AgentCall(rc.run_id, rc.project_id, "test_designer")
+        batch_call = AgentCall(rc.run_id, rc.project_id, "test-design-architect")
         try:
             result = await batch_call.typed(f"Design test cases for only these requirements.\nREQUIREMENTS:\n{json.dumps(requirements)}\nPLAN:\n{json.dumps(state['plan'])}{feedback}{note}", model.CaseSet, attempts=2)
         except RuntimeError as exc:
@@ -172,10 +172,10 @@ async def qe_design(rc: RunContext, state: dict) -> dict:
     _number_cases(cases)
     columns = "| TC ID | Requirement | Scenario | Type | Level | Precondition | Test Data | Steps | Expected Result | Oracle | Priority |\n|---|---|---|---|---|---|---|---|---|---|---|\n"
     body = columns + "\n".join(f"| {c['id']} | {c['requirement_id']} | {_cell(c['scenario'])} | {c['type']} | {c['level']} | {_cell(c['precondition'])} | {_cell(c['test_data'])} | {_cell(' '.join(f'{i + 1}. {s}' for i, s in enumerate(c['steps'])))} | {_cell(c['expected_result'])} | {c['oracle']} | {c['priority']} |" for c in cases)
-    doc = documents.create(rc.project_id, "test_cases", "Test cases", body, "agent:test_designer", data=cases, prompt_ref=call.prompt_ref, run_id=rc.run_id)
+    doc = documents.create(rc.project_id, "test_cases", "Test cases", body, "agent:test-design-architect", data=cases, prompt_ref=call.prompt_ref, run_id=rc.run_id)
     fixtures = {c["id"]: c["test_data"] for c in cases if c["test_data"]}
     if fixtures:
-        documents.create(rc.project_id, "test_data", "Test data", "```json\n" + json.dumps(fixtures, indent=2) + "\n```", "agent:test_designer", data=fixtures, run_id=rc.run_id)
+        documents.create(rc.project_id, "test_data", "Test data", "```json\n" + json.dumps(fixtures, indent=2) + "\n```", "agent:test-design-architect", data=fixtures, run_id=rc.run_id)
     rc.log(f"{len(cases)} cases designed; {len(gaps)} remaining gaps", {"gaps": gaps}, "artifact")
     return {"cases": cases, "cases_doc": doc["id"], "design_gaps": gaps, "fixtures": fixtures, "cases_review": cases_review}
 
@@ -227,7 +227,7 @@ async def qe_generate(rc: RunContext, state: dict) -> dict:
         await asyncio.to_thread(git.add_worktree, root, worktree, branch)
         state = {**state, "worktree": str(worktree), "branch": branch}
     worktree = Path(state["worktree"])
-    call = AgentCall(rc.run_id, rc.project_id, "test_automation")
+    call = AgentCall(rc.run_id, rc.project_id, "test-automation-engineer")
     a = _analysis(rc.project_id)
     known = {c["id"] for c in state["cases"]}
     files_of = {r["id"]: r.get("file") for r in state["requirements"]}
@@ -235,7 +235,7 @@ async def qe_generate(rc: RunContext, state: dict) -> dict:
 
     async def generate_batch(cases: list[dict]) -> tuple[dict[str, GeneratedFile], str, list[str]]:
         # each batch sees only the code its cases test, which keeps every request small
-        batch_call = AgentCall(rc.run_id, rc.project_id, "test_automation")
+        batch_call = AgentCall(rc.run_id, rc.project_id, "test-automation-engineer")
         code = code_pack(rc.project_id, worktree, list(dict.fromkeys(files_of[c["requirement_id"]] for c in cases if files_of.get(c["requirement_id"]))) or None, limit=30_000)
         wanted = {c["id"] for c in cases}
         request = (f"Generate executable tests under tests/agentic_qe/ for these cases, one file per case. Send a file for every case.\nCASES:\n{json.dumps(cases)}\nDETECTED RUNNERS: {a['test_runners']}\n"
@@ -285,7 +285,7 @@ async def qe_generate(rc: RunContext, state: dict) -> dict:
     tests = [{"case_id": cid, "path": f.path} for f in suite.files for cid in f.case_ids]
     tests_review = await review_artifact(rc, "generated tests", "\n\n".join(f"{f.path}:\n{f.content}" for f in suite.files), json.dumps(state["cases"]))
     body = "\n\n".join(f"## {f.path}\n\nCases: {', '.join(f.case_ids)}\n\n```\n{f.content}\n```" for f in suite.files)
-    doc = documents.create(rc.project_id, "test_code", "Generated tests", body, "agent:test_automation", data=tests, prompt_ref=call.prompt_ref, run_id=rc.run_id)
+    doc = documents.create(rc.project_id, "test_code", "Generated tests", body, "agent:test-automation-engineer", data=tests, prompt_ref=call.prompt_ref, run_id=rc.run_id)
     rc.log(f"{len(suite.files)} test files written to {state['branch']}", kind="artifact")
     return {"worktree": state["worktree"], "branch": state["branch"], "tests": tests, "framework": suite.framework, "test_doc": doc["id"], "heal_attempts": state.get("heal_attempts", 0), "tests_review": tests_review, "tests_missing": missing}
 
@@ -331,7 +331,7 @@ async def qe_heal(rc: RunContext, state: dict) -> dict:
             reason, ok = "Healing may only touch tests", False
         return None if ok else reason
 
-    result = await AgentCall(rc.run_id, rc.project_id, "defect_diagnostician").typed(
+    result = await AgentCall(rc.run_id, rc.project_id, "defect-diagnostician").typed(
         f"Repair only test drift in these failing tests. Never change an assertion's meaning. The line numbers are not part of the files.\nFAILURES:\n{json.dumps(drift)[:12000]}\n\nCODE:\n{code_pack(rc.project_id, worktree, limit=30_000)}", ChangeSet)
     applied, refused = await asyncio.to_thread(guarded_apply, worktree, result.edits, healing_guard)
     log.append({"applied": applied, "refused": refused, "summary": result.summary[:500]})
@@ -358,12 +358,12 @@ async def qe_trace(rc: RunContext, state: dict) -> dict:
 
 async def qe_sign(rc: RunContext, state: dict) -> dict:
     s = state["summary"]
-    call = AgentCall(rc.run_id, rc.project_id, "confidence_reviewer")
+    call = AgentCall(rc.run_id, rc.project_id, "confidence-reviewer")
     review = await call.typed(f"Independently review release readiness from this evidence only.\nSUMMARY:\n{json.dumps(s)}\nDEFECTS:\n{json.dumps(state.get('defects', []))[:6000]}\nHEALER LOG:\n{json.dumps(state.get('healer_log', []))}\nPLAN REVIEW:\n{json.dumps(state.get('plan_review'))}", model.ConfidenceReview)
     body = (f"## Verdict: {s['verdict']}\n\n| Metric | Value |\n|---|---|\n| Tests executed | {s['executed']} |\n| Passed | {s['passed']} |\n| Failed | {s['failed']} |\n| Pass rate | {s['pass_rate']}% |\n"
             f"| Requirements covered | {s['requirements_covered']}/{s['requirements']} ({s['coverage']}%) |\n| Application defects | {s['defects']} |\n| Independent review | {review.score} ({review.verdict}) |\n\n"
             f"## Coverage gaps\n\n{', '.join(s['gaps']) or 'None'}\n\n## Review issues\n\n" + ("\n".join(f"- {i}" for i in review.issues) or "None") + "\n\n## Defects\n\n" + ("\n".join(f"- **{d['name']}**: {d['message'][:300]}" for d in state.get("defects", [])) or "None") + f"\n\nBranch with generated tests: `{state.get('branch', '')}`\n")
-    doc = documents.create(rc.project_id, "release", "Release sign-off", body, "agent:confidence_reviewer", data={"summary": s, "review": review.model_dump()}, prompt_ref=call.prompt_ref, run_id=rc.run_id)
+    doc = documents.create(rc.project_id, "release", "Release sign-off", body, "agent:confidence-reviewer", data={"summary": s, "review": review.model_dump()}, prompt_ref=call.prompt_ref, run_id=rc.run_id)
     return {"release_doc": doc["id"], "release_review": review.model_dump()}
 
 

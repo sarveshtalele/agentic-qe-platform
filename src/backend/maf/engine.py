@@ -23,7 +23,7 @@ from agent_framework import (
 )
 
 from backend.config import CHECKPOINTS
-from backend.core import gates, ledger
+from backend.core import auth, gates, ledger
 from backend.core.security import redact
 from backend.db import db, new_id, now, row, rows
 from backend.maf import runtime as agent_module
@@ -310,7 +310,7 @@ async def start(project_id: str, workflow: str, payload: dict) -> dict:
     with db() as con:
         con.execute("INSERT INTO runs (id, project_id, workflow, status, input, started_at) VALUES (?,?,?,?,?,?)",
                     (run_id, project_id, workflow, "running", json.dumps(payload), now()))
-    ledger.append(project_id, "user", "run.started", run_id, {"workflow": workflow})
+    ledger.append(project_id, (auth.current_user.get() or {}).get("id", "system"), "run.started", run_id, {"workflow": workflow})
     add_event(run_id, "status", "", "running")
     storage = _storage(run_id)
     compiled = compile_workflow(REGISTRY[workflow](), run_id, project_id, storage)

@@ -22,7 +22,7 @@ export default function AllFindingsPage() {
         <ul className="divide-y divide-slate-200 rounded-xl border border-slate-200 bg-white dark:divide-slate-800 dark:border-slate-800 dark:bg-[#0b1329]" data-testid="all-findings">
           {items.map((f) => (
             <li key={f.id}><Link href={`/projects/${f.project_id}/bugs`} className="flex flex-wrap items-center gap-2 p-3 text-sm hover:bg-slate-50 dark:hover:bg-slate-900">
-              <Badge tone={tone[f.severity]}>{f.severity}</Badge><b className="min-w-0 flex-1">{f.title}</b><span className="mono text-xs text-slate-500">{f.file}:{f.line}</span><span className="text-xs text-slate-500">{f.project}</span>
+              <Badge tone={tone[f.severity]}>{f.severity}</Badge><b className="min-w-0 flex-1">{f.title}</b>{f.status === "fix_attempted" && <Badge tone="amber">fix attempted</Badge>}<span className="mono text-xs text-slate-500">{f.file}:{f.line}</span><span className="text-xs text-slate-500">{f.project}</span>
             </Link></li>
           ))}
         </ul>

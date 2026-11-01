@@ -32,7 +32,7 @@ MAX_FIX_ALL = 15  # ponytail: one branch stays reviewable. Run Fix all again for
 def _chosen_findings(project_id: str, state: dict) -> list[dict]:
     with db() as con:
         if state.get("fix_all"):
-            return rows(con.execute(f"SELECT * FROM findings WHERE project_id=? AND status='open' ORDER BY CASE severity WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END, file, line LIMIT {MAX_FIX_ALL}", (project_id,)))
+            return rows(con.execute(f"SELECT * FROM findings WHERE project_id=? AND status IN ('open','fix_attempted') ORDER BY CASE severity WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END, file, line LIMIT {MAX_FIX_ALL}", (project_id,)))
         if state.get("finding_id"):
             return rows(con.execute("SELECT * FROM findings WHERE id=? AND project_id=?", (state["finding_id"], project_id)))
     return []
@@ -83,7 +83,7 @@ async def _select_files(rc: RunContext, state: dict, worktree: Path) -> list[str
         return [*state["finding_files"], *tests]
     if len(tree) <= 15:
         return tree
-    picked = await AgentCall(rc.run_id, rc.project_id, "repo_analyst").typed(
+    picked = await AgentCall(rc.run_id, rc.project_id, "repo-intelligence-analyst").typed(
         f"Choose up to 12 existing files needed to do this task, including one that shows how similar things are done and one related test.\nTASK:\n{state['spec'][:1500]}\n\nFILES:\n" + "\n".join(tree[:800]), FileSelection)
     chosen = [f for f in picked.files if f in tree]
     return chosen[:12] or static_analysis.rank_files_for_review(worktree, _analysis(rc.project_id), 12)
@@ -112,7 +112,7 @@ async def _fix_file_by_file(rc: RunContext, state: dict, worktree: Path) -> dict
     """Fix all sends one small request per file. One long conversation grows with every round, and costs far more."""
     fixed, missed = [], []
     for name, listed in state["findings_by_file"].items():
-        call = AgentCall(rc.run_id, rc.project_id, "defect_diagnostician")
+        call = AgentCall(rc.run_id, rc.project_id, "defect-diagnostician")
         only_this_file = lambda edit, target=name: None if edit.path.replace("\\", "/") == target else f"Change only {target}."  # noqa: E731
         prompt = f"Fix these findings in {name}. Change only this file, and fix a finding only if it is a real defect.\nFINDINGS:\n{listed}\n\nCODE:\n{code_pack(rc.project_id, worktree, [name], 60_000)}"
         applied: list[str] = []
@@ -139,7 +139,7 @@ async def change_implement(rc: RunContext, state: dict) -> dict:
     worktree = Path(state["worktree"])
     if len(state.get("finding_files", [])) > 1 and not state.get("failure") and not state.get("feedback"):
         return await _fix_file_by_file(rc, state, worktree)
-    agent = "defect_diagnostician" if state.get("kind") in {"bugfix", "diagnose"} else "feature_engineer"
+    agent = "defect-diagnostician" if state.get("kind") in {"bugfix", "diagnose"} else "feature-engineer"
     if not state.get("paths"):
         state["paths"] = await _select_files(rc, state, worktree)
     rc.log(f"Working on {len(state['paths'])} files", {"files": state["paths"]})
@@ -254,9 +254,12 @@ async def change_deliver(rc: RunContext, state: dict, answer: dict) -> dict:
     if state.get("finding_ids"):
         changed = await asyncio.to_thread(git.run, ["diff", "--name-only", "HEAD~1", "HEAD"], worktree)
         marks = [(i, name) for i in state["finding_ids"] for name in changed.splitlines()]
+        # a change whose tests did not pass has not been shown to fix anything, so its findings stay open as "fix attempted"
+        verdict = state["verification"]["verdict"]
+        status = "fixed" if verdict in {"PASS", "NO NEW FAILURES"} else "fix_attempted"
         with db() as con:
-            done = sum(con.executemany("UPDATE findings SET status='fixed' WHERE id=? AND file=?", marks).rowcount for _ in [0])
-        rc.log(f"Marked {done} findings as fixed. Findings in unchanged files stay open", kind="artifact")
+            done = sum(con.executemany("UPDATE findings SET status=? WHERE id=? AND file=?", [(status, *m) for m in marks]).rowcount for _ in [0])
+        rc.log(f"Marked {done} findings as {status.replace('_', ' ')} (test verdict {verdict}). Findings in unchanged files stay open", kind="artifact")
     repo = ingest.get(rc.project_id)
     if answer.get("open_pr") and repo and repo["credential_id"]:
         slug = github.parse_slug(repo["url"])

@@ -1,8 +1,8 @@
 # Plugin parity and UI plan
 
-**Status: final plan, ready to build once you approve it. None of this is built yet.**
+**Status: approved on 1 November 2026, and being built phase by phase. `progress.md` records each step.**
 
-This plan covers nine things: making the platform identical to [agentic-qe](https://github.com/sarveshtalele/agentic-qe) v1.4.0 (commit `bf2452a`) on Microsoft Agent Framework (MAF), a new enterprise UI, real evaluation scores, easy debugging, several models with per-user limits, a Word-style Documents tab, a live chatbot across all projects, a Skill Studio that creates and evaluates agent skills on MAF, and the gaps found on reviewing all of this.
+This plan covers eleven things: making the platform identical to [agentic-qe](https://github.com/sarveshtalele/agentic-qe) v1.4.0 (commit `bf2452a`) on Microsoft Agent Framework (MAF), a new enterprise UI, real evaluation scores, easy debugging, several models with per-user limits, a Word-style Documents tab, a live chatbot across all projects, a Skill Studio that creates and evaluates agent skills on a MAF harness, changes made with knowledge of the whole repository and delivered as a tested ZIP, a complete application built from a BA document, and the gaps found on reviewing all of this.
 
 ## Where we stand
 
@@ -28,7 +28,7 @@ MAF has a real skills feature: `SkillsProvider` and `FileSkillsSource`, both in 
 | Where | How the skill reaches the agent | Why |
 |---|---|---|
 | Workflows | Code puts the skill's instructions and references into the agent's message | Your model endpoint loses older tool results, as measured earlier. A skill loaded by tool call could vanish, so workflows do not rely on that |
-| Copilot chat | Code picks the relevant skill from its name and description, then puts it in the message. MAF `SkillsProvider` is used only on a model that passes a live check | **Measured on 1 November 2026:** `SkillsProvider` did not work reliably on `deepseek-v4-flash-global`. See Part 9 |
+| Copilot chat | Code picks the relevant skill from its name and description, then puts it in the message. MAF `SkillsProvider` is used only on a model that passes a live check | **Measured on 1 November 2026:** tool calls did not work reliably through your proxy on any of 7 models. See Part 9 |
 
 **Plugin scripts do not run.** They are TypeScript for Node, which the backend does not have on Azure. Each is ported to Python, as most already are.
 
@@ -56,7 +56,7 @@ Each agent has one file in `src/backend/maf/agents/`, one prompt in `prompts/`, 
 | `feature-engineer` | `feature_engineer` | Feature Builder |
 | `project-copilot` | `copilot` | Chat |
 
-That makes **12 agents: the plugin's 8, unchanged in name, plus 4 for platform features.** Skill Studio adds 6 more, named in Part 9, for 18 in total.
+That makes **12 agents: the plugin's 8, unchanged in name, plus 4 for platform features.** Skill Studio adds 6 more, named in Part 9, and App Builder adds 1, in Part 11, for 19 in total.
 
 ### Skills
 
@@ -708,6 +708,50 @@ The API is `POST /api/documents/{id}/upload` for the preview, then the existing 
 
 A new page where a person turns requirements into an agent skill, tests it against real prompts, and improves it until the numbers and a human agree. It follows the [Agent Skills specification](https://agentskills.io/specification.md), the [evaluation guide](https://agentskills.io/skill-creation/evaluating-skills.md), and Anthropic's [skill-creator](https://github.com/anthropics/skills/tree/main/skills/skill-creator) (commit `ca45fc4`, Apache 2.0), rebuilt on MAF in Python.
 
+### The Skill harness
+
+**Yes, MAF's harness supports Agent Skills.** In Python, `create_harness_agent` accepts `skills_provider` and `skills_paths`, which are opt-in (PDF page 189, and confirmed in the installed 1.24 package). So Skill Studio gets **its own separate harness**, used only for creating and evaluating skills, in `maf/harness/skill_harness.py`.
+
+| Harness feature | MAF parameter | Use in the Skill harness | Status in MAF |
+|---|---|---|---|
+| Skills | `skills_provider` | The ported skill-creator instructions, and the skill being tested | Released |
+| Session and history | `create_session` | One session per evaluation run, so context stays clean | Released |
+| Compaction | `max_context_window_tokens` | Long improvement rounds stay within limits | Released |
+| Plan and to-do tracking | Mode and todo providers | Shown live on the run | Released |
+| Reading and writing files | `file_access_store` | Limited to that skill's workspace folder | Experimental |
+| Parallel runs | `background_agents` | With and without runs together | Experimental |
+| Repeat until done | `loop_should_continue` | Improve until checks pass or the round limit | Experimental |
+| Approvals | `auto_approval_rules` | Reading is automatic, scripts need a person | Released |
+| Tracing | Built in | Feeds the Observability page | Released |
+
+**Two modes, chosen by a live check.** The check sends one real tool call and result through your endpoint, for each model.
+
+| Check result | Mode | How it works |
+|---|---|---|
+| Passes | **Full harness** | The agent loads skills and edits files by tool |
+| Fails, as it does today | **Structured harness** | The same harness and sessions, but code injects the skill and writes the files from the agent's structured reply |
+
+Both modes are tested. The run shows which mode it used, so a result is never misread.
+
+### Script or instructions only
+
+The first question, at S0, sets what is built:
+
+| Your answer | Bundle holds | How it is tested |
+|---|---|---|
+| **No scripts** | `skill-name/SKILL.md` only, plus references if needed | Format, trigger, and output layers |
+| **Python scripts** | `skill-name/SKILL.md`, `scripts/*.py`, `tests/test_*.py` | Also `pytest` through `run_suite`, with `ruff` |
+| **TypeScript scripts** | `skill-name/SKILL.md`, `scripts/*.ts`, `tests/*.test.ts` | Also Node's built-in test runner with JUnit output, needing no install. It needs Node 22.6 or later, and says so clearly if missing |
+
+MAF's `FileSkillsSource` only finds `.py` scripts by default, so TypeScript sets `script_extensions=(".py", ".ts")`. Our script runner uses `shutil.which`, so it works on every system.
+
+**Downloads:**
+
+| File | Contents | For |
+|---|---|---|
+| `skill-name.zip` | The skill folder, ready to install, with `evals/` left out | Using the skill |
+| `skill-name-evaluation.zip` | Test cases and all results, in the guide's folder layout | Audit and review |
+
 ### Why skill-creator cannot be used as it is
 
 | skill-creator relies on | Why it does not work here | MAF version |
@@ -731,6 +775,8 @@ These throwaway tests used one small skill on `deepseek-v4-flash-global`, so the
 | Picking from names and descriptions, should use the skill | 6 of 6 correct | Trigger tests work this way |
 | Same, with 2 near-miss prompts | **4 of 6 wrongly used the skill** | The test finds a description that is too broad, which is its purpose |
 | Same prompt sent twice | Identical reply, in 0.36s | Repeated runs need the cache turned off, or spread figures mean nothing |
+| **Harness with a skill, on 7 models** (DeepSeek, Claude Sonnet, Haiku, and Opus, GPT-5 mini, Kimi, Gemini) | **None used the skill's facts.** 6 of 7 called `read_file`, `list_files`, or `grep`, which were never offered | The problem is not the model or MAF |
+| **Direct call with no MAF**, offering only `load_skill` | DeepSeek called `read_file`, and ignored the tool result. Claude Sonnet and GPT-5 mini used all 400 output tokens and returned nothing | **Your proxy appears to add its own tools and instructions.** I cannot prove this from outside, so please ask whoever runs it |
 
 ### Mapping to MAF
 
@@ -744,6 +790,7 @@ From `agent-framework.pdf` pages 228 to 254, checked against the installed packa
 | Built-in plus user skills | `AggregatingSkillsSource`, `DeduplicatingSkillsSource` | One list, first name wins, so a user skill cannot replace a built-in one |
 | Who sees which skill | `FilteringSkillsSource` | By user, project, and agent |
 | Detect that a skill was used | `@function_middleware` on `load_skill` | Records and stops the call, for the live trigger test |
+| The separate harness | `create_harness_agent` | See "The Skill harness" above |
 | Run a script safely | `SkillScriptRunner`, our own | MAF calls its sample subprocess runner unsuitable for production (page 235), so ours adds a timeout, `clean_env()`, and no shell |
 | The workflow | `WorkflowBuilder`, through the existing `Definition` and `StageSpec` | Same engine, live log, and token limits as other workflows |
 | Human decisions | `ctx.request_info` | Same approval cards, signed by the account |
@@ -785,7 +832,7 @@ Two workflows, `maf/workflows/skill_create.py` and `maf/workflows/skill_eval.py`
 | 10 | Human review | `review` | You read each output and leave feedback | **S2: improve, or accept** |
 | 11 | Iterating | `improve` | The author revises from failed checks, feedback, and transcripts, then returns to step 4 as a new iteration | |
 | 12 | Description Optimization | `optimize` | Runs the trigger test below, optional | **S3: you approve the queries, then the result** |
-| 13 | Package | `publish` | A new approved version, and a `.skill` file | **S4: you publish** |
+| 13 | Package | `publish` | A new approved version, and the ZIP files | **S4: you publish** |
 
 Every step writes to the ledger. Agents never decide S0 to S4.
 
@@ -797,7 +844,7 @@ Every step writes to the ledger. Agents never decide S0 to S4.
 | **Write it in BA Studio** | **Create a skill from this document** on a BA document, or a link from Skill Studio to write one first | BA workflow, templates, and review |
 | **Upload a requirements file** | `.md`, `.txt`, `.pdf`, or `.docx`, saved as a document | `core/files.extract_text` and upload checks |
 | **Type a brief** | A text box | Saved as a document, so it is versioned too |
-| **Import an existing skill** | A `.skill` or `.zip` file, to evaluate or improve | `ingest.safe_extract`. Treated as untrusted |
+| **Import an existing skill** | A `.zip` or `.skill` file, to evaluate or improve | `ingest.safe_extract`. Treated as untrusted |
 
 ### Evaluation layers
 
@@ -839,11 +886,12 @@ Each layer answers a different question, and they run cheapest first.
 | Iterations and runs | New tables `skill_iterations` and `skill_runs`: configuration, output, tokens, duration, grades, and feedback | Migration |
 | Disk copy | `data/projects/<id>/skills/<name>/v<N>/`, written through `safe_path` so MAF can load it | `core/files` |
 | Export | ZIP in the guide's layout: `iteration-N/eval-x/with_skill/`, `timing.json`, `grading.json`, `benchmark.json`, and `feedback.json` | Works with other tools |
-| Package | `.skill` file, leaving out `evals/` and caches as skill-creator does. Built with `zipfile`, so it works on every system | |
+| Package | Two ZIP files, as above, leaving out `evals/` and caches from the install ZIP as skill-creator does. Built with `zipfile`, so it works on every system | |
 
 | New file | Holds |
 |---|---|
 | `core/skills.py` | Validation, disk copy, import, and package |
+| `maf/harness/skill_harness.py` | The separate harness, its two modes, and the live check |
 | `maf/skill_evals.py` | Trigger test, benchmark maths, and pattern flags |
 | `maf/workflows/skill_create.py`, `skill_eval.py` | The workflows |
 | `maf/agents/skill_*.py`, `description_optimizer.py` | The 6 agents, with prompts and evals |
@@ -870,7 +918,8 @@ A skill is **instructions that agents obey**, so it is the most sensitive thing 
 |---|---|---|---|
 | **Skills page** | Tabs: Built-in, Mine, Published. Each card shows name, version, status, and scores | Cards, Tabs | Search, filter, **New skill** |
 | **Skill card** | Tiles: Format, Trigger F1, With-skill pass rate, and difference from no skill | Metric tiles, Sparkline | "Not measured" until run |
-| **New skill wizard** | Stepper: Source, Intent, Draft, Test cases, Evaluate | Stepper | Saved at each step |
+| **New skill wizard** | Stepper: Source, Intent, Type, Draft, Test cases, Evaluate | Stepper | Saved at each step |
+| **Type step** | Three cards: Instructions only, Python scripts, TypeScript scripts, showing the resulting folder | Radio cards, file tree preview | Warns if Node is missing |
 | **Source step** | Four cards: BA document, upload, write in BA Studio, or import | Dropzone, searchable picker | Preview before choosing |
 | **Intent step** | The agent's understanding and its questions | Form | Answer in place, sign S0 |
 | **Editor** | File tree, editor, and live preview, with validation as you type | CodeMirror, Tiptap, Resizable | Errors at their line |
@@ -901,11 +950,183 @@ A skill is **instructions that agents obey**, so it is the most sensitive thing 
 | With and without runs share nothing | Clean context |
 | Held-out queries are absent from the optimizer's prompt | No leakage |
 | Hostile ZIP, hidden instructions, another user's skill, and `allowed-tools` asking for more | Each refused or flagged |
-| `.skill` export reloaded by MAF, on Windows, macOS, and Linux | Packages work everywhere |
+| The ZIP reloaded by MAF, on Windows, macOS, and Linux | Bundles work everywhere |
+| Instructions-only, Python, and TypeScript skills, each built and tested | Each type has the right files, and its tests really run |
+| Harness in both modes, with `ScriptedClient` | The live check picks the right mode |
 | **Real end to end:** finance repo BRD to published skill, in a browser, on the real model | The loop works, with real numbers reported whatever they show |
 | **Real benchmark:** three skills with known strengths, one deliberately weak | The evaluation can tell good from bad |
 
-## Part 10: Review of this plan
+## Part 10: Changes with full repository knowledge, and tested ZIP delivery
+
+### How Feature Builder works today
+
+You were right that this is weak. The repository is fully cloned and the whole test suite runs, but the agent sees very little of it.
+
+| Step | What happens today | Problem |
+|---|---|---|
+| Clone | Full clone, with a worktree on a separate branch | Good |
+| Choosing code | The agent picks **up to 12 files** from the **first 800 file names**. It sees names only | It chooses blind, and misses callers |
+| Reading code | Those files, plus up to 6 tests, cut off at **60,000 characters** | It cannot follow a change through the code |
+| Checking | The whole test suite runs before and after | Good |
+| Review | The reviewer reads **the diff only**, cut off at 30,000 characters | It cannot see what the change affects |
+| Delivery | Branch, pull request, or a patch document | No easy way to try it on your machine |
+
+### The new design
+
+| Step | New behavior | File |
+|---|---|---|
+| **1. Code map** | Code reads every file, with no limit. It records functions, classes, imports, callers, routes, tests, and entry points, using `ast` for Python and patterns for other languages | `repos/codemap.py` |
+| **2. Understand** | The agent gets the whole map and states its approach. Code then adds what the chosen files import, their callers, and their tests | `workflows/change.py` |
+| **3. Ask for more** | The agent can request further files by name, up to 3 rounds, with no tools needed | `workflows/change.py` |
+| **4. Large changes** | Work is split by module, each with its own batch | `workflows/change.py` |
+| **5. Impact list** | Code lists what calls each changed function | `repos/codemap.py` |
+| **6. Review** | The reviewer sees whole changed files, their callers, the impact list, and test results | `workflows/change.py` |
+| **7. Sandbox run** | Installs, builds, tests, and **starts the application** when an entry point is known, then checks it responds | `repos/sandbox.py`, `qe/execution.py` |
+| **8. ZIP** | Built and proven as below | `core/delivery.py` |
+
+### How the sandbox helps
+
+| Without it | With it |
+|---|---|
+| Code is only read | The real application is installed, built, and started |
+| A guess that a change works | Real results, before you are asked to decide |
+| Your machine runs untested code | You receive something already run |
+| A dependency problem surfaces on your machine | It surfaces first, and is reported |
+| One user's run can affect another | Each run has its own folder and environment. On Azure, its own container, once sandbox jobs exist |
+
+**The limit today:** the sandbox separates by folder and environment, not by operating system, so a hostile repository could still reach the machine. Only sandbox jobs fix this, in decision 14.
+
+### The delivery ZIP
+
+Offered at the review step, for features, bug fixes, and full applications.
+
+| File in the ZIP | Contents |
+|---|---|
+| `GUIDE.md` | Where each file goes, setup, how to test, and how to undo |
+| `files/` | Each new or changed file, **in its real folder path** |
+| `changes.patch` | The same change, for people who prefer Git |
+| `verification.json` | Commit it is based on, test results, and the proof below |
+| `evidence/` | Test reports and logs |
+
+**The guide is written by code from the real diff, so its paths cannot be invented.**
+
+| Guide section | Example |
+|---|---|
+| Based on | Commit `abc1234`, with how to check yours matches |
+| Files to add | `files/src/tools/savings.py` goes to `src/tools/savings.py` |
+| Files to replace | `src/server.py`, with its lines changed |
+| Files to delete | Listed, if any |
+| Setup | Exact install commands, for Windows, macOS, and Linux |
+| Test it | The exact test command, the result we got, and how to start the application |
+| Try the feature | Steps from the agent, marked as suggestions |
+| Undo | `git checkout -- .`, or restore your copy |
+
+**Proof before download.** Code unpacks the ZIP into a **clean copy** of the base commit, follows the same steps, and reruns the tests. The result appears on the download button: **Verified, 144 of 145 passed**. If it cannot run, it says **Not verified**, with the reason.
+
+| Rule | Detail |
+|---|---|
+| Option | **Changed files only**, or the **complete repository** |
+| Security | `.env`, keys, and `.git` are left out, and every file is scanned for secrets |
+| Permission | Owner only, and each download goes in the ledger |
+| Approval | Available before approval, marked **Not approved**, so you can test it first |
+
+## Part 11: Complete application from a BA document
+
+A new workflow, `maf/workflows/app_build.py`, which builds a working application from an approved BA document, for a project with no repository.
+
+| Stage | What happens | Agent | Check by code | Who decides |
+|---|---|---|---|---|
+| Requirements | Takes approved BRD, stories, and Gherkin at a set version | | Gherkin parser, and requirement ids exist | **A0: you confirm** |
+| Stack | You choose, or it proposes, such as FastAPI or Next.js | `solution-architect` | Must be a supported stack | **A1: you choose** |
+| Architecture | Modules, data, APIs, and a list of all files, each linked to requirements | `solution-architect` | Every requirement has a file, and each file a requirement | **A2: you approve** |
+| Scaffold | Project structure, dependencies, and a Git repository in the sandbox | Code, then `feature-engineer` | It installs | |
+| Build | One module at a time, in dependency order, using the code map | `feature-engineer` | Syntax, imports, and `apply_edits` | |
+| Tests per module | Tests beside each module, then fixes | `test-automation-engineer`, `defect-diagnostician` | Executed, and zero is INCONCLUSIVE | |
+| Run | Starts the application and checks it responds | Code | A real response | |
+| **QE lifecycle** | Runs the full lifecycle, from Part 1, on the result | The 8 QE agents | All existing checks | **G0 to G5** |
+| Delivery | ZIP with the guide, and optionally a new GitHub repository | Code | The proof above | **A3: you accept** |
+
+**New agent:** `solution-architect`, bringing the total to 19.
+
+**Traceability runs the whole way:** BA requirement, to architecture, to file, to test case, to test, to result. Any gap shows on the review.
+
+**Honest limits:**
+
+| Limit | What happens |
+|---|---|
+| Quality varies, and small to medium applications are the realistic scope | A file limit applies, set by the admin, starting at 60 files |
+| This costs many tokens | An estimate comes first, and limits from Part 5 apply |
+| Some things cannot be built unattended, such as paid services, real credentials, and complex hosting | Listed in the guide as yours to finish, never faked |
+| A green run does not prove every requirement is met | The traceability gaps and human gates remain |
+
+### Updates to the QE lifecycle
+
+| Stage | Change |
+|---|---|
+| Intake | **Three starting points:** existing repository, generated application, or requirements only |
+| Discovery | Uses the code map, so all modules are covered |
+| Requirements | Uses approved BA documents with their ids, keeping links to the source |
+| Plan | Uses the impact list, and for a change, runs QE on affected code first |
+| Design and generate | Uses real function signatures from the code map, the fix for the failures seen |
+| Execute | Tests against the **running application** in the sandbox, for API and browser tests |
+| Heal | As in Part 1 |
+| Trace | From the BA requirement through to the result |
+| Sign | The proof pack joins the delivery ZIP, with `tests/` and a guide on where to paste and how to run them |
+
+**Feature Builder and Bug Scan** can start a **focused QE run** on what they changed, from the review step.
+
+## Part 12: Who builds what
+
+**Opus 5.5 is advisor and reviewer on every phase.** It sets the design, reads each diff, and decides whether work is finished. **Sonnet 5.5** takes difficult implementation, and **Haiku 5.5** takes simple, repetitive work. These assignments apply to building this project, and are separate from the models the application uses.
+
+| Phase | Task | Difficulty | Builder | Why |
+|---|---|---|---|---|
+| 1 | Signer from the account, Fix all, and CSV fixes | Medium | Sonnet | Touches governance |
+| 1 | Agent rename with migration | Medium | Sonnet | Must not lose history |
+| 1 | Prompt and eval file renames | Low | Haiku | Mechanical |
+| 2 | Typed errors, `run_failures`, retry a stage | High | Sonnet | Core engine |
+| 2 | SQL paging, one active run, proxy cache control | Medium | Sonnet | |
+| 2 | Log files, error pages, and error code docs | Low | Haiku | Set patterns |
+| 3 | Model list, resolution order, and limits | High | Sonnet | Security and billing |
+| 3 | Roles and project members | High | Sonnet | Access control |
+| 3 | Usage and account pages | Low | Haiku | Standard pages |
+| 4 | Copy skills and adapt paths | Low | Haiku | Mechanical |
+| 4 | Skill injection and chat selection | Medium | Sonnet | |
+| 5 | `qe/confidence.py`, per-case review, gate reopening | High | Sonnet, with Opus for the verdict rules | Accuracy core |
+| 5 | Signature checks and setup step | Medium | Sonnet | |
+| 6 | Deterministic metrics and RAGAS evaluator | High | Sonnet | |
+| 6 | Benchmark repository | Medium | Sonnet, with labels for you to check | |
+| 6 | Metric docs | Low | Haiku | |
+| 7 | Code map | High | Sonnet | Three operating systems, many languages |
+| 7 | Change workflow, review, and sandbox run | High | Sonnet, with Opus reviewing every line | Main value of the product |
+| 7 | Delivery ZIP and guide | Medium | Sonnet | |
+| 8 | Skill harness and live check | High | Sonnet, with Opus for the design | Experimental MAF features |
+| 8 | Spec validator and bundles | Medium | Sonnet | |
+| 8 | Evaluation layers and benchmark maths | High | Sonnet | |
+| 8 | Prompts for 6 agents | Medium | Opus | Prompts drive accuracy |
+| 9 | App builder and QE updates | High | Sonnet, with Opus for architecture | Hardest workflow |
+| 10 | Design tokens and shared components | Medium | Sonnet | Everything depends on them |
+| 10 | Applying them across pages | Low | Haiku | Repetitive |
+| 11 | Skill Studio and App Builder screens | Medium | Sonnet | |
+| 12 | Chat cards and workspace tools | High | Sonnet | Security rules |
+| 13 | QE graph and Documents editor | High | Sonnet | |
+| 14 | Remaining screens | Low | Haiku | Set patterns |
+| 15 | Final check and docs | Medium | Opus reviews, Haiku for docs | |
+
+**How each task runs:**
+
+| Step | Who |
+|---|---|
+| 1. Short brief, with files and how it will be judged | Opus |
+| 2. Build and write tests | Sonnet or Haiku |
+| 3. Run tests and report real output | The builder |
+| 4. Read the whole diff, and rerun tests independently | Opus |
+| 5. Send back, or accept | Opus |
+| 6. Real model and browser check at the end of a phase | Opus |
+
+Two builders never edit the same files at once.
+
+## Part 13: Review of this plan
 
 I reviewed the whole plan twice against the code, the latest end-to-end runs, and live measurements. Each gap is now covered, with its phase.
 
@@ -926,13 +1147,13 @@ I reviewed the whole plan twice against the code, the latest end-to-end runs, an
 |---|---|---|
 | Users cannot change their own password | Account page, with password change | 3 |
 | Projects cannot be shared | Project members with roles, and the admin can transfer ownership when someone leaves | 3 |
-| No notifications | Bell, as in Part 8 | 8 |
-| No onboarding | First-run checklist: model, repository, first scan | 11 |
+| No notifications | Bell, as in Part 8 | 10 |
+| No onboarding | First-run checklist: model, repository, first scan | 13 |
 | Runs can collide | One active run per project and workflow kind, or a clear queue message | 2 |
 | Too many test cases: 119 for 15 requirements | Cap by risk, with P0 and P1 first, and the admin can set the limit | 5 |
 | Generated tests cost a lot on large designs | Show an estimate before G3 and G4 | 5 |
 | No cost view | Tokens are shown, not money. Show ₹ when the proxy reports cost | 3 |
-| Mobile and small screens | Usable to 768px, and read-and-approve on phones | 8 |
+| Mobile and small screens | Usable to 768px, and read-and-approve on phones | 10 |
 | Single sign-on | Not now. The sign-in layer allows adding Microsoft Entra later | Later|
 
 ### Technical gaps
@@ -940,15 +1161,15 @@ I reviewed the whole plan twice against the code, the latest end-to-end runs, an
 | Gap | Fix | Phase|
 |---|---|---|
 | Observability loads up to 5,000 rows per source into memory | Page and filter in SQL, with indexes | 2 |
-| Chat stream hangs for minutes with no explanation | Show elapsed time and a stall warning at 60 seconds, with Stop | 10 |
-| Chat stream and Azure's 230-second limit | Send keep-alive messages through the chat stream | 10 |
+| Chat stream hangs for minutes with no explanation | Show elapsed time and a stall warning at 60 seconds, with Stop | 12 |
+| Chat stream and Azure's 230-second limit | Send keep-alive messages through the chat stream | 12 |
 | Renaming agents breaks stored history | Migration covers `prompts`, `agent_calls`, `tool_calls`, `agent_settings`, `evaluations`, and `chat_threads`, with a test on a copy of real data | 1 |
-| `ToolApprovalMiddleware` exists in MAF | Use it for tool approvals in chat where it fits, rather than building that | 10 |
-| UI rewrite could break browser tests | Keep `data-testid` values, and update tests in the same phase | 8 onward |
-| No automated accessibility check | `axe` in browser tests for every page, to WCAG 2.1 AA | 8 onward |
-| No visual check | Screenshot comparison on key screens | 8 onward |
+| `ToolApprovalMiddleware` exists in MAF | Use it for tool approvals in chat where it fits, rather than building that | 12 |
+| UI rewrite could break browser tests | Keep `data-testid` values, and update tests in the same phase | 10 onward |
+| No automated accessibility check | `axe` in browser tests for every page, to WCAG 2.1 AA | 10 onward |
+| No visual check | Screenshot comparison on key screens | 10 onward |
 | CI has no browser tests, as they need the real model | Add browser tests in CI that need no model: sign-in, navigation, and access, while real-model runs stay local and before each release | 2 |
-| Backup and restore are untested | A script and a test that restores a backup | 12 |
+| Backup and restore are untested | A script and a test that restores a backup | 14 |
 | Old `data/sdlc.sqlite3` projects | Decide below | Decision|
 
 ### Found in the second review
@@ -959,8 +1180,8 @@ I reviewed the whole plan twice against the code, the latest end-to-end runs, an
 | **Generated tests score high, then fail** | One full run: `tests_review` 95, then 92 of 124 tests failed and coverage was 50%. The latest: 22 of 86 failed, with coverage at 85%. Results vary between runs | Cap the score once results exist, as a code change now does | 5 |
 | **Generated tests call functions wrongly** | 22 failures were `required_monthly_savings()` given a keyword it does not accept | Check each call against the real signature with `ast` before running, and send it back to its agent | 5 |
 | **Tests fail for setup reasons** | 20 async failures in that run and 5 in the latest, plus 12 from the app's own rate limit returning 429 | Add a setup step that finds async plugins and rate limits, and classify the rest as environment, not defects | 5 |
-| **A skill is instructions that agents obey** | A requirements file becomes a skill, and a skill reaches an agent. Hidden text could travel that route | See "Security" in Part 9. Nothing reaches an agent without a named person publishing it | 7 |
-| Runs and documents need a project | `runs.project_id` and `documents.project_id` are required | A skill library project per user, so nothing about them changes. Decision 17 | 7 |
+| **A skill is instructions that agents obey** | A requirements file becomes a skill, and a skill reaches an agent. Hidden text could travel that route | See "Security" in Part 9. Nothing reaches an agent without a named person publishing it | 8 |
+| Runs and documents need a project | `runs.project_id` and `documents.project_id` are required | A skill library project per user, so nothing about them changes. Decision 17 | 8 |
 | Plan moves files, which needs your permission | `CLAUDE.md` rule | Listed below. Decision 21 | 1 |
 
 ### Files this plan moves or replaces
@@ -972,8 +1193,54 @@ Approving decision 21 approves exactly this list. **Nothing else is moved or rem
 | `maf/agents/*.py`, `prompts/*.md`, and `evals/*.json` under old agent names | Plugin names, as listed in Part 1 | 1 |
 | `prompts/gherkin_author.md`, `prompts/doc_reviewer.md`, their agents, and evals | Merged into `business-analyst` and `confidence-reviewer`, then removed | 1 |
 | `maf/evals.py` | `maf/evals/__init__.py`, beside the new metric files | 6 |
-| The block editing code inside `components/DocumentEditor.tsx` | Replaced by the Tiptap editor, if the round-trip test passes | 11 |
-| Screens and shared components | Rewritten in place, keeping their paths | 8 onward |
+| The block editing code inside `components/DocumentEditor.tsx` | Replaced by the Tiptap editor, if the round-trip test passes | 13 |
+| Screens and shared components | Rewritten in place, keeping their paths | 10 onward |
+
+### Found in the third review
+
+| Gap | Fix | Phase |
+|---|---|---|
+| **Your proxy seems to add its own tools and instructions** | Live check per model in Settings, and workflows keep working without tools. **Please check the proxy.** Chat tools depend on it too | 4 |
+| Changes were made with little of the repository | Part 10 | 7 |
+| Nothing usable could be tried locally | The delivery ZIP in Part 10 | 7 |
+| No way to build a new application | Part 11 | 9 |
+| `FileSkillsSource` finds only `.py` scripts by default | Set for TypeScript in Part 9 | 8 |
+| Generated applications add disk use on a 10 GB Azure plan | Limits per project, and a cleanup of old worktrees with your approval | 7 |
+
+### Why generated tests fail, and how the approach stays correct
+
+The finance repo's generated tests went from 92 of 124 failing in one run to 22 of 86 in the latest. Such a swing on one repository points mostly to our agents and setup, not to repository bugs. Each failure has not yet been traced, so the exact split is unknown.
+
+| Latest failures | Count | Likely cause | Fix | Phase |
+|---|---|---|---|---|
+| Async tests not supported | 5 | Our setup | Setup step installs or detects the async plugin before tests run | 5 |
+| `DID NOT RAISE` | 5 | Unclear: guessed behavior, or missing validation | Each expected error needs a stated basis in the code or requirements | 5 |
+| Wrong values, `assert False` | 4 | Unclear, leaning agent | Oracle rules: no expected value without a basis | 5 |
+| Bad input type | 1 | Unclear | Check calls and inputs against real signatures | 5 |
+| `ZeroDivisionError` | 1 | Possibly a real bug | Confirm by reproducing it | 5 |
+| Not in the breakdown | 6 | Unknown | Stored and classified in full | 5 |
+
+**Every failure gets one code-assigned class, with its evidence:**
+
+| Class | Proof required | Effect |
+|---|---|---|
+| `REPO_DEFECT` | Reproduced by a minimal test, with the expected behavior traced to a requirement or the code's own contract | Stays a failing test, and is reported as a defect |
+| `TEST_DEFECT` | Wrong signature, unfounded expectation, or bad fixture | Returned to its agent, within the healing rules |
+| `ENVIRONMENT` | Missing plugin, rate limit, or setup failure | Setup is fixed, and it does not count as a defect |
+| `UNPROVEN` | None of the above could be shown | Shown as unproven, and a person decides |
+
+**What "no errors in our approach" means.** No system can promise generated code is free of errors, so these are enforced instead:
+
+| Rule | Check |
+|---|---|
+| No failure is blamed without evidence | A defect without a reproduction is refused by code |
+| No result is hidden or weakened | Existing rules against skips, removed assertions, and `assert True` stay |
+| Every stage is verified by code, not by trust | Validators, execution, and review caps |
+| Our own failures are measured | Each QE run reports its share of `TEST_DEFECT` and `ENVIRONMENT` |
+| Quality can only move forward | Results are compared with the last baseline on the pinned finance commit and `evals/benchmarks/shop/`. A worse result blocks the phase until explained |
+| Phase 5 target | Zero `ENVIRONMENT` failures and zero unclassified failures. Targets for `TEST_DEFECT` are set from the first measured baseline |
+
+The first step of phase 5 traces the 22 latest failures by hand against the repository, to give the baseline and check the classifier against known answers.
 
 ### Corrections to earlier parts
 
@@ -1003,16 +1270,18 @@ Each phase ends with tests, a commit, and a push, with progress written to `prog
 | 1. Names and integrity | M | Plugin names with migration, signer from the account, Fix all and CSV corrections | All tests pass, and a real data copy migrates |
 | 2. Errors and logs | M | Typed errors, diagnostic records, saved logs, retry a stage, partial results, error pages, SQL paging, one active run, CI browser tests, proxy cache control | Every error code tested on purpose |
 | 3. Models, limits, and access | M | Model list, allowed models, daily, weekly, and monthly limits, usage page, roles, project members, account page | A real run with two models, and each limit tested |
-| 4. Skills | M | Copy skills, inject them in workflows, chat skill selection, model check for `SkillsProvider` | Each agent's evals pass with its skill |
-| 5. Accuracy | L | Per-case confidence, code-computed verdicts, gate reopening, data stage, defect records, case limits, signature checks, setup step | Finance repo re-run, with before and after numbers |
+| 4. Skills | M | Copy skills, inject them in workflows, chat skill selection, live tool check per model | Each agent's evals pass with its skill |
+| 5. Accuracy | L | Per-case confidence, code-computed verdicts, gate reopening, data stage, defect records, case limits, signature checks, setup step, failure classes with proof, baseline comparison | Finance repo re-run with before and after numbers, zero `ENVIRONMENT` failures, and every failure classified |
 | 6. Evaluations | L | Benchmarks, deterministic metrics, RAGAS, stored scores, docs | First real scores for every agent, with tokens used |
-| 7. Skill Studio engine | L | Skill storage, spec validator, both workflows, 6 agents, trigger and output evaluations, benchmark, packaging, API | A real skill built from a real BRD, with honest with and without results |
-| 8. UI foundation | L | Design tokens, shared components, app frame, Cmd+K, notifications, skeletons, accessibility tests | Every page works in the new frame |
-| 9. Skill Studio screens | M | Wizard, editor, test case grid, live matrix, results viewer, versions, publishing | Browser test of the full loop on the real model |
-| 10. Chatbot | L | Home and floating chat, artifact pane, all feature cards, live run card, workspace tools | Browser tests on the real model |
-| 11. Key screens | L | QE live graph, approval panel, home bento, Documents tab with rich editor and upload, agent score cards, onboarding | Browser tests and screenshots |
-| 12. Remaining screens | M | The rest of Part 2, backup and restore | Browser tests and screenshots |
-| 13. Final check | S | Full tests on all three systems, docs updated, deploy guide rechecked, Azure package includes `skills/` | Green CI and a real finance run |
+| 7. Repository-aware changes and ZIP | L | Code map, full context, impact list, wider review, sandbox run, delivery ZIP with guide and proof | A finance repo feature, unpacked from its ZIP into a clean copy, passes its tests |
+| 8. Skill harness | L | Separate harness in two modes, script type choice, validator, both workflows, 6 agents, all evaluation layers, ZIP bundles, API | Real skills of all three types, built from a real BRD, with honest results |
+| 9. App builder and QE update | L | `app_build` workflow, `solution-architect`, QE starting points, tests against the running application, full traceability | A small real application built from a BA document, started, tested, and delivered |
+| 10. UI foundation | L | Design tokens, shared components, app frame, Cmd+K, notifications, skeletons, accessibility tests | Every page works in the new frame |
+| 11. Skill Studio and App Builder screens | M | Wizard, editor, test case grid, live matrix, results viewer, versions, publishing, App Builder, ZIP download panel | Browser test of each full loop on the real model |
+| 12. Chatbot | L | Home and floating chat, artifact pane, all feature cards, live run card, workspace tools | Browser tests on the real model |
+| 13. Key screens | L | QE live graph, approval panel, home bento, Documents tab with rich editor and upload, agent score cards, onboarding | Browser tests and screenshots |
+| 14. Remaining screens | M | The rest of Part 2, backup and restore | Browser tests and screenshots |
+| 15. Final check | S | Full tests on all three systems, docs updated, deploy guide rechecked, Azure package includes `skills/` | Green CI and a real finance run |
 
 ## Definition of done
 
@@ -1030,7 +1299,7 @@ Each phase is finished only when all of these hold:
 
 ## Decisions for you
 
-Approve as recommended, or reply with changes. **Only decision 6 needs something from you before phase 6.**
+You told me to proceed on 1 November 2026, so the recommendations below apply unless you change one. **Two are not assumed:** decision 15 needs your explicit yes, as it rewrites history, and decision 6 needs a working model name, as tests on your proxy returned no usable reply from Claude and GPT models.
 
 | # | Decision | Recommendation |
 |---|---|---|
@@ -1047,11 +1316,11 @@ Approve as recommended, or reply with changes. **Only decision 6 needs something
 | 11 | Time zone for daily, weekly, and monthly resets | Asia/Kolkata |
 | 12 | Should users pick a model per run, or only admins? | Users pick from their allowed list |
 | 13 | Rich editor as the default view on Documents | Yes, with Read and Split a click away |
-| 14 | Build Azure sandbox jobs, PostgreSQL, and Blob Storage as well | Yes, as a follow-on after phase 13, unless untrusted users arrive sooner |
+| 14 | Build Azure sandbox jobs, PostgreSQL, and Blob Storage as well | Yes, as a follow-on after phase 15, unless untrusted users arrive sooner |
 | 15 | Rewrite Git history to remove the old API key | Rotate the key first, then yes if others have access to the repository. This needs a force push, so only with your explicit yes |
 | 16 | Import projects from the old `data/sdlc.sqlite3` | No. They predate this design, so keep the file as an archive |
 | 17 | Where skills live: a private **Skill library** project for each user, created on first use, so runs, versions, limits, and logs all work unchanged | Yes |
 | 18 | Skill scripts: run only after a named person approves them, with a timeout and no platform secrets. **Off on Azure** until sandbox jobs exist | Yes |
 | 19 | Who can attach a published skill: its owner for their own chat. Only the admin for shared use or workflow agents | Yes |
 | 20 | Skill evaluation defaults: 3 test cases and 1 run each at first, 3 runs when benchmarking, 20 trigger queries with 3 runs each, and at most 5 improvement rounds, always with a token estimate first | Yes |
-| 21 | Approve the file moves and removals listed in Part 10 | Yes |
+| 21 | Approve the file moves and removals listed in Part 13 | Yes |

@@ -51,13 +51,13 @@ flowchart LR
 | Plugin command | Gate | Agentic QE Platform stage | Code | How it works in Agentic QE Platform |
 |---|---|---|---|---|
 | `qe-start` | G0 | `intake` in `ba` and `qe` | `maf/workflows/shared.py` `intake`, `intake_gate` | Detects mode from real files, then pauses for a signer. Skipped once G0 is approved |
-| `qe-discover` | none | `discover` | `qe_discover`, `repos/scan.py` | `scan.analyze` builds facts from disk. The agent writes the summary and can verify with tools |
+| `qe-discover` | none | `discover` | `qe_discover`, `repos/scan.py`, `core/doc_checks.py` | `scan.analyze` builds facts from disk. The agent writes the summary. Code checks the required sections, that every cited path exists, and that every source folder is covered. A review follows, with one automatic revision |
 | `qe-stories` | part of G1 | `ba` with Stories template; CSV and Jira export | `ba_draft`, `api/documents.py` export | Any template works. Test case tables export as 11-column CSV and Jira CSV |
 | `qe-requirements` | G1 | `requirements` | `qe_requirements` | Each code-derived requirement carries file, line, and quote. `verify_quote` drops any that are not on disk |
 | `qe-plan` | G2 | `plan` | `qe_plan`, `qe/model.py` `plan_confidence` | Deterministic score plus an independent reviewer. A low score triggers a revision |
-| `qe-design` | G3 | `design` | `qe_design`, `coverage_gaps` | Enforces 1 Positive, 2 Negative, 1 Exception per P0 or P1 requirement, with no duplicates |
+| `qe-design` | G3 | `design` | `qe_design`, `coverage_gaps` | Enforces 1 Positive, 2 Negative, 1 Exception per P0 or P1 requirement, with no duplicates. Runs in batches of 4 requirements (`DESIGN_BATCH`), each reviewed |
 | `qe-data` | part of G3 | `design` output and fixtures file | `qe_design`, `qe_generate` | Test data from cases is saved as a document and as `tests/agentic_qe/fixtures.json` |
-| `qe-generate` | G4 | `generate` | `qe_generate` | One file per case, `CASE_ID` first line, no placeholders or tautologies, syntax-checked, on a separate branch |
+| `qe-generate` | G4 | `generate` | `qe_generate` | One file per case, `CASE_ID` first line, no placeholders or tautologies, syntax-checked, on a separate branch. Runs in batches of 10 cases (`GENERATE_BATCH`) |
 | `qe-execute` | none | `execute` | `qe_execute`, `qe/execution.py` | Registered runners only, no shell, scrubbed environment, JUnit parsing. Zero tests is `INCONCLUSIVE`. Greenfield records a RED baseline |
 | `qe-heal` | none | `heal` | `qe_heal`, `classify_failure`, `assertions_preserved` | Heals drift only. Defects stay failing and are reported. Assertion changes are refused |
 | `qe-trace` | none | `trace` | `qe_trace`, `qe/trace.py` | Requirement to case to test to result, with gaps and orphans |
@@ -69,15 +69,15 @@ flowchart LR
 
 | Plugin agent | Agentic QE Platform prompt | Where it runs | Tools |
 |---|---|---|---|
-| `repo-intelligence-analyst` | `prompts/repo_analyst.md` | QE discover, chat | Code in the message; read tools in chat |
-| `requirements-analyst` | `prompts/requirements_analyst.md` | QE requirements, chat | Code in the message; read tools in chat |
-| `principal-test-architect` | `prompts/test_architect.md` | QE plan, chat | Text in the message; read tools in chat |
-| `test-design-architect` | `prompts/test_designer.md` | QE design, chat | Text in the message; read tools in chat |
-| `test-automation-engineer` | `prompts/test_automation.md` | QE generate | Code in the message |
+| `repo-intelligence-analyst` | `prompts/repo-intelligence-analyst.md` | QE discover, chat | Code in the message; read tools in chat |
+| `requirements-analyst` | `prompts/requirements-analyst.md` | QE requirements, chat | Code in the message; read tools in chat |
+| `principal-test-architect` | `prompts/principal-test-architect.md` | QE plan, chat | Text in the message; read tools in chat |
+| `test-design-architect` | `prompts/test-design-architect.md` | QE design, chat | Text in the message; read tools in chat |
+| `test-automation-engineer` | `prompts/test-automation-engineer.md` | QE generate | Code in the message |
 | `qa-execution-engineer` | No model; `qe/execution.py` | QE execute, change verify | Deterministic by design |
-| `defect-diagnostician` | `prompts/defect_diagnostician.md` | Heal, bug fix, diagnose, chat | Read and guarded write tools on the worktree |
-| `confidence-reviewer` | `prompts/confidence_reviewer.md` | Plan and release review | Works from supplied evidence |
-| Agentic QE Platform addition | `business_analyst`, `doc_reviewer`, `gherkin_author`, `bug_reviewer`, `feature_engineer`, `copilot` | BA, bug scan, change, chat | As listed in `maf-guide.md` |
+| `defect-diagnostician` | `prompts/defect-diagnostician.md` | Heal, bug fix, diagnose, chat | Read and guarded write tools on the worktree |
+| `confidence-reviewer` | `prompts/confidence-reviewer.md` | Plan and release review | Works from supplied evidence |
+| Agentic QE Platform addition | `business-analyst` (also writes Gherkin), `bug-reviewer`, `feature-engineer`, `project-copilot` | BA, bug scan, change, chat | As listed in `maf-guide.md` |
 
 ### Hooks and guardrails
 
@@ -99,7 +99,7 @@ flowchart LR
 | `calculate-risk.ts` | `qe/model.py` `plan_confidence` |
 | `generate-cases.ts` | `qe/model.py` `TestCase`, `coverage_gaps` |
 | `export-cases.ts` | `api/documents.py` CSV and Jira export |
-| `emit-tests.ts` | `prompts/test_automation.md` with checks in `qe_generate` |
+| `emit-tests.ts` | `prompts/test-automation-engineer.md` with checks in `qe_generate` |
 | `synthesize-data.ts` | Test data in the design stage, written as fixtures |
 | `parse-junit.ts`, `run-isolated.ts` | `qe/execution.py` `parse_junit`, `verdict` |
 | `diagnose-failure.ts`, `apply-healing.ts` | `classify_failure`, `assertions_preserved` |
@@ -138,7 +138,7 @@ Sending back at any gate reruns that stage with the feedback.
 
 ### Change (`change`)
 
-`prepare` creates a worktree and branch. `implement` sends the selected code in the message to the feature engineer or diagnostician, which reply with structured edits. Agentic QE Platform applies them through path, secret, and scope guards, and sends refusals and current files back for another round. Existing assertions a change alters are shown to the reviewer. A fix for a finding must change that finding's file. `verify` runs the real tests, with up to 3 attempts on failure. The diff waits for a human. On approval Agentic QE Platform commits to the branch and can push, open a pull request, and merge on a further click. The main checkout is never edited.
+`prepare` creates a worktree and branch. `implement` sends the selected code in the message to the feature engineer or diagnostician, which reply with structured edits. Agentic QE Platform applies them through path, secret, and scope guards, and sends refusals and current files back for another round. Existing assertions a change alters are shown to the reviewer. A fix for a finding must change that finding's file. `verify` runs the real tests, with up to 3 attempts on failure, while a confidence review runs beside them. When the tests fail, `cap_for_failed_tests` caps that review's score at 60. The diff waits for a human. On approval Agentic QE Platform commits to the branch and can push, open a pull request, and merge on a further click. The main checkout is never edited.
 
 ## Private repositories
 
@@ -150,7 +150,7 @@ CopilotKit's headless hooks in the browser call a Next.js runtime route, which r
 
 ## Agent governance
 
-`src/backend/maf/governance.py` holds the registry of 13 agents: risk tier, tools, token limit. The Agents page shows policy, eval scores, calls, tokens, latency, errors, and guardrail events from stored data, and lets a named person disable an agent. Text from briefs, sources, and repositories passes secret and injection filters before the model sees it. Model providers can reject such text, which would otherwise fail a whole run.
+`src/backend/maf/governance.py` holds the registry of 11 agents: risk tier, tools, token limit. The Agents page shows policy, eval scores, calls, tokens, latency, errors, and guardrail events from stored data, and lets a named person disable an agent. Text from briefs, sources, and repositories passes secret and injection filters before the model sees it. Model providers can reject such text, which would otherwise fail a whole run.
 
 ## Limits
 
@@ -158,6 +158,6 @@ CopilotKit's headless hooks in the browser call a Next.js runtime route, which r
 - Target test code runs with host permissions, in a scrubbed environment, after G4 approval. There is no OS sandbox.
 - Keyword document search has no embeddings.
 - JavaScript static rules are line patterns; JS depth comes from agent review.
-- Windows and Linux are covered by the CI matrix and have not been run on a host in this build.
+- CI ran green on Windows, macOS, and Linux at commit 34f6dda. CI runs the offline tests only. The end-to-end suite needs the real model, so it runs by hand.
 - Injection detection uses patterns, so it reduces risk and does not eliminate it. Worktree isolation, human gates, and path guards are the real boundary.
 - A secret split across two streamed chat chunks can appear in the live stream. The final snapshot and stored copy are clean.

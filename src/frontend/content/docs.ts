@@ -21,6 +21,7 @@ export const groups: DocGroup[] = [
 | Feature Builder | Code changes on a separate branch, checked by running your real tests |
 | QE Studio | Requirements, plan, design, generated tests, execution, and traceability through six approval gates |
 | Copilot | A chat that knows the project's documents, code, and history |
+| Confidence review | An independent score beside each stage, with checks by code that can lower it |
 | Observability | A record of every agent, tool, and decision |
 
 ## How it stays trustworthy
@@ -241,7 +242,7 @@ The run panel shows the current stage, elapsed time, tokens, and a **live log** 
 
 ## Confidence reviews
 
-An independent reviewer scores the work before every gate: discovery, requirements, the plan, each batch of test cases, and the generated tests. A score below 70 sends the work back once, automatically. The score and issues show on the approval card. If a review could not run, the card says **not run**.
+An independent reviewer scores the work before every gate: discovery, requirements, the plan, each batch of test cases, and the generated tests. A score below 70 sends the work back once, automatically. Test design and generation run in batches, and each batch is reviewed. For a code change, the review runs beside the tests and is capped at 60 when they fail. The score and issues show on the approval card. If a review could not run, the card says **not run**.
 
 ## Results
 
@@ -353,18 +354,18 @@ Use HTTPS outside your own machine, so sign-in details are encrypted in transit.
       {
         slug: "agents",
         title: "Agents and evaluations",
-        summary: "Policy, guardrails, and quality for all 13 agents.",
+        summary: "Policy, guardrails, and quality for all 11 agents.",
         body: `## What risk means
 
 Risk shows what an agent **could affect**, not how it is behaving.
 
-High-risk agents are in the application because Feature Builder and Bug Scan fixes need something that changes code. They have no tools in workflows, their edits pass code guards, they work only on a separate branch, and nothing is committed until a named person approves.
+Agents marked "Impact: changes code" are in the application because Feature Builder and Bug Scan fixes need something that changes code. They have no tools in workflows, their edits pass code guards, they work only on a separate branch, and nothing is committed until a named person approves.
 
 | Risk | Meaning | Agents |
 |---|---|---|
-| Low | Handles text only | Business analyst, reviewers, Gherkin author, test architect, test designer |
-| Medium | Reads code, or acts on project data in chat | Project copilot, repository analyst, requirements analyst, test automation, bug reviewer |
-| High | Can change code, always on a branch with a person's review | Feature engineer, defect diagnostician |
+| Low | Handles text only | business-analyst (documents and Gherkin), confidence-reviewer (document and evidence review), principal-test-architect, test-design-architect |
+| Medium | Reads code, or acts on project data in chat | project-copilot, repo-intelligence-analyst, requirements-analyst, test-automation-engineer, bug-reviewer |
+| Impact: changes code | Can change code, always on a branch with a person's review | feature-engineer, defect-diagnostician |
 
 Select any agent's card to open its page, with its details, evaluations, and recent calls.
 
@@ -382,7 +383,7 @@ Select any agent's card to open its page, with its details, evaluations, and rec
 
 **Run all evaluations** runs each agent's cases on the real model, and stores results per prompt version. Model replies vary, so an occasional case can fail between runs.
 
-There are 26 cases across 13 agents today:
+There are 26 cases across 11 agents today:
 
 | Check | What it proves |
 |---|---|
@@ -438,7 +439,9 @@ The complete click-by-click guide is in \`docs/AZURE_DEPLOY.md\`.
 
 ## For several users
 
-That setup suits one person or a small trusted team. \`docs/AZURE_SYSTEM_DESIGN.md\` has the design for several users: PostgreSQL for records, Blob Storage for files, Key Vault for secrets, and Container Apps Jobs so repository code never runs beside the app. It comes to about ₹3,905 a month for 5 users, before model costs.`,
+That setup suits one person or a small trusted team. \`docs/AZURE_SYSTEM_DESIGN.md\` has the design for several users: PostgreSQL for records, Blob Storage for files, Key Vault for secrets, and Container Apps Jobs so repository code never runs beside the app. It comes to about ₹3,905 a month for 5 users, before model costs.
+
+Azure has not been deployed for real yet, so treat the steps as untested until you try them.`,
       },
       {
         slug: "troubleshooting",

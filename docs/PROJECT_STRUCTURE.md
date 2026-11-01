@@ -30,15 +30,15 @@ flowchart LR
   QE --> SBX
 ```
 
-The project has 205 files, not counting screenshots.
+The project has 201 files, not counting screenshots.
 
 ## Backend application
 
 | File | What it does | Uses | Used by |
 |---|---|---|---|
 | `src/backend/app.py` | FastAPI application: REST API for the UI, AG-UI for the chatbot, background MAF workflows. | `__init__.py`, `api/__init__.py`, `config.py`, `core/auth.py`, `core/documents.py`, `core/files.py`, `core/gates.py`, `core/prompts.py`, and 11 more | `tests/test_api_workflows.py` |
-| `src/backend/config.py` | Paths and environment. ATLAS_DATA_DIR lets tests run against a throwaway store. |  | `api/common.py`, `api/projects.py`, `api/repository.py`, `api/templates.py`, `app.py`, `core/documents.py`, `core/files.py`, `core/prompts.py`, and 15 more |
-| `src/backend/db.py` | SQLite access: one short connection per unit of work, numbered SQL migrations via user_version. | `config.py` | `api/chat.py`, `api/common.py`, `api/documents.py`, `api/findings.py`, `api/governance.py`, `api/observability.py`, `api/projects.py`, `api/runs.py`, and 26 more |
+| `src/backend/config.py` | Paths and environment. ATLAS_DATA_DIR lets tests run against a throwaway store. |  | `api/common.py`, `api/projects.py`, `api/repository.py`, `api/templates.py`, `app.py`, `core/documents.py`, `core/files.py`, `core/prompts.py`, and 16 more |
+| `src/backend/db.py` | SQLite access: one short connection per unit of work, numbered SQL migrations via user_version. | `config.py` | `api/chat.py`, `api/common.py`, `api/documents.py`, `api/findings.py`, `api/governance.py`, `api/observability.py`, `api/projects.py`, `api/runs.py`, and 27 more |
 
 ## REST API
 
@@ -46,15 +46,15 @@ The project has 205 files, not counting screenshots.
 |---|---|---|---|
 | `src/backend/api/__init__.py` | REST API, one router per area. | `api/auth.py`, `api/chat.py`, `api/documents.py`, `api/findings.py`, `api/governance.py`, `api/observability.py`, `api/projects.py`, `api/repository.py`, and 3 more | `app.py` |
 | `src/backend/api/auth.py` | Sign-in and user management. | `core/auth.py` | `api/__init__.py` |
-| `src/backend/api/chat.py` | Chat API. | `api/common.py`, `db.py`, `maf/agui.py`, `maf/engine.py`, `maf/evals.py`, `maf/governance.py`, `maf/llm.py`, `maf/runtime.py`, and 1 more | `api/__init__.py` |
+| `src/backend/api/chat.py` | Chat API. | `api/common.py`, `core/auth.py`, `db.py`, `maf/agui.py`, `maf/engine.py`, `maf/evals.py`, `maf/governance.py`, `maf/llm.py`, and 2 more | `api/__init__.py` |
 | `src/backend/api/common.py` | Helpers shared by routers. | `__init__.py`, `config.py`, `db.py` | `api/chat.py`, `api/documents.py`, `api/governance.py`, `api/projects.py`, `api/repository.py`, `api/runs.py`, `api/templates.py` |
-| `src/backend/api/documents.py` | Documents API. | `api/common.py`, `core/auth.py`, `core/doc_checks.py`, `core/documents.py`, `core/files.py`, `core/security.py`, `db.py`, `maf/agui.py`, and 6 more | `api/__init__.py`, `api/runs.py` |
+| `src/backend/api/documents.py` | Documents API. | `api/common.py`, `core/auth.py`, `core/doc_checks.py`, `core/documents.py`, `core/files.py`, `core/security.py`, `db.py`, `maf/agui.py`, and 6 more | `api/__init__.py` |
 | `src/backend/api/findings.py` | Findings API. | `core/auth.py`, `core/ledger.py`, `db.py`, `maf/agui.py`, `maf/engine.py`, `maf/evals.py`, `maf/governance.py`, `maf/llm.py`, and 1 more | `api/__init__.py` |
 | `src/backend/api/governance.py` | Governance API. | `api/common.py`, `core/auth.py`, `core/gates.py`, `core/ledger.py`, `core/prompts.py`, `db.py`, `maf/agui.py`, `maf/engine.py`, and 4 more | `api/__init__.py` |
 | `src/backend/api/observability.py` | Observability API: the log of agents, skills, tools, workflows, approvals, guardrails, and the ledger. | `core/auth.py`, `db.py`, `maf/observability.py` | `api/__init__.py` |
 | `src/backend/api/projects.py` | Projects API. | `api/common.py`, `config.py`, `core/auth.py`, `core/documents.py`, `core/gates.py`, `core/ledger.py`, `db.py`, `maf/agui.py`, and 6 more | `api/__init__.py` |
-| `src/backend/api/repository.py` | Repository API. | `api/common.py`, `config.py`, `core/security.py`, `maf/agui.py`, `maf/engine.py`, `maf/evals.py`, `maf/governance.py`, `maf/llm.py`, and 4 more | `api/__init__.py` |
-| `src/backend/api/runs.py` | Workflows API. | `api/common.py`, `api/documents.py`, `core/auth.py`, `core/ledger.py`, `core/security.py`, `db.py`, `maf/agui.py`, `maf/engine.py`, and 7 more | `api/__init__.py` |
+| `src/backend/api/repository.py` | Repository API. | `api/common.py`, `config.py`, `core/auth.py`, `core/security.py`, `maf/agui.py`, `maf/engine.py`, `maf/evals.py`, `maf/governance.py`, and 5 more | `api/__init__.py` |
+| `src/backend/api/runs.py` | Workflows API. | `api/common.py`, `core/auth.py`, `core/ledger.py`, `core/security.py`, `db.py`, `maf/agui.py`, `maf/engine.py`, `maf/evals.py`, and 6 more | `api/__init__.py` |
 | `src/backend/api/settings.py` | Connections and settings API. | `core/auth.py`, `maf/agui.py`, `maf/engine.py`, `maf/evals.py`, `maf/governance.py`, `maf/llm.py`, `maf/workflows/__init__.py`, `repos/github.py` | `api/__init__.py` |
 | `src/backend/api/templates.py` | Templates and source documents API. | `api/common.py`, `config.py`, `core/files.py`, `core/security.py`, `db.py`, `maf/agui.py`, `maf/engine.py`, `maf/evals.py`, and 3 more | `api/__init__.py` |
 
@@ -62,21 +62,19 @@ The project has 205 files, not counting screenshots.
 
 | File | What it does | Uses | Used by |
 |---|---|---|---|
-| `src/backend/maf/agents/__init__.py` | Agent registry. Each file in this folder declares one agent's POLICY, so adding an agent means adding a file. | `maf/agents/policy.py` | `maf/governance.py`, `tests/test_core.py` |
-| `src/backend/maf/agents/bug_reviewer.py` | Finds defects in code it is given. Prompt: prompts/bug_reviewer.md. Evals: evals/bug_reviewer.json. | `maf/agents/policy.py` |  |
-| `src/backend/maf/agents/business_analyst.py` | Writes requirements documents from a brief and sources. Prompt: prompts/business_analyst.md. Evals: evals/business_analyst.json. | `maf/agents/policy.py` |  |
-| `src/backend/maf/agents/confidence_reviewer.py` | Scores plans and releases from evidence. Prompt: prompts/confidence_reviewer.md. Evals: evals/confidence_reviewer.json. | `maf/agents/policy.py` |  |
-| `src/backend/maf/agents/copilot.py` | Answers from project data and starts workflows on request. Prompt: prompts/copilot.md. Evals: evals/copilot.json. | `maf/agents/policy.py` |  |
-| `src/backend/maf/agents/defect_diagnostician.py` | Fixes defects and test drift on a branch. Prompt: prompts/defect_diagnostician.md. Evals: evals/defect_diagnostician.json. | `maf/agents/policy.py` |  |
-| `src/backend/maf/agents/doc_reviewer.py` | Scores requirements documents independently. Prompt: prompts/doc_reviewer.md. Evals: evals/doc_reviewer.json. | `maf/agents/policy.py` |  |
-| `src/backend/maf/agents/feature_engineer.py` | Implements features on a branch. Prompt: prompts/feature_engineer.md. Evals: evals/feature_engineer.json. | `maf/agents/policy.py` |  |
-| `src/backend/maf/agents/gherkin_author.py` | Converts requirements to validated Gherkin. Prompt: prompts/gherkin_author.md. Evals: evals/gherkin_author.json. | `maf/agents/policy.py` |  |
-| `src/backend/maf/agents/policy.py` | What an agent is allowed to do. Each agent file declares one POLICY. |  | `maf/agents/__init__.py`, `maf/agents/bug_reviewer.py`, `maf/agents/business_analyst.py`, `maf/agents/confidence_reviewer.py`, `maf/agents/copilot.py`, `maf/agents/defect_diagnostician.py`, `maf/agents/doc_reviewer.py`, `maf/agents/feature_engineer.py`, and 6 more |
-| `src/backend/maf/agents/repo_analyst.py` | Summarizes a repository from scan facts and code. Prompt: prompts/repo_analyst.md. Evals: evals/repo_analyst.json. | `maf/agents/policy.py` |  |
-| `src/backend/maf/agents/requirements_analyst.py` | Derives testable requirements with quoted evidence. Prompt: prompts/requirements_analyst.md. Evals: evals/requirements_analyst.json. | `maf/agents/policy.py` |  |
-| `src/backend/maf/agents/test_architect.py` | Plans tests by risk and level. Prompt: prompts/test_architect.md. Evals: evals/test_architect.json. | `maf/agents/policy.py` |  |
-| `src/backend/maf/agents/test_automation.py` | Generates executable tests for approved cases. Prompt: prompts/test_automation.md. Evals: evals/test_automation.json. | `maf/agents/policy.py` |  |
-| `src/backend/maf/agents/test_designer.py` | Designs test cases with oracles. Prompt: prompts/test_designer.md. Evals: evals/test_designer.json. | `maf/agents/policy.py` |  |
+| `src/backend/maf/agents/__init__.py` | Agent registry. Each file in this folder declares one agent's POLICY, so adding an agent means adding a file. | `maf/agents/policy.py` | `maf/governance.py`, `tests/test_core.py`, `tests/test_migration_006.py` |
+| `src/backend/maf/agents/bug_reviewer.py` | Finds defects in code it is given. Prompt: prompts/bug-reviewer.md. Evals: evals/bug-reviewer.json. | `maf/agents/policy.py` |  |
+| `src/backend/maf/agents/business_analyst.py` | Writes requirements documents from a brief and sources, and converts them to validated Gherkin. Prompt: prompts/business-analyst.md. Evals: evals/business-analyst.json. | `maf/agents/policy.py` |  |
+| `src/backend/maf/agents/confidence_reviewer.py` | Scores requirements documents, plans, and releases from evidence. Prompt: prompts/confidence-reviewer.md. Evals: evals/confidence-reviewer.json. | `maf/agents/policy.py` |  |
+| `src/backend/maf/agents/defect_diagnostician.py` | Fixes defects and test drift on a branch. Prompt: prompts/defect-diagnostician.md. Evals: evals/defect-diagnostician.json. | `maf/agents/policy.py` |  |
+| `src/backend/maf/agents/feature_engineer.py` | Implements features on a branch. Prompt: prompts/feature-engineer.md. Evals: evals/feature-engineer.json. | `maf/agents/policy.py` |  |
+| `src/backend/maf/agents/policy.py` | What an agent is allowed to do. Each agent file declares one POLICY. |  | `maf/agents/__init__.py`, `maf/agents/bug_reviewer.py`, `maf/agents/business_analyst.py`, `maf/agents/confidence_reviewer.py`, `maf/agents/defect_diagnostician.py`, `maf/agents/feature_engineer.py`, `maf/agents/principal_test_architect.py`, `maf/agents/project_copilot.py`, and 4 more |
+| `src/backend/maf/agents/principal_test_architect.py` | Plans tests by risk and level. Prompt: prompts/principal-test-architect.md. Evals: evals/principal-test-architect.json. | `maf/agents/policy.py` |  |
+| `src/backend/maf/agents/project_copilot.py` | Answers from project data and starts workflows on request. Prompt: prompts/project-copilot.md. Evals: evals/project-copilot.json. | `maf/agents/policy.py` |  |
+| `src/backend/maf/agents/repo_intelligence_analyst.py` | Summarizes a repository from scan facts and code. Prompt: prompts/repo-intelligence-analyst.md. Evals: evals/repo-intelligence-analyst.json. | `maf/agents/policy.py` |  |
+| `src/backend/maf/agents/requirements_analyst.py` | Derives testable requirements with quoted evidence. Prompt: prompts/requirements-analyst.md. Evals: evals/requirements-analyst.json. | `maf/agents/policy.py` |  |
+| `src/backend/maf/agents/test_automation_engineer.py` | Generates executable tests for approved cases. Prompt: prompts/test-automation-engineer.md. Evals: evals/test-automation-engineer.json. | `maf/agents/policy.py` |  |
+| `src/backend/maf/agents/test_design_architect.py` | Designs test cases with oracles. Prompt: prompts/test-design-architect.md. Evals: evals/test-design-architect.json. | `maf/agents/policy.py` |  |
 
 ## Tools
 
@@ -104,7 +102,7 @@ The project has 205 files, not counting screenshots.
 | `src/backend/maf/workflows/__init__.py` | Workflows, one file each. A file registers its definition in engine.REGISTRY, so adding a workflow means adding a file. | `maf/workflows/ba.py`, `maf/workflows/bug_scan.py`, `maf/workflows/edits.py`, `maf/workflows/qe.py` | `api/chat.py`, `api/documents.py`, `api/findings.py`, `api/governance.py`, `api/projects.py`, `api/repository.py`, `api/runs.py`, `api/settings.py`, and 5 more |
 | `src/backend/maf/workflows/ba.py` | BA workflow: brief to templated document, independent review, Gherkin, human approval. | `core/doc_checks.py`, `core/documents.py`, `core/files.py`, `core/gherkin.py`, `db.py`, `maf/engine.py`, `maf/runtime.py`, `maf/workflows/shared.py` | `maf/workflows/__init__.py`, `maf/workflows/qe.py` |
 | `src/backend/maf/workflows/bug_scan.py` | Bug scan workflow: fan-out static and agent review, fan-in with evidence checks. | `config.py`, `core/security.py`, `db.py`, `maf/engine.py`, `maf/runtime.py`, `maf/workflows/shared.py`, `repos/git.py`, `repos/sandbox.py`, and 2 more | `maf/workflows/__init__.py`, `tests/test_core.py` |
-| `src/backend/maf/workflows/change.py` | Change workflow: feature, bug fix, or traceback diagnosis on an isolated branch with real tests. | `config.py`, `core/documents.py`, `core/security.py`, `db.py`, `maf/engine.py`, `maf/runtime.py`, `maf/workflows/edits.py`, `maf/workflows/shared.py`, and 6 more | `tests/test_core.py` |
+| `src/backend/maf/workflows/change.py` | Change workflow: feature, bug fix, or traceback diagnosis on an isolated branch with real tests. | `config.py`, `core/documents.py`, `core/security.py`, `db.py`, `maf/engine.py`, `maf/runtime.py`, `maf/workflows/edits.py`, `maf/workflows/shared.py`, and 6 more | `tests/test_api_workflows.py`, `tests/test_core.py` |
 | `src/backend/maf/workflows/edits.py` | Structured edits from agents, applied by code through path, secret, and scope guards. | `core/security.py`, `qe/execution.py` | `maf/workflows/__init__.py`, `maf/workflows/change.py`, `maf/workflows/qe.py` |
 | `src/backend/maf/workflows/qe.py` | QE lifecycle: requirements to signed release, with human gates G0 to G5. | `config.py`, `core/doc_checks.py`, `core/documents.py`, `core/security.py`, `maf/engine.py`, `maf/runtime.py`, `maf/workflows/ba.py`, `maf/workflows/edits.py`, and 7 more | `maf/workflows/__init__.py` |
 | `src/backend/maf/workflows/shared.py` | Helpers every workflow uses: repository facts, the code pack, and the Gate 0 intake. | `config.py`, `core/gates.py`, `core/security.py`, `maf/engine.py`, `maf/runtime.py`, `qe/model.py`, `repos/ingest.py`, `repos/scan.py`, and 1 more | `maf/workflows/ba.py`, `maf/workflows/bug_scan.py`, `maf/workflows/change.py`, `maf/workflows/qe.py` |
@@ -114,7 +112,7 @@ The project has 205 files, not counting screenshots.
 | File | What it does | Uses | Used by |
 |---|---|---|---|
 | `src/backend/maf/agui.py` | AG-UI endpoint for the chatbot. MAF's AgentFrameworkAgent produces the protocol stream. | `core/auth.py`, `core/ledger.py`, `core/security.py`, `db.py`, `maf/engine.py`, `maf/governance.py`, `maf/llm.py`, `maf/runtime.py`, and 1 more | `api/chat.py`, `api/documents.py`, `api/findings.py`, `api/governance.py`, `api/projects.py`, `api/repository.py`, `api/runs.py`, `api/settings.py`, and 2 more |
-| `src/backend/maf/engine.py` | Run manager over real MAF workflows: typed stages, HITL via request_info, file checkpoints, durable events. | `config.py`, `core/gates.py`, `core/ledger.py`, `core/security.py`, `db.py`, `maf/runtime.py` | `api/chat.py`, `api/documents.py`, `api/findings.py`, `api/governance.py`, `api/projects.py`, `api/repository.py`, `api/runs.py`, `api/settings.py`, and 9 more |
+| `src/backend/maf/engine.py` | Run manager over real MAF workflows: typed stages, HITL via request_info, file checkpoints, durable events. | `config.py`, `core/auth.py`, `core/gates.py`, `core/ledger.py`, `core/security.py`, `db.py`, `maf/runtime.py` | `api/chat.py`, `api/documents.py`, `api/findings.py`, `api/governance.py`, `api/projects.py`, `api/repository.py`, `api/runs.py`, `api/settings.py`, and 10 more |
 | `src/backend/maf/evals.py` | Agent evals on MAF's evaluation API. Each case runs the real active prompt, so prompt versions can be compared. | `config.py`, `core/gherkin.py`, `core/prompts.py`, `db.py`, `maf/runtime.py`, `maf/workflows/__init__.py`, `qe/model.py` | `api/chat.py`, `api/documents.py`, `api/findings.py`, `api/governance.py`, `api/projects.py`, `api/repository.py`, `api/runs.py`, `api/settings.py`, and 3 more |
 | `src/backend/maf/governance.py` | Agent governance: one registry, per-agent tool policy, an admin kill switch, guardrails, and call telemetry. | `core/ledger.py`, `core/prompts.py`, `core/security.py`, `db.py`, `maf/agents/__init__.py`, `maf/observability.py` | `api/chat.py`, `api/documents.py`, `api/findings.py`, `api/governance.py`, `api/projects.py`, `api/repository.py`, `api/runs.py`, `api/settings.py`, and 6 more |
 | `src/backend/maf/llm.py` | Model provider settings. Environment wins on first run; the Settings page can override and encrypts the key. | `config.py`, `core/security.py`, `db.py` | `api/chat.py`, `api/documents.py`, `api/findings.py`, `api/governance.py`, `api/projects.py`, `api/repository.py`, `api/runs.py`, `api/settings.py`, and 6 more |
@@ -125,15 +123,15 @@ The project has 205 files, not counting screenshots.
 
 | File | What it does | Uses | Used by |
 |---|---|---|---|
-| `src/backend/core/auth.py` | Accounts and access. The admin login comes from .env. Users are created by the admin. | `core/security.py`, `db.py` | `api/auth.py`, `api/documents.py`, `api/findings.py`, `api/governance.py`, `api/observability.py`, `api/projects.py`, `api/runs.py`, `api/settings.py`, and 4 more |
+| `src/backend/core/auth.py` | Accounts and access. The admin login comes from .env. Users are created by the admin. | `core/security.py`, `db.py` | `api/auth.py`, `api/chat.py`, `api/documents.py`, `api/findings.py`, `api/governance.py`, `api/observability.py`, `api/projects.py`, `api/repository.py`, and 7 more |
 | `src/backend/core/doc_checks.py` | Deterministic requirements checks. They cap the reviewer's score, so a model cannot pass a weak document. | `core/files.py` | `api/documents.py`, `maf/workflows/ba.py`, `maf/workflows/qe.py`, `tests/test_api_workflows.py`, `tests/test_core.py` |
-| `src/backend/core/documents.py` | Versioned documents. Every save is an immutable version with SHA-256, author, and prompt reference. | `config.py`, `core/gherkin.py`, `core/ledger.py`, `core/security.py`, `db.py` | `api/documents.py`, `api/projects.py`, `app.py`, `maf/runtime.py`, `maf/tools/common.py`, `maf/tools/list_documents.py`, `maf/tools/read_document.py`, `maf/tools/save_document.py`, and 6 more |
+| `src/backend/core/documents.py` | Versioned documents. Every save is an immutable version with SHA-256, author, and prompt reference. | `config.py`, `core/gherkin.py`, `core/ledger.py`, `core/security.py`, `db.py`, `qe/model.py` | `api/documents.py`, `api/projects.py`, `app.py`, `maf/runtime.py`, `maf/tools/common.py`, `maf/tools/list_documents.py`, `maf/tools/read_document.py`, `maf/tools/save_document.py`, and 6 more |
 | `src/backend/core/files.py` | Uploaded-file text extraction, templates, and DOCX export. | `config.py`, `core/security.py`, `db.py` | `api/documents.py`, `api/templates.py`, `app.py`, `core/doc_checks.py`, `maf/workflows/ba.py`, `tests/conftest.py`, `tests/test_core.py` |
 | `src/backend/core/gates.py` | Quality gates G0-G5. Sequential approval, HMAC-signed records, human signer required. | `core/ledger.py`, `core/security.py`, `db.py` | `api/governance.py`, `api/projects.py`, `app.py`, `maf/engine.py`, `maf/tools/project_status.py`, `maf/workflows/shared.py`, `tests/test_core.py` |
 | `src/backend/core/gherkin.py` | Gherkin validation with the official Cucumber parser. |  | `core/documents.py`, `maf/evals.py`, `maf/workflows/ba.py`, `tests/test_core.py` |
-| `src/backend/core/ledger.py` | Tamper-evident audit ledger: each entry hashes the previous entry, per project. | `core/security.py`, `db.py` | `api/findings.py`, `api/governance.py`, `api/projects.py`, `api/runs.py`, `core/documents.py`, `core/gates.py`, `maf/agui.py`, `maf/engine.py`, and 6 more |
-| `src/backend/core/prompts.py` | Versioned agent prompts. prompts/*.md seed v1; every edit is a new immutable version in the DB. | `config.py`, `core/security.py`, `db.py` | `api/governance.py`, `app.py`, `maf/evals.py`, `maf/governance.py`, `maf/runtime.py`, `tests/conftest.py`, `tests/test_core.py` |
-| `src/backend/core/security.py` | Secrets at rest, secret detection, redaction, path confinement, and shell-free command policy. | `config.py` | `api/documents.py`, `api/repository.py`, `api/runs.py`, `api/templates.py`, `app.py`, `core/auth.py`, `core/documents.py`, `core/files.py`, and 21 more |
+| `src/backend/core/ledger.py` | Tamper-evident audit ledger: each entry hashes the previous entry, per project. | `core/security.py`, `db.py` | `api/findings.py`, `api/governance.py`, `api/projects.py`, `api/runs.py`, `core/documents.py`, `core/gates.py`, `maf/agui.py`, `maf/engine.py`, and 7 more |
+| `src/backend/core/prompts.py` | Versioned agent prompts. prompts/*.md seed v1; every edit is a new immutable version in the DB. | `config.py`, `core/security.py`, `db.py` | `api/governance.py`, `app.py`, `maf/evals.py`, `maf/governance.py`, `maf/runtime.py`, `tests/conftest.py`, `tests/test_core.py`, `tests/test_migration_006.py` |
+| `src/backend/core/security.py` | Secrets at rest, secret detection, redaction, path confinement, and shell-free command policy. | `config.py` | `api/documents.py`, `api/repository.py`, `api/runs.py`, `api/templates.py`, `app.py`, `core/auth.py`, `core/documents.py`, `core/files.py`, and 22 more |
 
 ## Repositories
 
@@ -151,7 +149,7 @@ The project has 205 files, not counting screenshots.
 | File | What it does | Uses | Used by |
 |---|---|---|---|
 | `src/backend/qe/execution.py` | Registered test runners, JUnit parsing, honest verdicts. No shell, bounded time, scrubbed environment. |  | `maf/workflows/change.py`, `maf/workflows/edits.py`, `maf/workflows/qe.py`, `tests/test_core.py` |
-| `src/backend/qe/model.py` | Structured QE artifacts and the plugin's validators, ported from TypeScript to Python. |  | `maf/evals.py`, `maf/workflows/qe.py`, `maf/workflows/shared.py`, `tests/test_core.py` |
+| `src/backend/qe/model.py` | Structured QE artifacts and the plugin's validators, ported from TypeScript to Python. |  | `core/documents.py`, `maf/evals.py`, `maf/workflows/qe.py`, `maf/workflows/shared.py`, `tests/test_core.py` |
 | `src/backend/qe/trace.py` | Traceability matrix and release score, ported from build-matrix.ts and the plugin's verdict rules. |  | `maf/workflows/qe.py`, `tests/test_core.py` |
 
 ## Database migrations
@@ -163,42 +161,39 @@ The project has 205 files, not counting screenshots.
 | `src/backend/migrations/003_agent_governance.sql` | Database change: agent governance |  |  |
 | `src/backend/migrations/004_tool_calls.sql` | Database change: tool calls |  |  |
 | `src/backend/migrations/005_users.sql` | Database change: users |  |  |
+| `src/backend/migrations/006_agent_plugin_names.sql` | Database change: agent plugin names |  |  |
 
 ## Agent prompts
 
 | File | What it does | Uses | Used by |
 |---|---|---|---|
-| `prompts/bug_reviewer.md` | System prompt for the bug_reviewer agent |  |  |
-| `prompts/business_analyst.md` | System prompt for the business_analyst agent |  |  |
-| `prompts/confidence_reviewer.md` | System prompt for the confidence_reviewer agent |  |  |
-| `prompts/copilot.md` | System prompt for the copilot agent |  |  |
-| `prompts/defect_diagnostician.md` | System prompt for the defect_diagnostician agent |  |  |
-| `prompts/doc_reviewer.md` | System prompt for the doc_reviewer agent |  |  |
-| `prompts/feature_engineer.md` | System prompt for the feature_engineer agent |  |  |
-| `prompts/gherkin_author.md` | System prompt for the gherkin_author agent |  |  |
-| `prompts/repo_analyst.md` | System prompt for the repo_analyst agent |  |  |
-| `prompts/requirements_analyst.md` | System prompt for the requirements_analyst agent |  |  |
-| `prompts/test_architect.md` | System prompt for the test_architect agent |  |  |
-| `prompts/test_automation.md` | System prompt for the test_automation agent |  |  |
-| `prompts/test_designer.md` | System prompt for the test_designer agent |  |  |
+| `prompts/bug-reviewer.md` | System prompt for the bug-reviewer agent |  |  |
+| `prompts/business-analyst.md` | System prompt for the business-analyst agent |  |  |
+| `prompts/confidence-reviewer.md` | System prompt for the confidence-reviewer agent |  |  |
+| `prompts/defect-diagnostician.md` | System prompt for the defect-diagnostician agent |  |  |
+| `prompts/feature-engineer.md` | System prompt for the feature-engineer agent |  |  |
+| `prompts/principal-test-architect.md` | System prompt for the principal-test-architect agent |  |  |
+| `prompts/project-copilot.md` | System prompt for the project-copilot agent |  |  |
+| `prompts/repo-intelligence-analyst.md` | System prompt for the repo-intelligence-analyst agent |  |  |
+| `prompts/requirements-analyst.md` | System prompt for the requirements-analyst agent |  |  |
+| `prompts/test-automation-engineer.md` | System prompt for the test-automation-engineer agent |  |  |
+| `prompts/test-design-architect.md` | System prompt for the test-design-architect agent |  |  |
 
 ## Agent evaluations
 
 | File | What it does | Uses | Used by |
 |---|---|---|---|
-| `evals/bug_reviewer.json` | Quality and safety cases for the bug_reviewer agent |  |  |
-| `evals/business_analyst.json` | Quality and safety cases for the business_analyst agent |  |  |
-| `evals/confidence_reviewer.json` | Quality and safety cases for the confidence_reviewer agent |  |  |
-| `evals/copilot.json` | Quality and safety cases for the copilot agent |  |  |
-| `evals/defect_diagnostician.json` | Quality and safety cases for the defect_diagnostician agent |  |  |
-| `evals/doc_reviewer.json` | Quality and safety cases for the doc_reviewer agent |  |  |
-| `evals/feature_engineer.json` | Quality and safety cases for the feature_engineer agent |  |  |
-| `evals/gherkin_author.json` | Quality and safety cases for the gherkin_author agent |  |  |
-| `evals/repo_analyst.json` | Quality and safety cases for the repo_analyst agent |  |  |
-| `evals/requirements_analyst.json` | Quality and safety cases for the requirements_analyst agent |  |  |
-| `evals/test_architect.json` | Quality and safety cases for the test_architect agent |  |  |
-| `evals/test_automation.json` | Quality and safety cases for the test_automation agent |  |  |
-| `evals/test_designer.json` | Quality and safety cases for the test_designer agent |  |  |
+| `evals/bug-reviewer.json` | Quality and safety cases for the bug-reviewer agent |  |  |
+| `evals/business-analyst.json` | Quality and safety cases for the business-analyst agent |  |  |
+| `evals/confidence-reviewer.json` | Quality and safety cases for the confidence-reviewer agent |  |  |
+| `evals/defect-diagnostician.json` | Quality and safety cases for the defect-diagnostician agent |  |  |
+| `evals/feature-engineer.json` | Quality and safety cases for the feature-engineer agent |  |  |
+| `evals/principal-test-architect.json` | Quality and safety cases for the principal-test-architect agent |  |  |
+| `evals/project-copilot.json` | Quality and safety cases for the project-copilot agent |  |  |
+| `evals/repo-intelligence-analyst.json` | Quality and safety cases for the repo-intelligence-analyst agent |  |  |
+| `evals/requirements-analyst.json` | Quality and safety cases for the requirements-analyst agent |  |  |
+| `evals/test-automation-engineer.json` | Quality and safety cases for the test-automation-engineer agent |  |  |
+| `evals/test-design-architect.json` | Quality and safety cases for the test-design-architect agent |  |  |
 
 ## Document templates
 
@@ -231,10 +226,10 @@ The project has 205 files, not counting screenshots.
 | `src/frontend/app/projects/[id]/ba/page.tsx` | Page at `/projects/{id}/ba` | `ui/components/ProjectShell.tsx`, `ui/components/RunPanel.tsx`, `ui/components/ui.tsx`, `ui/lib/api.ts` |  |
 | `src/frontend/app/projects/[id]/bugs/page.tsx` | Page at `/projects/{id}/bugs` | `ui/components/ProjectShell.tsx`, `ui/components/RunPanel.tsx`, `ui/components/ui.tsx`, `ui/lib/api.ts` |  |
 | `src/frontend/app/projects/[id]/chat/page.tsx` | Page at `/projects/{id}/chat` | `ui/components/Chat.tsx`, `ui/components/ProjectShell.tsx` |  |
-| `src/frontend/app/projects/[id]/documents/[docId]/page.tsx` | Page at `/projects/{id}/documents/{docId}` | `ui/components/DocumentEditor.tsx`, `ui/components/ProjectShell.tsx`, `ui/components/ui.tsx`, `ui/lib/api.ts` |  |
+| `src/frontend/app/projects/[id]/documents/[docId]/page.tsx` | Page at `/projects/{id}/documents/{docId}` | `ui/components/AuthGate.tsx`, `ui/components/DocumentEditor.tsx`, `ui/components/ProjectShell.tsx`, `ui/components/ui.tsx`, `ui/lib/api.ts` |  |
 | `src/frontend/app/projects/[id]/documents/page.tsx` | Page at `/projects/{id}/documents` | `ui/components/ProjectShell.tsx`, `ui/components/ui.tsx`, `ui/lib/api.ts` |  |
 | `src/frontend/app/projects/[id]/feature/page.tsx` | Page at `/projects/{id}/feature` | `ui/components/ProjectShell.tsx`, `ui/components/RunPanel.tsx`, `ui/components/ui.tsx`, `ui/lib/api.ts` |  |
-| `src/frontend/app/projects/[id]/governance/page.tsx` | Page at `/projects/{id}/governance` | `ui/components/ProjectShell.tsx`, `ui/components/ui.tsx`, `ui/lib/api.ts` |  |
+| `src/frontend/app/projects/[id]/governance/page.tsx` | Page at `/projects/{id}/governance` | `ui/components/AuthGate.tsx`, `ui/components/ProjectShell.tsx`, `ui/components/ui.tsx`, `ui/lib/api.ts` |  |
 | `src/frontend/app/projects/[id]/layout.tsx` | Wraps project pages in the project sidebar | `ui/components/ProjectShell.tsx` |  |
 | `src/frontend/app/projects/[id]/observability/page.tsx` | Page at `/projects/{id}/observability` | `ui/components/Observability.tsx`, `ui/components/ProjectShell.tsx`, `ui/components/ui.tsx` |  |
 | `src/frontend/app/projects/[id]/page.tsx` | Page at `/projects/{id}` | `ui/components/ProjectShell.tsx`, `ui/components/ui.tsx`, `ui/lib/api.ts` |  |
@@ -253,12 +248,12 @@ The project has 205 files, not counting screenshots.
 |---|---|---|---|
 | `src/frontend/components/AppShell.tsx` | Workspace sidebar and header | `ui/components/AuthGate.tsx`, `ui/components/ui.tsx`, `ui/lib/api.ts` | `ui/app/agents/[key]/page.tsx`, `ui/app/agents/page.tsx`, `ui/app/approvals/page.tsx`, `ui/app/documents/page.tsx`, `ui/app/findings/page.tsx`, `ui/app/observability/page.tsx`, `ui/app/page.tsx`, `ui/app/settings/page.tsx`, and 2 more |
 | `src/frontend/components/ApprovalsList.tsx` | List of pending approvals | `ui/components/RunPanel.tsx`, `ui/components/ui.tsx`, `ui/lib/api.ts` | `ui/app/approvals/page.tsx`, `ui/app/projects/[id]/approvals/page.tsx` |
-| `src/frontend/components/AuthGate.tsx` | Sends people to sign in, and holds the sign-out menu | `ui/components/ui.tsx`, `ui/lib/api.ts` | `ui/app/agents/[key]/page.tsx`, `ui/app/agents/page.tsx`, `ui/app/layout.tsx`, `ui/components/AppShell.tsx`, `ui/components/ProjectShell.tsx` |
+| `src/frontend/components/AuthGate.tsx` | Sends people to sign in, and holds the sign-out menu | `ui/components/ui.tsx`, `ui/lib/api.ts` | `ui/app/agents/[key]/page.tsx`, `ui/app/agents/page.tsx`, `ui/app/layout.tsx`, `ui/app/projects/[id]/documents/[docId]/page.tsx`, `ui/app/projects/[id]/governance/page.tsx`, `ui/components/AppShell.tsx`, `ui/components/ProjectShell.tsx`, `ui/components/RunPanel.tsx` |
 | `src/frontend/components/Chat.tsx` | Chat threads and conversation | `ui/components/ui.tsx`, `ui/lib/api.ts` | `ui/app/chat/[id]/page.tsx`, `ui/app/projects/[id]/chat/page.tsx` |
 | `src/frontend/components/DocumentEditor.tsx` | Formatted document with in-place editing, table grids, and images | `ui/components/ui.tsx`, `ui/lib/api.ts` | `ui/app/projects/[id]/documents/[docId]/page.tsx` |
 | `src/frontend/components/Observability.tsx` | Log with filters, run trace, and download | `ui/components/ui.tsx`, `ui/lib/api.ts` | `ui/app/observability/page.tsx`, `ui/app/projects/[id]/observability/page.tsx` |
 | `src/frontend/components/ProjectShell.tsx` | Project sidebar and header | `ui/components/AuthGate.tsx`, `ui/components/ui.tsx`, `ui/lib/api.ts` | `ui/app/projects/[id]/approvals/page.tsx`, `ui/app/projects/[id]/ba/page.tsx`, `ui/app/projects/[id]/bugs/page.tsx`, `ui/app/projects/[id]/chat/page.tsx`, `ui/app/projects/[id]/documents/[docId]/page.tsx`, `ui/app/projects/[id]/documents/page.tsx`, `ui/app/projects/[id]/feature/page.tsx`, `ui/app/projects/[id]/governance/page.tsx`, and 7 more |
-| `src/frontend/components/RunPanel.tsx` | Live run view, approval card, and past runs | `ui/components/ui.tsx`, `ui/lib/api.ts` | `ui/app/projects/[id]/ba/page.tsx`, `ui/app/projects/[id]/bugs/page.tsx`, `ui/app/projects/[id]/feature/page.tsx`, `ui/app/projects/[id]/qe/page.tsx`, `ui/app/projects/[id]/runs/[runId]/page.tsx`, `ui/components/ApprovalsList.tsx` |
+| `src/frontend/components/RunPanel.tsx` | Live run view, approval card, and past runs | `ui/components/AuthGate.tsx`, `ui/components/ui.tsx`, `ui/lib/api.ts` | `ui/app/projects/[id]/ba/page.tsx`, `ui/app/projects/[id]/bugs/page.tsx`, `ui/app/projects/[id]/feature/page.tsx`, `ui/app/projects/[id]/qe/page.tsx`, `ui/app/projects/[id]/runs/[runId]/page.tsx`, `ui/components/ApprovalsList.tsx` |
 | `src/frontend/components/ui.tsx` | Shared buttons, cards, badges, fields, and toasts |  | `ui/app/agents/[key]/page.tsx`, `ui/app/agents/page.tsx`, `ui/app/approvals/page.tsx`, `ui/app/docs/[slug]/page.tsx`, `ui/app/docs/layout.tsx`, `ui/app/documents/page.tsx`, `ui/app/findings/page.tsx`, `ui/app/layout.tsx`, and 27 more |
 | `src/frontend/content/docs.ts` | All documentation pages |  | `ui/app/docs/[slug]/page.tsx`, `ui/app/docs/layout.tsx` |
 | `src/frontend/lib/api.ts` | Browser calls to the API |  | `ui/app/agents/[key]/page.tsx`, `ui/app/agents/page.tsx`, `ui/app/documents/page.tsx`, `ui/app/findings/page.tsx`, `ui/app/login/page.tsx`, `ui/app/page.tsx`, `ui/app/projects/[id]/ba/page.tsx`, `ui/app/projects/[id]/bugs/page.tsx`, and 20 more |
@@ -287,8 +282,9 @@ The project has 205 files, not counting screenshots.
 | `tests/e2e/test_app.py` | End-to-end: real FastAPI, real Next.js build, real browser, real model, real git and pytest. Nothing is mocked. | `tests/e2e/conftest.py` | `tests/e2e/test_finance_repo.py` |
 | `tests/e2e/test_finance_repo.py` | Every feature on a real repository, sarveshtalele/personal-finance-mcp, adding a new MCP tool. Nothing is mocked. | `tests/e2e/conftest.py`, `tests/e2e/test_app.py` |  |
 | `tests/scripted_client.py` | Test double only. A real MAF chat client whose replies come from a script, so workflow logic runs offline. |  | `tests/test_api_workflows.py`, `tests/test_core.py` |
-| `tests/test_api_workflows.py` | Integration: real FastAPI, real SQLite, real git, real pytest, real MAF workflow engine. Only the model is scripted. | `app.py`, `config.py`, `core/auth.py`, `core/doc_checks.py`, `core/documents.py`, `core/security.py`, `db.py`, `maf/evals.py`, and 7 more |  |
+| `tests/test_api_workflows.py` | Integration: real FastAPI, real SQLite, real git, real pytest, real MAF workflow engine. Only the model is scripted. | `app.py`, `config.py`, `core/auth.py`, `core/doc_checks.py`, `core/documents.py`, `core/security.py`, `db.py`, `maf/engine.py`, and 9 more |  |
 | `tests/test_core.py` | Unit tests for governance, versioning, ingest safety, scanners, and QE rules. No network, no model. | `__init__.py`, `config.py`, `core/doc_checks.py`, `core/documents.py`, `core/files.py`, `core/gates.py`, `core/gherkin.py`, `core/ledger.py`, and 21 more |  |
+| `tests/test_migration_006.py` | Migration 006 renames agent keys to the plugin names. A database at schema 005 with history under the old keys must lose nothing. | `__init__.py`, `config.py`, `core/ledger.py`, `core/prompts.py`, `core/security.py`, `db.py`, `maf/agents/__init__.py` |  |
 
 ## Scripts and deployment
 
@@ -334,5 +330,5 @@ The project has 205 files, not counting screenshots.
 | `pytest.ini` | Test settings |  |  |
 | `requirements.txt` | Python dependencies |  |  |
 | `specs.md` | Requirements with acceptance checks |  |  |
-| `src/backend/__init__.py` | Marks the backend package |  | `api/common.py`, `app.py`, `tests/conftest.py`, `tests/test_core.py` |
+| `src/backend/__init__.py` | Marks the backend package |  | `api/common.py`, `app.py`, `tests/conftest.py`, `tests/test_core.py`, `tests/test_migration_006.py` |
 | `tasks.md` | Status of all work |  |  |

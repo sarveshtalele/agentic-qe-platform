@@ -95,7 +95,7 @@ export function Chat({ projectId, standalone = false }: { projectId: string; sta
   }, [thread, loadThreads]);
 
   const open = async (id: string) => setThread(await api(`/chats/${id}`));
-  const create = async (agent = "copilot") => {
+  const create = async (agent = "project-copilot") => {
     setThread(null);  // the old chat closes at once, so nothing typed can land in it
     const created = await api(`/projects/${projectId}/chats`, { json: { agent } });
     await loadThreads();
@@ -125,7 +125,7 @@ export function Chat({ projectId, standalone = false }: { projectId: string; sta
   return (
     <div className={`grid gap-3 md:grid-cols-[250px_1fr] ${standalone ? "h-screen p-3" : "h-[calc(100vh-110px)]"}`}>
       <div className="flex min-h-0 flex-col gap-2 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-[#0b1329]">
-        <select aria-label="Agent for new chat" className={inputClass} defaultValue="copilot" id="new-agent">
+        <select aria-label="Agent for new chat" className={inputClass} defaultValue="project-copilot" id="new-agent">
           {agents.map((a) => <option key={a.key} value={a.key}>{a.name}</option>)}
         </select>
         <Button onClick={() => create((document.getElementById("new-agent") as HTMLSelectElement).value)}><MessageSquarePlus className="h-4 w-4" /> New chat</Button>

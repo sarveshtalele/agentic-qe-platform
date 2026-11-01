@@ -33,17 +33,3 @@ export function when(iso?: string | null): string {
   if (!iso) return "";
   return new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 }
-
-export function getSigner(): string {
-  try {
-    return localStorage.getItem("atlas_signer") || "";
-  } catch {
-    return "";
-  }
-}
-
-export function setSigner(name: string) {
-  try {
-    localStorage.setItem("atlas_signer", name);
-  } catch {}
-}

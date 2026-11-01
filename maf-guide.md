@@ -18,14 +18,14 @@ Which MAF features Agentic QE Platform uses, where, and why. Packages: `agent-fr
 | Function middleware | `@function_middleware` | `src/backend/maf/runtime.py` `tool_audit` | Times and redacts each tool call, filters tool results for prompt injection, and puts the call on the run timeline | 81, 86 |
 | Tool call records | `@function_middleware` | `src/backend/maf/runtime.py` `tool_audit`, `src/backend/maf/observability.py` | Stores every tool call, in workflows and chat, for the Observability page | 226 |
 | Compaction | `SlidingWindowStrategy` | `src/backend/maf/runtime.py` `build` | Bounds long agent conversations | 63 |
-| Workflows | `WorkflowBuilder`, `Executor`, `@handler` | `src/backend/maf/engine.py` `Stage`, `compile_workflow` | Each stage is an executor. Graphs are defined in `workflows.py` | 14, 121, 125 |
+| Workflows | `WorkflowBuilder`, `Executor`, `@handler` | `src/backend/maf/engine.py` `Stage`, `compile_workflow` | Each stage is an executor. Graphs are defined in `maf/workflows/` | 14, 121, 125 |
 | Conditional edges | `add_edge(condition=)` | `src/backend/maf/engine.py` `route` | Review loops, rework after rejection, execute to heal to execute | 130 |
 | Fan-out and fan-in | `add_fan_out_edges`, `add_fan_in_edges` | `src/backend/maf/engine.py`, `workflows/bug_scan.py` `bug_scan_definition`, `Merge` | Static scanners and agent review run in parallel, then merge | 130 |
 | Human in the loop | `ctx.request_info`, `@response_handler` | `src/backend/maf/engine.py` `Stage.run`, `Stage.decided` | Every gate and diff approval pauses here | 751 |
 | Checkpoints | `FileCheckpointStorage`, `run(checkpoint_id=)` | `src/backend/maf/engine.py` `_storage`, `_resume` | Each decision restores from a checkpoint, so a restart loses nothing | 755 |
 | Streaming run events | `workflow.run(stream=True)` | `src/backend/maf/engine.py` `_consume` | Handles requests, outputs, and failures. Progress is stored for SSE | 121, 159 |
 | AG-UI | `AgentFrameworkAgent` | `src/backend/maf/agui.py` | Turns a project-scoped agent into an AG-UI event stream | 549, 552 |
-| Evaluation | `evaluate_agent`, `LocalEvaluator`, `evaluator` | `src/backend/maf/evals.py`, `evals/*.json` | Quality and safety cases for all 13 agents with content, JSON schema, Gherkin, and score checks. Scores are stored per prompt version | 219 |
+| Evaluation | `evaluate_agent`, `LocalEvaluator`, `evaluator` | `src/backend/maf/evals.py`, `evals/*.json` | Quality and safety cases for all 11 agents with content, JSON schema, Gherkin, and score checks. Scores are stored per prompt version | 219 |
 | Observability | `configure_otel_providers` | `src/backend/app.py` `lifespan` | Turns on when `OTEL_EXPORTER_OTLP_ENDPOINT` is set | 213, 590 |
 
 ## Connected to MAF
@@ -38,35 +38,35 @@ Which MAF features Agentic QE Platform uses, where, and why. Packages: `agent-fr
 
 ## Agent governance
 
-Each agent has its own file in `src/backend/maf/agents/`, which declares its policy. The folder is scanned into one registry, `POLICIES`. In workflows, agents get code in the message and no tools unless their policy lists some. Long tool loops outgrew the model's context and burned tokens, so `code_pack` in `workflows.py` replaced them.
+Each agent has its own file in `src/backend/maf/agents/`, which declares its policy. The folder is scanned into one registry, `POLICIES`. In workflows, agents get code in the message and no tools unless their policy lists some. Measured on 2026-11-01: tool calls through the configured proxy are unreliable on every model tried. Long tool loops also outgrew the model's context and burned tokens. So workflow agents get code in the message with no tools, using `code_pack` in `maf/workflows/shared.py`. Chat agents keep their read tools.
 
 | Control | Where | Behavior |
 |---|---|---|
 | Tool policy | `governance.allowed` | Deny by default, separately for workflow and chat |
 | Kill switch and token limit | `governance.update_settings`, `require_enabled` | Named person required, written to the ledger |
-| Run budget | `agents.AgentCall.text`, `ATLAS_RUN_TOKEN_LIMIT` | Stops a run with a clear error |
+| Run budget | `runtime.AgentCall.text`, `ATLAS_RUN_TOKEN_LIMIT` | Stops a run with a clear error |
 | Secret and injection guardrails | `governance.guard_text`, `neutralize`, `guard_tool_result` | Applied to input, output, and tool results, and recorded |
 | Provider blocks | `governance.explain_error` | Plain error plus a recorded event |
 | Telemetry | `governance.telemetry`, table `agent_calls` | Shown on the Agents page and in Runs & Metrics |
-| Deterministic review | `core/doc_checks.py` | The lower of the model score and the checks wins |
+| Deterministic review | `core/doc_checks.py`, `cap_for_failed_tests` in `maf/workflows/change.py` | The lower of the model score and the checks wins. A failing change is capped at 60 |
 
 ## Agentic QE Platform agents
 
 | Agent | Prompt | Type | Used by |
 |---|---|---|---|
-| Project copilot | `prompts/copilot.md` | `Agent` | Chat |
-| Business analyst | `prompts/business_analyst.md` | `Agent` | `ba` draft, refine, chat |
-| Document reviewer | `prompts/doc_reviewer.md` | `Agent` | `ba` review, on-demand review |
-| Gherkin author | `prompts/gherkin_author.md` | `Agent` | `ba` Gherkin, refine |
-| Repository analyst | `prompts/repo_analyst.md` | `Agent`, code supplied in the message | `qe` discover, chat |
-| Requirements analyst | `prompts/requirements_analyst.md` | `Agent`, code supplied in the message | `qe` requirements, chat |
-| Test architect | `prompts/test_architect.md` | `Agent` | `qe` plan, chat |
-| Test designer | `prompts/test_designer.md` | `Agent` | `qe` design, chat |
-| Test automation | `prompts/test_automation.md` | `Agent`, code supplied in the message | `qe` generate |
-| Defect diagnostician | `prompts/defect_diagnostician.md` | `Agent`, code in the message, replies with structured edits; read tools in chat | `qe` heal, `change`, chat |
-| Confidence reviewer | `prompts/confidence_reviewer.md` | `Agent` | `qe` plan and sign |
-| Feature engineer | `prompts/feature_engineer.md` | `Agent`, code in the message, replies with structured edits | `change` |
-| Bug reviewer | `prompts/bug_reviewer.md` | `Agent`, code supplied in the message | `bug_scan`, chat |
+| `project-copilot` | `prompts/project-copilot.md` | `Agent` | Chat |
+| `business-analyst` | `prompts/business-analyst.md` | `Agent`, with a section per artifact: requirements document and Gherkin | `ba` draft, Gherkin, refine, chat |
+| `repo-intelligence-analyst` | `prompts/repo-intelligence-analyst.md` | `Agent`, code supplied in the message | `qe` discover, chat |
+| `requirements-analyst` | `prompts/requirements-analyst.md` | `Agent`, code supplied in the message | `qe` requirements, chat |
+| `principal-test-architect` | `prompts/principal-test-architect.md` | `Agent` | `qe` plan, chat |
+| `test-design-architect` | `prompts/test-design-architect.md` | `Agent` | `qe` design, chat |
+| `test-automation-engineer` | `prompts/test-automation-engineer.md` | `Agent`, code supplied in the message | `qe` generate |
+| `defect-diagnostician` | `prompts/defect-diagnostician.md` | `Agent`, code in the message, replies with structured edits; read tools in chat | `qe` heal, `change`, chat |
+| `confidence-reviewer` | `prompts/confidence-reviewer.md` | `Agent`, with a section per review type: requirements document and evidence | `ba` review, on-demand document review, `qe` plan and sign |
+| `feature-engineer` | `prompts/feature-engineer.md` | `Agent`, code in the message, replies with structured edits | `change` |
+| `bug-reviewer` | `prompts/bug-reviewer.md` | `Agent`, code supplied in the message | `bug_scan`, chat |
+
+An agent key has hyphens, as in the plugin, and its policy file uses underscores (`maf/agents/repo_intelligence_analyst.py`) because Python modules cannot contain hyphens. `maf/agents/__init__.py` derives the key from the file name. A merged agent picks its section from an `Artifact:` or `Review type:` line at the start of the request. Migration `006_agent_plugin_names.sql` renamed the stored keys.
 
 ## Considered and not used
 
@@ -77,10 +77,10 @@ Each agent has its own file in `src/backend/maf/agents/`, which declares its pol
 | `HistoryProvider` | Chat history is in `chat_messages`, and CopilotKit sends the thread each run | Server-owned history is needed |
 | Orchestrations (`SequentialBuilder`, `MagenticBuilder`, `GroupChatBuilder`) | Gates and rework need explicit graphs | An open-ended multi-agent task appears |
 | Declarative workflows, Functional API | Graphs are defined in Python | Non-developers must edit workflows |
-| Harness Agent (`create_harness_agent`) | Built, then tested on `personal-finance-mcp`. On the configured endpoint older tool results get lost, so it reread files, drifted to other work, and used 80k to 285k tokens per change | The endpoint keeps tool results, or a task needs open-ended exploration |
+| Harness Agent (`create_harness_agent`) | Built, then tested on `personal-finance-mcp`. On the configured endpoint older tool results get lost, so it reread files, drifted to other work, and used 80k to 285k tokens per change. Not used in workflows | The endpoint keeps tool results, or a task needs open-ended exploration. Planned for Skill Studio, which would use its `skills_provider` and `skills_paths`. Not built yet |
 | `CopilotChat` prebuilt UI | Replaced by headless hooks for the reason above | CopilotKit fixes thread connect |
-| Agent Skills (`SkillsProvider`) | Rules live in prompts and code checks | Prompts grow too large |
+| Agent Skills (`SkillsProvider`) | Rules live in prompts and code checks | Prompts grow too large, or Skill Studio is built (planned in `docs/PLUGIN_AND_UI_PLAN.md`) |
 | RAG and vector stores | Keyword search over documents | Keyword search proves too weak |
 | MCP tools | Tools run in-process | External tools are needed in agents |
-| Durable, Foundry, A2A hosting | Local single-user app | Cloud deployment |
+| Durable, Foundry, A2A hosting | One process with SQLite and local files | Cloud deployment at scale |
 | Foundry evaluators | Local checks need no cloud | Hosted evals are wanted |

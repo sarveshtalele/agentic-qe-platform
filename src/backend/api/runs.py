@@ -15,7 +15,6 @@ from fastapi.responses import (
 from pydantic import BaseModel, Field
 
 from backend.api.common import _project
-from backend.api.documents import ActorIn
 from backend.core import auth, ledger
 from backend.core.security import safe_path
 from backend.db import db, rows
@@ -32,7 +31,6 @@ class RunIn(BaseModel):
 
 class DecisionIn(BaseModel):
     approved: bool
-    by: str
     feedback: str = ""
     open_pr: bool = False
 
@@ -120,7 +118,7 @@ def changes_zip(run_id: str):
 
 
 @router.post("/api/runs/{run_id}/merge-pr")
-async def merge_pr(run_id: str, body: ActorIn):
+async def merge_pr(run_id: str):
     run = engine.get(run_id)
     pr = run["state"].get("pull_request")
     repo = ingest.get(run["project_id"])
@@ -128,13 +126,13 @@ async def merge_pr(run_id: str, body: ActorIn):
         raise HTTPException(400, "This run has no pull request to merge")
     owner, name = github.parse_slug(repo["url"])
     result = await github.merge_pr(github.token_for(repo["credential_id"]), owner, name, pr["number"])
-    ledger.append(run["project_id"], body.by, "pull_request.merged", pr["url"], result)
+    ledger.append(run["project_id"], auth.signer(), "pull_request.merged", pr["url"], result)
     return result
 
 
 @router.post("/api/approvals/{approval_id}/decide")
 async def decide(approval_id: str, body: DecisionIn):
     try:
-        return await engine.decide(approval_id, body.approved, body.by, body.feedback, {"open_pr": body.open_pr})
+        return await engine.decide(approval_id, body.approved, auth.signer(), body.feedback, {"open_pr": body.open_pr})
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc

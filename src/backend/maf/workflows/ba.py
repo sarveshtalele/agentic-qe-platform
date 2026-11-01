@@ -44,9 +44,9 @@ def _strip_preamble(text: str) -> str:
 
 async def ba_draft(rc: RunContext, state: dict) -> dict:
     template = files.get_template(state["template_id"])
-    call = AgentCall(rc.run_id, rc.project_id, "business_analyst")
+    call = AgentCall(rc.run_id, rc.project_id, "business-analyst")
     message = (
-        f"Write the document for this request.\n\nBRIEF:\n{state.get('brief', '')}\n\nSOURCE DOCUMENTS:\n{state.get('source_text') or '(none)'}\n\n"
+        f"Artifact: requirements document. Write the document for this request.\n\nBRIEF:\n{state.get('brief', '')}\n\nSOURCE DOCUMENTS:\n{state.get('source_text') or '(none)'}\n\n"
         f"TEMPLATE (keep every heading exactly, in this order):\n{template['body']}\n"
     )
     current = documents.get(state["doc_id"])["content"] if state.get("doc_id") else ""
@@ -62,17 +62,17 @@ async def ba_draft(rc: RunContext, state: dict) -> dict:
         missing = files.missing_headings(template["body"], text)
     title = state.get("title") or f"{template['name']}"
     if state.get("doc_id"):
-        doc = documents.save_version(state["doc_id"], text, "agent:business_analyst", note="Revision: " + state.get("feedback", "")[:200], prompt_ref=call.prompt_ref, run_id=rc.run_id)
+        doc = documents.save_version(state["doc_id"], text, "agent:business-analyst", note="Revision: " + state.get("feedback", "")[:200], prompt_ref=call.prompt_ref, run_id=rc.run_id)
     else:
-        doc = documents.create(rc.project_id, template["kind"], title, text, "agent:business_analyst", note="First draft", prompt_ref=call.prompt_ref, run_id=rc.run_id, template_id=template["id"])
+        doc = documents.create(rc.project_id, template["kind"], title, text, "agent:business-analyst", note="First draft", prompt_ref=call.prompt_ref, run_id=rc.run_id, template_id=template["id"])
     rc.log(f"Saved {doc['title']} v{doc['version']}", {"document_id": doc["id"], "missing_sections": missing}, "artifact")
     return {"doc_id": doc["id"], "iteration": state.get("iteration", 0) + 1, "missing_sections": missing}
 
 
 async def ba_review(rc: RunContext, state: dict) -> dict:
     doc = documents.get(state["doc_id"])
-    review = await AgentCall(rc.run_id, rc.project_id, "doc_reviewer").typed(
-        f"Review this document against the brief.\n\nBRIEF:\n{state.get('brief', '')}\n\nSOURCES:\n{state.get('source_text') or '(none)'}\n\nDOCUMENT:\n{doc['content']}", Review)
+    review = await AgentCall(rc.run_id, rc.project_id, "confidence-reviewer").typed(
+        f"Review type: requirements document. Review this document against the brief.\n\nBRIEF:\n{state.get('brief', '')}\n\nSOURCES:\n{state.get('source_text') or '(none)'}\n\nDOCUMENT:\n{doc['content']}", Review)
     # the lower of the model score and the deterministic checks wins
     combined = doc_checks.apply(review.model_dump(), doc["content"], files.get_template(state["template_id"])["body"], f"{state.get('brief', '')}\n{state.get('source_text', '')}")
     rc.log(f"Review score {combined['score']} (model {combined['model_score']}): {combined['verdict']}", combined, "review")
@@ -86,8 +86,8 @@ async def ba_review(rc: RunContext, state: dict) -> dict:
 
 async def ba_gherkin(rc: RunContext, state: dict) -> dict:
     doc = documents.get(state["doc_id"])
-    call = AgentCall(rc.run_id, rc.project_id, "gherkin_author")
-    message = f"Convert this document's requirements into one Gherkin feature file.\n\nDOCUMENT:\n{doc['content']}"
+    call = AgentCall(rc.run_id, rc.project_id, "business-analyst")
+    message = f"Artifact: Gherkin feature file. Convert this document's requirements into one Gherkin feature file.\n\nDOCUMENT:\n{doc['content']}"
     errors = ""
     for _ in range(3):
         text = await call.text(message + (f"\n\nThe previous output failed the Gherkin parser: {errors}\n\nPREVIOUS OUTPUT:\n{text}" if errors else ""))  # noqa: F821
@@ -99,9 +99,9 @@ async def ba_gherkin(rc: RunContext, state: dict) -> dict:
     else:
         raise RuntimeError(f"Gherkin author failed validation: {errors}")
     if state.get("gherkin_id"):
-        saved = documents.save_version(state["gherkin_id"], text, "agent:gherkin_author", note="Regenerated", prompt_ref=call.prompt_ref, run_id=rc.run_id)
+        saved = documents.save_version(state["gherkin_id"], text, "agent:business-analyst", note="Regenerated", prompt_ref=call.prompt_ref, run_id=rc.run_id)
     else:
-        saved = documents.create(rc.project_id, "gherkin", f"{doc['title']} scenarios", text, "agent:gherkin_author", prompt_ref=call.prompt_ref, run_id=rc.run_id, parent_id=doc["id"])
+        saved = documents.create(rc.project_id, "gherkin", f"{doc['title']} scenarios", text, "agent:business-analyst", prompt_ref=call.prompt_ref, run_id=rc.run_id, parent_id=doc["id"])
     rc.log(f"Gherkin valid: {check['scenarios']} scenarios, {check['steps']} steps", {"document_id": saved["id"]}, "artifact")
     return {"gherkin_id": saved["id"]}
 

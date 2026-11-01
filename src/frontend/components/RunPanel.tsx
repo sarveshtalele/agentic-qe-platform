@@ -3,7 +3,8 @@
 import { CheckCircle2, Circle, FileText, Loader2, XCircle } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, getSigner, setSigner, when } from "../lib/api";
+import { api, when } from "../lib/api";
+import { useAuth } from "./AuthGate";
 import { Badge, Button, Card, ErrorNote, Field, inputClass, useToast } from "./ui";
 
 function ConfidenceNote({ review }: { review?: any }) {
@@ -71,19 +72,17 @@ export function RunDocuments({ projectId, runId }: { projectId: string; runId: s
 }
 
 export function ApprovalCard({ approval, projectId, onDecided }: { approval: any; projectId: string; onDecided: () => void }) {
-  const [by, setBy] = useState("");
+  const { user } = useAuth();
   const [feedback, setFeedback] = useState("");
   const [openPr, setOpenPr] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  useEffect(() => setBy(getSigner()), []);
   const payload = approval.payload || {};
   const decide = async (approved: boolean) => {
     setBusy(true);
     setError("");
     try {
-      setSigner(by);
-      await api(`/approvals/${approval.id}/decide`, { json: { approved, by, feedback, open_pr: openPr } });
+      await api(`/approvals/${approval.id}/decide`, { json: { approved, feedback, open_pr: openPr } });
       onDecided();
     } catch (e: any) {
       setError(e.message);
@@ -123,14 +122,14 @@ export function ApprovalCard({ approval, projectId, onDecided }: { approval: any
       )}
       {payload.diff !== undefined && <pre className="mono max-h-96 overflow-auto rounded-lg bg-[#070d1f] p-3 text-xs text-slate-200">{payload.diff.split("\n").map((line: string, i: number) => <div key={i} className={line.startsWith("+") ? "text-emerald-400" : line.startsWith("-") ? "text-rose-400" : ""}>{line || " "}</div>)}</pre>}
       <div className="grid gap-3 md:grid-cols-2">
-        <Field label="Your name (signer)"><input className={inputClass} value={by} onChange={(e) => setBy(e.target.value)} placeholder="Name recorded in the audit ledger" /></Field>
+        <Field label="Signing as"><p className="py-2 text-sm font-semibold" data-testid="signing-as">{user.username}</p></Field>
         <Field label="Feedback (required to send back)"><input className={inputClass} value={feedback} onChange={(e) => setFeedback(e.target.value)} placeholder="What should change" /></Field>
       </div>
       {payload.can_open_pr && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={openPr} onChange={(e) => setOpenPr(e.target.checked)} /> Push the branch and open a pull request</label>}
       <ErrorNote message={error} />
       <div className="flex gap-2">
-        <Button variant="success" busy={busy} disabled={!by.trim()} onClick={() => decide(true)}>Approve</Button>
-        <Button variant="danger" busy={busy} disabled={!by.trim() || !feedback.trim()} onClick={() => decide(false)}>Send back</Button>
+        <Button variant="success" busy={busy} onClick={() => decide(true)}>Approve</Button>
+        <Button variant="danger" busy={busy} disabled={!feedback.trim()} onClick={() => decide(false)}>Send back</Button>
       </div>
     </div>
   );
@@ -256,7 +255,7 @@ export function RunPanel({ runId, projectId, onFinished }: { runId: string; proj
             {run.state.worktree && <a className="text-indigo-500 underline" href={`/api/runs/${run.id}/changes.zip`}>Download changed files</a>}
             {run.state.patch_doc && <a className="text-indigo-500 underline" href={`/api/documents/${run.state.patch_doc}/export/patch`}>Download patch</a>}
             {run.state.pull_request && <a className="text-indigo-500 underline" target="_blank" rel="noreferrer" href={run.state.pull_request.url}>Pull request #{run.state.pull_request.number}</a>}
-            {run.state.pull_request && <Button variant="secondary" className="!px-2 !py-1 !text-xs" onClick={async () => { if (confirm("Squash-merge this pull request on GitHub?")) { try { await api(`/runs/${run.id}/merge-pr`, { json: { by: getSigner() || "user" } }); toast("Pull request merged"); } catch (e: any) { toast(e.message, "error"); } } }}>Merge</Button>}
+            {run.state.pull_request && <Button variant="secondary" className="!px-2 !py-1 !text-xs" onClick={async () => { if (confirm("Squash-merge this pull request on GitHub?")) { try { await api(`/runs/${run.id}/merge-pr`, { method: "POST" }); toast("Pull request merged"); } catch (e: any) { toast(e.message, "error"); } } }}>Merge</Button>}
           </div>
         )}
         {run.state.source_files !== undefined && <p className="text-sm" data-testid="scan-coverage">Reviewed <b>{run.state.reviewed_files?.length || 0}</b> of <b>{run.state.source_files}</b> source files{run.state.unreviewed_files?.length ? `. Not reviewed: ${run.state.unreviewed_files.join(", ")}` : ""}</p>}

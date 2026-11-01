@@ -55,7 +55,7 @@ export default function BugsPage() {
               <ul className="divide-y divide-slate-200 dark:divide-slate-800" data-testid="findings">
                 {shown.map((f) => (
                   <li key={f.id} className="py-2.5">
-                    <div className="flex flex-wrap items-center gap-2"><Badge tone={{ critical: "rose", high: "rose", medium: "amber", low: "slate", info: "slate" }[f.severity as string]}>{f.severity}</Badge><span className="text-sm font-semibold">{f.title}</span><span className="mono text-[11px] text-slate-500">{f.source} {f.rule}</span></div>
+                    <div className="flex flex-wrap items-center gap-2"><Badge tone={{ critical: "rose", high: "rose", medium: "amber", low: "slate", info: "slate" }[f.severity as string]}>{f.severity}</Badge><span className="text-sm font-semibold">{f.title}</span>{f.status === "fix_attempted" && <Badge tone="amber">fix attempted, tests did not pass</Badge>}<span className="mono text-[11px] text-slate-500">{f.source} {f.rule}</span></div>
                     <p className="mono mt-1 text-xs text-slate-500">{f.file}:{f.line}</p>
                     {f.evidence && <pre className="mono mt-1 overflow-x-auto rounded bg-slate-100 p-1.5 text-xs dark:bg-[#070d1f]">{f.evidence}</pre>}
                     {f.explanation && <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">{f.explanation}</p>}

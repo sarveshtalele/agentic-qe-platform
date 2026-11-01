@@ -16,20 +16,24 @@ router = APIRouter()
 
 @router.get("/api/projects/{project_id}/gates")
 def project_gates(project_id: str):
-    return gates.status(project_id)
+    return _named(gates.status(project_id))
+
+
+def _named(items: list[dict]) -> list[dict]:
+    names = auth.display_names({g["decided_by"] for g in items if g["decided_by"]})
+    return [{**g, "decided_by_name": names.get(g["decided_by"], g["decided_by"])} for g in items]
 
 
 class GateIn(BaseModel):
     approved: bool
-    by: str
     reason: str = ""
 
 
 @router.post("/api/projects/{project_id}/gates/{gate}/decision")
 def decide_gate(project_id: str, gate: int, body: GateIn):
     _project(project_id)
-    gates.decide(project_id, gate, body.approved, body.by, body.reason)
-    return gates.status(project_id)
+    gates.decide(project_id, gate, body.approved, auth.signer(), body.reason)
+    return _named(gates.status(project_id))
 
 
 @router.get("/api/projects/{project_id}/approvals")
@@ -41,13 +45,14 @@ def project_approvals(project_id: str, status: str = "pending"):
 
 @router.get("/api/projects/{project_id}/ledger")
 def project_ledger(project_id: str):
-    return {"entries": ledger.entries(project_id), "verification": ledger.verify(project_id)}
+    found = ledger.entries(project_id)
+    names = auth.display_names({e["actor"] for e in found})
+    return {"entries": [{**e, "actor_name": names.get(e["actor"], e["actor"])} for e in found], "verification": ledger.verify(project_id)}
 
 
 class PromptIn(BaseModel):
     body: str = Field(min_length=10)
     note: str = Field(min_length=1)
-    author: str = "user"
 
 
 @router.get("/api/prompts")
@@ -60,12 +65,13 @@ def prompt_history(agent: str):
     items = prompts.history(agent)
     if not items:
         raise KeyError(agent)
-    return items
+    names = auth.display_names({i["author"] for i in items})
+    return [{**i, "author_name": names.get(i["author"], i["author"])} for i in items]
 
 
 @router.post("/api/prompts/{agent}", status_code=201)
 def add_prompt_version(agent: str, body: PromptIn):
-    return prompts.add_version(agent, body.body, body.note, body.author)
+    return prompts.add_version(agent, body.body, body.note, auth.signer())
 
 
 @router.post("/api/prompts/{agent}/activate/{version}")
@@ -76,7 +82,6 @@ def activate_prompt(agent: str, version: int):
 class AgentSettingsIn(BaseModel):
     enabled: bool
     max_tokens: int | None = None
-    by: str
     reason: str = ""
 
 
@@ -100,6 +105,7 @@ def agent_detail(agent: str):
     item = next((a for a in governance.overview() if a["key"] == agent), None)
     if not item:
         raise KeyError(agent)
+    item = {**item, "settings_by_name": auth.display_names({item["settings_by"]}).get(item["settings_by"], item["settings_by"]) if item.get("settings_by") else None}
     admin = auth.current_user.get()["role"] == "admin"  # recent calls and events span projects
     return {**item, "calls_recent": governance.recent_calls(agent) if admin else [], "events_recent": governance.recent_events(agent) if admin else [], "evals": evals.history(agent), "has_evals": agent in evals.available()}
 
@@ -107,7 +113,7 @@ def agent_detail(agent: str):
 @router.put("/api/agents/{agent}/settings")
 def agent_settings(agent: str, body: AgentSettingsIn):
     try:
-        governance.update_settings(agent, body.enabled, body.max_tokens, body.by, body.reason)
+        governance.update_settings(agent, body.enabled, body.max_tokens, auth.signer(), body.reason)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
     return agent_detail(agent)

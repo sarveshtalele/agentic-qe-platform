@@ -2,7 +2,7 @@
 
 This is the target design for running Agentic QE Platform for several users on Azure, in East US 2, next to the current model endpoint.
 
-**Status: this is a design, and it is not built yet.** Today the app runs as one process with SQLite and local folders, which `docs/AZURE_DEPLOY.md` deploys as it stands. That version suits one person or a small trusted team. The changes needed to reach this design are listed under [Migration steps](#migration-steps).
+**Status: this is a design, and it is not built yet.** Azure has never been deployed for real, even in the simple form. Today the app runs as one process with SQLite and local folders, which `docs/AZURE_DEPLOY.md` deploys as it stands. That version suits one person or a small trusted team. The changes needed to reach this design are listed under [Migration steps](#migration-steps).
 
 Prices come from the [Azure Retail Prices API](https://learn.microsoft.com/en-us/rest/api/cost-management/retail-prices/azure-retail-prices) in INR for `eastus2`, fetched on 1 November 2026. They exclude taxes. A month is 730 hours.
 
@@ -29,7 +29,7 @@ The rule: **PostgreSQL holds small records you search and join. Blob Storage hol
 
 | Data | Store | Why |
 |---|---|---|
-| Users, sessions, sign-in events | PostgreSQL | Looked up on every request, and need transactions |
+| Users, sessions, sign-in events (tables `users`, `sessions`, `auth_events` in SQLite today) | PostgreSQL | Looked up on every request, and need transactions |
 | Projects, runs, run events, approvals, gates | PostgreSQL | Joined and filtered constantly |
 | Audit ledger | PostgreSQL | Each entry must commit in strict order with its hash |
 | Findings, chats, memories, agent calls, tool calls, guardrail events | PostgreSQL | Powers Observability and Agents, which need filtering and totals |

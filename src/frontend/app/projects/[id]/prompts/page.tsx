@@ -3,7 +3,7 @@
 import { Check, Save } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Badge, Button, Card, ErrorNote, inputClass, PageTitle, Spinner, useToast } from "../../../../components/ui";
-import { api, getSigner, when } from "../../../../lib/api";
+import { api, when } from "../../../../lib/api";
 
 export default function PromptsPage() {
   const [evalAgents, setEvalAgents] = useState<string[]>([]);
@@ -34,7 +34,7 @@ export default function PromptsPage() {
   const save = async () => {
     setError("");
     try {
-      await api(`/prompts/${agent}`, { json: { body, note, author: getSigner() || "user" } });
+      await api(`/prompts/${agent}`, { json: { body, note } });
       setNote("");
       await open(agent);
       loadAll();
@@ -71,7 +71,7 @@ export default function PromptsPage() {
             <Card title="History">
               <ul className="divide-y divide-slate-200 text-sm dark:divide-slate-800">{history.map((p) => (
                 <li key={p.version} className="flex items-center justify-between gap-2 py-1.5">
-                  <span className="min-w-0"><b>v{p.version}</b> <span className="text-xs text-slate-500">{p.author} · {when(p.created_at)} · {p.note}</span></span>
+                  <span className="min-w-0"><b>v{p.version}</b> <span className="text-xs text-slate-500">{p.author_name} · {when(p.created_at)} · {p.note}</span></span>
                   {p.active ? <Badge tone="emerald">active</Badge> : <Button variant="secondary" className="!px-2 !py-1 !text-xs" onClick={async () => { await api(`/prompts/${agent}/activate/${p.version}`, { method: "POST" }); await open(agent); loadAll(); toast(`Rolled back to v${p.version}`); }}><Check className="h-3 w-3" /> Activate</Button>}
                 </li>
               ))}</ul>

@@ -144,6 +144,29 @@ def session_user(token: str | None) -> dict | None:
     return {"id": account["id"], "role": "user"}
 
 
+def signer() -> str:
+    """The signed-in account's id: the only identity written to the ledger, gates, and versions. Never taken from a request body."""
+    user = current_user.get()
+    if not user:
+        raise AuthError("Sign in first")
+    return user["id"]
+
+
+def display_names(ids: set[str]) -> dict[str, str]:
+    """Account id to a name for this viewer. A username is a login detail, so only its owner and the admin see it."""
+    viewer = current_user.get() or {}
+    names = {}
+    for found in ids:
+        if found == ADMIN_ID:
+            names[found] = "Administrator"
+        elif found.startswith("usr_") and (viewer.get("role") == "admin" or viewer.get("id") == found):
+            try:
+                names[found] = get_user(found)["username"]
+            except KeyError:
+                pass
+    return names
+
+
 def tokens_used(user_id: str) -> int:
     with db() as con:
         found = con.execute("SELECT COALESCE(SUM(c.tokens_in + c.tokens_out), 0) FROM agent_calls c JOIN projects p ON p.id=c.project_id WHERE p.owner_id=?", (user_id,)).fetchone()

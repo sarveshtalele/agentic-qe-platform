@@ -5,19 +5,20 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useProject } from "../../../../../components/ProjectShell";
+import { useAuth } from "../../../../../components/AuthGate";
 import { DocumentEditor } from "../../../../../components/DocumentEditor";
 import { Badge, Button, Card, ErrorNote, inputClass, Spinner, useToast } from "../../../../../components/ui";
-import { api, getSigner, setSigner, when } from "../../../../../lib/api";
+import { api, when } from "../../../../../lib/api";
 
 export default function DocumentPage() {
   const { project } = useProject();
   const { docId } = useParams<{ docId: string }>();
   const router = useRouter();
   const toast = useToast();
+  const { user } = useAuth();
   const [doc, setDoc] = useState<any>(null);
   const [draft, setDraft] = useState("");
   const [note, setNote] = useState("");
-  const [author, setAuthor] = useState("");
   const [tab, setTab] = useState<"document" | "source" | "history">("document");
   const [versions, setVersions] = useState<any[]>([]);
   const [viewing, setViewing] = useState<any>(null);
@@ -36,7 +37,6 @@ export default function DocumentPage() {
   }, [docId]);
   useEffect(() => {
     load().catch((e) => setError(e.message));
-    setAuthor(getSigner());
   }, [load]);
   const dirty = doc && draft !== doc.content;
   useEffect(() => {
@@ -52,8 +52,7 @@ export default function DocumentPage() {
     setBusy(true);
     setError("");
     try {
-      setSigner(author);
-      await api(`/documents/${docId}`, { method: "PUT", json: { content: draft, note: note || "Edited", author: author || "user" } });
+      await api(`/documents/${docId}`, { method: "PUT", json: { content: draft, note: note || "Edited" } });
       setNote("");
       await load();
       toast("Saved as a new version");
@@ -64,14 +63,12 @@ export default function DocumentPage() {
     }
   };
   const approve = async () => {
-    if (!author.trim()) return setError("Enter your name to approve");
-    setSigner(author);
-    await api(`/documents/${docId}/approve`, { json: { by: author } });
+    await api(`/documents/${docId}/approve`, { method: "POST" });
     await load();
     toast("Document approved");
   };
   const restore = async (version: number) => {
-    await api(`/documents/${docId}/restore/${version}`, { json: { by: author || "user" } });
+    await api(`/documents/${docId}/restore/${version}`, { method: "POST" });
     setViewing(null);
     setDiff("");
     await load();
@@ -101,7 +98,7 @@ export default function DocumentPage() {
     setWorking("refine");
     setError("");
     try {
-      await api(`/documents/${docId}/refine`, { json: { instructions: refineText, by: author || "user" } });
+      await api(`/documents/${docId}/refine`, { json: { instructions: refineText } });
       setRefineText("");
       await load();
       toast("Agent saved a new version");
@@ -118,7 +115,7 @@ export default function DocumentPage() {
         <div>
           <h1 className="text-xl font-bold">{doc.title}</h1>
           <p className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-            <Badge tone="indigo">{doc.kind}</Badge> <span data-testid="doc-version">v{doc.version}</span> <Badge>{doc.status}</Badge> by {doc.author}
+            <Badge tone="indigo">{doc.kind}</Badge> <span data-testid="doc-version">v{doc.version}</span> <Badge>{doc.status}</Badge> by {doc.author_name}
             {doc.prompt_ref && <span className="mono">{doc.prompt_ref}</span>}
             <span className="mono" title={doc.sha256}>sha256 {doc.sha256.slice(0, 12)}</span>
           </p>
@@ -159,7 +156,7 @@ export default function DocumentPage() {
       )}
       {tab !== "history" && (
         <div className="sticky bottom-0 z-10 mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white/95 p-2 backdrop-blur dark:border-slate-800 dark:bg-[#0b1329]/95" data-testid="save-bar">
-          <input aria-label="Your name" className={`${inputClass} max-w-[180px]`} placeholder="Your name" value={author} onChange={(e) => setAuthor(e.target.value)} />
+          <span className="text-xs text-slate-500" data-testid="signing-as">Signing as {user.username}</span>
           <input aria-label="Change note" className={`${inputClass} max-w-md`} placeholder="What changed" value={note} onChange={(e) => setNote(e.target.value)} />
           <Button onClick={save} busy={busy} disabled={!dirty}><Save className="h-4 w-4" /> Save version</Button>
           {dirty ? <><Button variant="secondary" onClick={() => setDraft(doc.content)}>Discard changes</Button><span className="text-xs text-amber-500">Unsaved changes</span></> : <span className="text-xs text-slate-500">Select any text or table cell to edit it</span>}
@@ -172,7 +169,7 @@ export default function DocumentPage() {
               {versions.map((v, i) => (
                 <li key={v.version} className="py-2">
                   <div className="flex items-center justify-between"><b>v{v.version}</b><span className="text-xs text-slate-500">{when(v.created_at)}</span></div>
-                  <p className="truncate text-xs text-slate-500" title={v.note}>{v.author} · {v.note}</p>
+                  <p className="truncate text-xs text-slate-500" title={v.note}>{v.author_name} · {v.note}</p>
                   <div className="mt-1 flex gap-3 text-xs">
                     <button className="text-indigo-500" onClick={async () => { setViewing(await api(`/documents/${docId}?version=${v.version}`)); setDiff(""); }}>View</button>
                     {i < versions.length - 1 && <button className="text-indigo-500" onClick={async () => { setDiff(await api(`/documents/${docId}/diff?a=${versions[i + 1].version}&b=${v.version}`)); setViewing(null); }}>Diff with v{versions[i + 1].version}</button>}

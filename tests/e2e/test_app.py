@@ -23,7 +23,6 @@ EVIDENCE = ROOT / "docs" / "evidence"
 UI = "http://127.0.0.1:3010"
 API = "http://127.0.0.1:8010"
 LLM_TIMEOUT = 420_000
-SIGNER = "Priya Tester"
 
 APP_ZIP = {
     "shop-main/inventory.py": '"""Stock keeping."""\n\n\ndef reserve(stock: int, quantity: int) -> int:\n    """Return stock left after reserving. Quantity must be positive and not exceed stock."""\n    if quantity <= 0:\n        raise ValueError("quantity must be positive")\n    if quantity > stock:\n        raise ValueError("not enough stock")\n    return stock - quantity\n\n\ndef restock(stock: int, quantity: int) -> int:\n    return stock - quantity\n',
@@ -54,7 +53,6 @@ def wait_card(page, title_part: str):
 
 def approve_next(page, title_part: str) -> None:
     card = wait_card(page, title_part)
-    card.get_by_placeholder("Name recorded in the audit ledger").fill(SIGNER)
     card.get_by_role("button", name="Approve").click()
     expect(card.filter(has_text=title_part)).to_have_count(0, timeout=30_000)
 
@@ -238,7 +236,6 @@ def test_07c_edit_document_in_place_with_tables_and_images(page):
     image = page.get_by_test_id("document-page").locator('img[alt="diagram.png"]')
     expect(image).to_be_visible(timeout=15_000)
     assert image.evaluate("i => i.naturalWidth") == 1
-    page.get_by_label("Your name").fill(SIGNER)
     page.get_by_label("Change note").fill("Edited in place")
     bar.get_by_role("button", name="Save version").click()
     expect(page.get_by_text("Saved as a new version")).to_be_visible(timeout=15_000)
@@ -268,7 +265,6 @@ def test_08_document_edit_history_restore_and_exports(page):
     for heading in ("Executive Summary", "Functional Requirements", "Open Questions"):
         assert heading in original, "template headings are kept"
     box.fill(original + "\n\nEdited by a human reviewer.\n")
-    page.get_by_label("Your name").fill(SIGNER)
     page.get_by_role("button", name="Save version").click()
     version = page.get_by_test_id("doc-version")
     expect(version).not_to_have_text(re.compile(r"v1$"))
@@ -307,7 +303,6 @@ def test_10_feature_builder_runs_real_tests_on_a_branch(page):
     expect(card).to_contain_text("stock + quantity")
     expect(card).to_contain_text("PASS")
     shot(page, "11-feature-diff")
-    card.get_by_placeholder("Name recorded in the audit ledger").fill(SIGNER)
     card.get_by_role("button", name="Approve").click()
     expect(page.get_by_test_id("run-status")).to_contain_text("completed", timeout=60_000)
     expect(page.get_by_text("Commit", exact=False).first).to_be_visible()
@@ -321,7 +316,6 @@ def test_10b_fix_a_finding_on_a_branch(page):
     card = wait_card(page, "Review change")
     expect(card).to_contain_text("diff --git a/admin.py")
     shot(page, "12b-bug-fix-diff")
-    card.get_by_placeholder("Name recorded in the audit ledger").fill(SIGNER)
     card.get_by_role("button", name="Approve").click()
     expect(page.get_by_test_id("run-status")).to_contain_text("completed", timeout=60_000)
 
@@ -368,7 +362,7 @@ def test_13_chat_memory_new_window_and_specialist_agent(page):
         page.get_by_role("link", name="Open in new window").click()
     window = popup.value
     window.wait_for_load_state()
-    window.get_by_label("Agent for new chat").select_option("copilot")
+    window.get_by_label("Agent for new chat").select_option("project-copilot")
     window.get_by_role("button", name="New chat").click()
     pane = window.get_by_test_id("chat-pane")
     box = pane.locator("textarea")
@@ -382,7 +376,7 @@ def test_13_chat_memory_new_window_and_specialist_agent(page):
     else:
         raise AssertionError("the agent did not store the memory")
     expect(window.get_by_text(re.compile(r"Project memory \(1\)"))).to_be_visible(timeout=30_000)
-    window.get_by_label("Agent for new chat").select_option("test_architect")
+    window.get_by_label("Agent for new chat").select_option("principal-test-architect")
     window.get_by_role("button", name="New chat").click()
     messages = window.get_by_test_id("chat-messages")
     expect(messages).to_contain_text("Ask about this project", timeout=15_000)  # a truly empty chat
@@ -399,20 +393,20 @@ def test_13_chat_memory_new_window_and_specialist_agent(page):
 def test_14_governance_ledger_and_metrics_are_real(page):
     page.goto(f"{state['base']}/governance")
     expect(page.get_by_test_id("ledger-valid")).to_contain_text("Chain valid")
-    expect(page.get_by_text(SIGNER).first).to_be_visible()
+    expect(page.get_by_text("Administrator").first).to_be_visible()  # the ledger names the signed-in account
     shot(page, "19-governance")
     page.goto(f"{state['base']}/runs")
     expect(page.get_by_role("heading", name="Agent calls")).to_be_visible()
-    expect(page.get_by_text("business_analyst").first).to_be_visible()
+    expect(page.get_by_text("business-analyst").first).to_be_visible()
     expect(page.get_by_role("cell", name="Avg ms").or_(page.get_by_text("Avg ms")).first).to_be_visible()
     shot(page, "20-metrics")
 
 
 def test_15_prompt_version_and_real_eval(page):
     page.goto(f"{state['base']}/prompts")
-    page.get_by_role("button", name=re.compile("gherkin author")).click()
+    page.get_by_role("button", name=re.compile("business.analyst", re.I)).click()
     page.get_by_role("button", name="Run with the real model").click()
-    expect(page.get_by_text(re.compile(r"\d/2 passed"))).to_be_visible(timeout=180_000)
+    expect(page.get_by_text(re.compile(r"\d/5 passed"))).to_be_visible(timeout=180_000)
     box = page.get_by_label("Prompt body")
     box.fill(box.input_value() + "\nPrefer short scenario names.")
     page.get_by_label("Reason for change").fill("Shorter names")
@@ -426,7 +420,7 @@ def test_15_prompt_version_and_real_eval(page):
 def test_15b_agents_page_evals_kill_switch_and_real_numbers(page):
     page.goto(f"{UI}/agents")
     cards = page.get_by_test_id("agent-card")
-    expect(cards).to_have_count(13)
+    expect(cards).to_have_count(11)  # doc_reviewer and gherkin_author merged into their plugin-named agents
     expect(page.get_by_test_id("risk-legend")).to_contain_text("can change code")
     page.get_by_role("button", name="Run all evaluations").click()
     expect(page.get_by_role("button", name="Running evaluations")).to_be_visible()
@@ -435,12 +429,11 @@ def test_15b_agents_page_evals_kill_switch_and_real_numbers(page):
     state["eval_summary"] = page.get_by_test_id("agent-stats").inner_text()
     (EVIDENCE / "eval-summary.txt").write_text(page.get_by_test_id("agent-cards").inner_text())
     shot(page, "21b-agents")
-    cards.filter(has_text="Document reviewer").click()
-    expect(page).to_have_url(re.compile("/agents/doc_reviewer"))
+    cards.filter(has_text=re.compile("confidence.reviewer", re.I)).click()
+    expect(page).to_have_url(re.compile("/agents/confidence-reviewer"))
     detail = page.get_by_test_id("agent-detail")
     expect(page.get_by_test_id("agent-details-table")).to_contain_text("Tokens per model call")
     expect(detail).to_contain_text("scores weak doc low")
-    detail.get_by_label("Your name").fill(SIGNER)
     detail.get_by_label("Reason").fill("Temporarily off for the test")
     detail.get_by_role("button", name="Disable agent").click()
     expect(page.get_by_test_id("agent-details-table")).to_contain_text("Disabled")

@@ -77,7 +77,7 @@ async def scan_llm(rc: RunContext, state: dict) -> dict:
             for index, part in enumerate(parts, 1):
                 note = f" This is part {index} of {len(parts)}, and its line numbers are the file's real ones." if len(parts) > 1 else ""
                 async with gate:
-                    result = await AgentCall(rc.run_id, rc.project_id, "bug_reviewer").typed(f"Review {path} for real defects.{note}\n\n{part}", ReviewFindings)
+                    result = await AgentCall(rc.run_id, rc.project_id, "bug-reviewer").typed(f"Review {path} for real defects.{note}\n\n{part}", ReviewFindings)
                 found += [{**f.model_dump(), "file": f.file or path} for f in result.findings]
         except RuntimeError as exc:
             missed.append(path)

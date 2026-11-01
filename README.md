@@ -15,7 +15,8 @@ A governed workspace for business analysts and developers, built on Microsoft Ag
 | QE Studio | Requirements, plan, design, generated tests, execution, healing, and traceability, through gates G0 to G5, shown live |
 | Copilot | AG-UI and CopilotKit chat with saved threads, project memory, and selectable agents |
 | Accounts | Admin login from `.env`. Users have their own password, model, token allocation, and active dates, and see only their own projects |
-| Agents | 13 agents shown as cards, each with its own page: tool policy, kill switch, token limits, guardrails, and evaluations |
+| Confidence review | An independent review runs beside each stage. Code can lower the score. A code change's review is capped at 60 when its tests fail |
+| Agents | 11 agents, named as in the agentic-qe plugin, shown as cards, each with its own page: tool policy, kill switch, token limits, guardrails, and evaluations |
 | Observability | Skills, agents, tools, workflow steps, approvals, guardrails, and the audit ledger, by run, project, or all projects |
 | Documentation | A built-in docs site at `/docs`, with search |
 
@@ -87,7 +88,7 @@ Each agent, tool, workflow, and API area has its own file. To add an agent or wo
 | `prompts`, `evals`, `templates` | Agent prompts, agent eval cases, document templates |
 | `tests` | Unit, integration, and Playwright tests |
 | `deploy/azure`, `scripts` | App Service startup, launcher, packaging, hooks |
-| `docs` | Design, Azure guide, file map, test screenshots |
+| `docs` | Design, Azure guide, roadmap, file map, test screenshots |
 
 `docs/PROJECT_STRUCTURE.md` lists every file, what it does, and what uses it. It is generated from the real imports by `python scripts/gen_structure.py`.
 
@@ -107,13 +108,36 @@ python scripts/dev.py e2e
 
 `tests/e2e/test_finance_repo.py` runs every feature on [personal-finance-mcp](https://github.com/sarveshtalele/personal-finance-mcp) by adding a new MCP tool. CI runs the offline tests on Windows, macOS, and Linux.
 
+### Latest results
+
+| Check | Result |
+|---|---|
+| Offline tests | 183 passed |
+| End-to-end tests (real model, repository, browser) | 33 of 33 passed |
+| CI at commit 34f6dda | Green on Windows, macOS, and Linux |
+| QE run on the finance repository | 86 tests executed, 64 passed, 22 failed, coverage 85%, verdict FAIL |
+
+The end-to-end suite checks that the platform runs every stage. It does not mean the generated tests all pass. The 22 failures stay reported as failures.
+
+## Roadmap
+
+Planned, and not built. Phase 1 is starting. `docs/PLUGIN_AND_UI_PLAN.md` has the approved plan.
+
+| Item | Purpose |
+|---|---|
+| Skill Studio | Create and manage skills that agents use |
+| Repository-aware changes with tested ZIP delivery | Change a repository, test it, and hand back a ZIP |
+| Application builder from BA documents | Build an application from approved BA documents |
+| Chatbot | A reworked project chat, with a card for each feature and a live run card |
+| New UI | A new design system and upgraded components |
+
 ## Deploy to Azure
 
 ```bash
 python scripts/package_azure.py
 ```
 
-This makes separate backend and frontend ZIPs in `dist/`. With `--repo`, it also makes a clean copy of the project in `dist/agentic-qe-platform`. `docs/AZURE_DEPLOY.md` has the portal steps and costs: about ₹1,182 a month on one Basic B1 Linux plan in East US 2, at retail prices checked on 1 November 2026.
+Azure has not been deployed for real yet. This makes separate backend and frontend ZIPs in `dist/`. With `--repo`, it also makes a clean copy of the project in `dist/agentic-qe-platform`. `docs/AZURE_DEPLOY.md` has the portal steps and costs: about ₹1,182 a month on one Basic B1 Linux plan in East US 2, at retail prices checked on 1 November 2026.
 
 ## Documents
 
@@ -124,6 +148,7 @@ This makes separate backend and frontend ZIPs in `dist/`. With `--repo`, it also
 | `docs/AZURE_DEPLOY.md` | Azure deployment with the portal and ZIPs |
 | `docs/AZURE_SYSTEM_DESIGN.md` | Multi-user Azure design: storage, sandboxes, and costs in East US 2 |
 | `docs/ARCHITECTURE.md` | Plugin mapping and workflow details |
+| `docs/PLUGIN_AND_UI_PLAN.md` | Approved roadmap, not built yet |
 | `maf-guide.md` | MAF features used, by file |
 | `plan.md`, `specs.md`, `tasks.md` | Decisions, requirements, status |
 | `Design.md` | UI design rules |

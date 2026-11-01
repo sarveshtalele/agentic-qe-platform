@@ -63,7 +63,7 @@ def detect_python(worktree: Path) -> str:
 
 
 def _pytest(worktree: Path, target: str, junit: Path) -> list[str]:
-    return [detect_python(worktree), "-m", "pytest", target, "-q", "--tb=short", "-p", "no:cacheprovider", f"--junitxml={junit}"]
+    return [detect_python(worktree), "-m", "pytest", target, "-q", "--tb=short", "-p", "no:cacheprovider", "--continue-on-collection-errors", f"--junitxml={junit}"]
 
 
 def _node_tool(name: str, *args: str) -> list[str] | None:

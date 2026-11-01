@@ -1,5 +1,7 @@
 # Design
 
+This file describes the UI as built. The redesign in `docs/PLUGIN_AND_UI_PLAN.md` is planned, not built.
+
 The previous look is kept: dark navy surfaces, indigo accent, compact type, and a collapsible sidebar. What changes is navigation and accuracy.
 
 ## What changed from the previous UI
@@ -57,6 +59,7 @@ Type uses the system sans stack and system mono, so nothing loads from a font ho
   /feature                Build a feature on a branch
   /bugs                   Scan, findings, fix, diagnose
   /qe                     Lifecycle stepper and run
+  /approvals              Decisions waiting in this project
   /governance             Gates, approvals, ledger
   /runs[/{run}]           Metrics, history, live timeline
   /observability          Log and per-run trace for this project

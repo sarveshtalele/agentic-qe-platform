@@ -34,11 +34,11 @@ class DocIn(BaseModel):
 class VersionIn(BaseModel):
     content: str
     note: str = ""
-    author: str = "user"
 
 
-class ActorIn(BaseModel):
-    by: str = "user"
+def _named(items: list[dict]) -> list[dict]:
+    names = auth.display_names({i["author"] for i in items})
+    return [{**i, "author_name": names.get(i["author"], i["author"])} for i in items]
 
 
 @router.get("/api/documents")
@@ -58,28 +58,28 @@ def list_documents(project_id: str, kind: str | None = None):
 def create_document(project_id: str, body: DocIn):
     _project(project_id)
     content = body.content or (files.get_template(body.template_id)["body"] if body.template_id else "")
-    return documents.create(project_id, body.kind, body.title, content, "user", template_id=body.template_id)
+    return documents.create(project_id, body.kind, body.title, content, auth.signer(), template_id=body.template_id)
 
 
 @router.get("/api/documents/{doc_id}")
 def get_document(doc_id: str, version: int | None = None):
-    return documents.get(doc_id, version)
+    return _named([documents.get(doc_id, version)])[0]
 
 
 @router.put("/api/documents/{doc_id}")
 def save_document(doc_id: str, body: VersionIn):
-    return documents.save_version(doc_id, body.content, body.author, note=body.note or "Edited")
+    return documents.save_version(doc_id, body.content, auth.signer(), note=body.note or "Edited")
 
 
 @router.delete("/api/documents/{doc_id}", status_code=204)
 def delete_document(doc_id: str):
-    documents.delete(doc_id, "user")
+    documents.delete(doc_id, auth.signer())
     return Response(status_code=204)
 
 
 @router.get("/api/documents/{doc_id}/versions")
 def document_versions(doc_id: str):
-    return documents.versions(doc_id)
+    return _named(documents.versions(doc_id))
 
 
 @router.get("/api/documents/{doc_id}/diff", response_class=PlainTextResponse)
@@ -88,13 +88,13 @@ def document_diff(doc_id: str, a: int, b: int):
 
 
 @router.post("/api/documents/{doc_id}/restore/{version}")
-def restore_document(doc_id: str, version: int, body: ActorIn):
-    return documents.restore(doc_id, version, body.by)
+def restore_document(doc_id: str, version: int):
+    return documents.restore(doc_id, version, auth.signer())
 
 
 @router.post("/api/documents/{doc_id}/approve")
-def approve_document(doc_id: str, body: ActorIn):
-    return documents.set_status(doc_id, "approved", body.by)
+def approve_document(doc_id: str):
+    return documents.set_status(doc_id, "approved", auth.signer())
 
 
 @router.get("/api/documents/{doc_id}/export/{fmt}")
@@ -120,7 +120,7 @@ def export_document(doc_id: str, fmt: str, version: int | None = None):
 @router.post("/api/documents/{doc_id}/images", status_code=201)
 async def add_image(doc_id: str, file: UploadFile = File(...)):
     blob = await file.read(documents.MAX_IMAGE_BYTES + 1)
-    name = await asyncio.to_thread(documents.save_image, doc_id, blob)
+    name = await asyncio.to_thread(documents.save_image, doc_id, blob, auth.signer())
     return {"file": name, "url": f"/api/documents/{doc_id}/images/{name}"}
 
 
@@ -155,13 +155,12 @@ def _cases_csv(cases: list[dict], fmt: str) -> str:
 
 class RefineIn(BaseModel):
     instructions: str = Field(min_length=1)
-    by: str = "user"
 
 
 @router.post("/api/documents/{doc_id}/review")
 async def review_document(doc_id: str):
     doc = documents.get(doc_id)
-    review = await agents.AgentCall(None, doc["project_id"], "doc_reviewer").typed(f"Review this document for completeness, testability, consistency, and invented facts.\n\nDOCUMENT:\n{doc['content']}", workflows.Review)
+    review = await agents.AgentCall(None, doc["project_id"], "confidence-reviewer").typed(f"Review type: requirements document. Review this document for completeness, testability, consistency, and invented facts.\n\nDOCUMENT:\n{doc['content']}", workflows.Review)
     template_body = files.get_template(doc["template_id"])["body"] if doc["template_id"] else ""
     return {**doc_checks.apply(review.model_dump(), doc["content"], template_body), "version": doc["version"]}
 
@@ -169,7 +168,8 @@ async def review_document(doc_id: str):
 @router.post("/api/documents/{doc_id}/refine")
 async def refine_document(doc_id: str, body: RefineIn):
     doc = documents.get(doc_id)
-    agent_key = "gherkin_author" if doc["kind"] == "gherkin" else "business_analyst"
+    agent_key = "business-analyst"
+    artifact = "Gherkin feature file" if doc["kind"] == "gherkin" else "requirements document"
     call = agents.AgentCall(None, doc["project_id"], agent_key)
-    text = await call.text(f"Revise this document, keeping its structure. Return only the full revised document.\n\nINSTRUCTIONS:\n{body.instructions}\n\nDOCUMENT:\n{doc['content']}")
+    text = await call.text(f"Artifact: {artifact}. Revise this document, keeping its structure. Return only the full revised document.\n\nINSTRUCTIONS:\n{body.instructions}\n\nDOCUMENT:\n{doc['content']}")
     return documents.save_version(doc_id, text, f"agent:{agent_key}", note=f"Refine: {body.instructions[:150]}", prompt_ref=call.prompt_ref)

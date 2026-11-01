@@ -63,7 +63,7 @@ LOW_CONFIDENCE = 70
 async def review_artifact(rc: RunContext, name: str, artifact: str, evidence: str = "") -> dict:
     """An independent score before a person approves. If the review cannot run, the result says so and carries no score."""
     try:
-        review = await AgentCall(rc.run_id, rc.project_id, "confidence_reviewer").typed(f"Score this {name} from the evidence.\n\nWORK:\n{artifact[:30_000]}\n\nEVIDENCE:\n{evidence[:25_000]}", model.ConfidenceReview)
+        review = await AgentCall(rc.run_id, rc.project_id, "confidence-reviewer").typed(f"Review type: evidence. Score this {name} from the evidence.\n\nWORK:\n{artifact[:30_000]}\n\nEVIDENCE:\n{evidence[:25_000]}", model.ConfidenceReview)
     except RuntimeError as exc:
         rc.log(f"Confidence review of {name} did not run: {str(exc)[:200]}", kind="warning")
         return {"score": None, "verdict": "NOT RUN", "issues": [str(exc)[:300]]}

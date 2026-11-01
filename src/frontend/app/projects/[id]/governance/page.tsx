@@ -4,13 +4,14 @@ import { ShieldAlert, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useProject } from "../../../../components/ProjectShell";
+import { useAuth } from "../../../../components/AuthGate";
 import { Badge, Button, Card, ErrorNote, Field, inputClass, PageTitle, Spinner } from "../../../../components/ui";
-import { api, getSigner, setSigner, when } from "../../../../lib/api";
+import { api, when } from "../../../../lib/api";
 
 export default function GovernancePage() {
   const { project, gates, refresh } = useProject();
   const [gate, setGate] = useState(0);
-  const [by, setBy] = useState("");
+  const { user } = useAuth();
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
   const [ledger, setLedger] = useState<any>(null);
@@ -21,13 +22,11 @@ export default function GovernancePage() {
   }, [project.id]);
   useEffect(() => {
     load();
-    setBy(getSigner());
   }, [load]);
   const decide = async (approved: boolean) => {
     setError("");
     try {
-      setSigner(by);
-      await api(`/projects/${project.id}/gates/${gate}/decision`, { json: { approved, by, reason } });
+      await api(`/projects/${project.id}/gates/${gate}/decision`, { json: { approved, reason } });
       setReason("");
       refresh();
       load();
@@ -46,7 +45,7 @@ export default function GovernancePage() {
             <tbody>{gates.map((g) => (
               <tr key={g.gate} className="border-t border-slate-200 first:border-0 dark:border-slate-800">
                 <td className="py-1.5"><b>G{g.gate} {g.name}</b><br /><span className="text-xs text-slate-500">{g.description}</span></td>
-                <td className="text-xs">{g.decided_by}{g.decided_at && <><br />{when(g.decided_at)}</>}{g.reason && <><br />{g.reason}</>}</td>
+                <td className="text-xs">{g.decided_by_name}{g.decided_at && <><br />{when(g.decided_at)}</>}{g.reason && <><br />{g.reason}</>}</td>
                 <td><Badge>{g.status}</Badge>{g.signature_valid === false && <Badge tone="rose">bad signature</Badge>}</td>
               </tr>
             ))}</tbody>
@@ -60,9 +59,9 @@ export default function GovernancePage() {
         <p className="mb-2 text-xs text-slate-500">For decisions made outside a run, such as revoking an approval. Rejecting a gate clears later approvals.</p>
         <div className="grid gap-2 md:grid-cols-[160px_1fr_1fr_auto]">
           <Field label="Gate"><select className={inputClass} value={gate} onChange={(e) => setGate(Number(e.target.value))}>{gates.map((g) => <option key={g.gate} value={g.gate}>G{g.gate} {g.name}</option>)}</select></Field>
-          <Field label="Your name"><input className={inputClass} value={by} onChange={(e) => setBy(e.target.value)} /></Field>
+          <Field label="Signing as"><p className="py-2 text-sm font-semibold" data-testid="signing-as">{user.username}</p></Field>
           <Field label="Reason"><input className={inputClass} value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
-          <div className="flex items-end gap-2"><Button variant="success" disabled={!by.trim()} onClick={() => decide(true)}>Approve</Button><Button variant="danger" disabled={!by.trim() || !reason.trim()} onClick={() => decide(false)}>Reject</Button></div>
+          <div className="flex items-end gap-2"><Button variant="success" onClick={() => decide(true)}>Approve</Button><Button variant="danger" disabled={!reason.trim()} onClick={() => decide(false)}>Reject</Button></div>
         </div>
         <ErrorNote message={error} />
       </Card>
@@ -70,7 +69,7 @@ export default function GovernancePage() {
         <div className="max-h-[32rem] overflow-auto">
           <table className="w-full text-left text-xs">
             <thead className="sticky top-0 bg-white text-slate-500 dark:bg-[#0b1329]"><tr><th className="py-1">#</th><th>Time</th><th>Actor</th><th>Action</th><th>Target</th><th>Hash</th></tr></thead>
-            <tbody>{ledger.entries.map((e: any) => <tr key={e.seq} className="border-t border-slate-200 dark:border-slate-800"><td className="py-1">{e.seq}</td><td className="whitespace-nowrap">{when(e.ts)}</td><td>{e.actor}</td><td>{e.action}</td><td className="mono max-w-52 truncate" title={e.target}>{e.target}</td><td className="mono text-slate-500" title={e.hash}>{e.hash.slice(0, 10)}</td></tr>)}</tbody>
+            <tbody>{ledger.entries.map((e: any) => <tr key={e.seq} className="border-t border-slate-200 dark:border-slate-800"><td className="py-1">{e.seq}</td><td className="whitespace-nowrap">{when(e.ts)}</td><td>{e.actor_name}</td><td>{e.action}</td><td className="mono max-w-52 truncate" title={e.target}>{e.target}</td><td className="mono text-slate-500" title={e.hash}>{e.hash.slice(0, 10)}</td></tr>)}</tbody>
           </table>
         </div>
       </Card>

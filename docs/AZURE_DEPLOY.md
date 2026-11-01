@@ -2,7 +2,7 @@
 
 This guide puts Agentic QE Platform on Azure App Service with the Azure portal and two ZIP files. You do not need GitHub or anything installed on your machine except Python and Git, which you already use to run Agentic QE Platform.
 
-**Tested so far:** the ZIPs were unpacked and their startup scripts run locally on macOS, including the environment build, the second start that skips it, the UI proxy to the API, and the SQLite setting. **Not tested:** a real Azure deployment, which needs your subscription. Steps marked *check on first use* could not be confirmed from Microsoft's documentation.
+**Not yet deployed for real on Azure.** **Tested so far:** the ZIPs were unpacked and their startup scripts run locally on macOS, including the environment build, the second start that skips it, the UI proxy to the API, and the SQLite setting. **Not tested:** a real Azure deployment, which needs your subscription. Steps marked *check on first use* could not be confirmed from Microsoft's documentation.
 
 > This guide deploys the app as it runs today: one process with SQLite and local files, suited to one person or a small trusted team. For several users, read `docs/AZURE_SYSTEM_DESIGN.md`, which covers PostgreSQL, Blob Storage, and isolated sandboxes.
 
