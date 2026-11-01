@@ -407,6 +407,19 @@ async def qe_generate(rc: RunContext, state: dict) -> dict:
     outcomes = [o for o in outcomes if not isinstance(o, BaseException)]
     accepted = {path: item for found, _, _ in outcomes for path, item in found.items()}
     errors = [problem for _, _, found in outcomes for problem in found]
+    if lost := [c for c in state["cases"] if c["id"] not in {cid for f in accepted.values() for cid in f.case_ids}]:
+        # a batch can stop short with no error, so what it left out gets one more try in smaller batches
+        rc.log(f"{len(lost)} cases have no test yet. Asking once more in smaller batches", kind="warning")
+        again = await asyncio.gather(*(generate_batch(lost[i : i + GENERATE_BATCH // 2]) for i in range(0, len(lost), GENERATE_BATCH // 2)), return_exceptions=True)
+        for found in again:
+            if isinstance(found, AllowanceError):
+                raise found
+            if isinstance(found, BaseException):
+                errors.append(str(found)[:300])
+            else:
+                outcomes.append(found)
+                accepted |= found[0]
+                errors += found[2]
     if not accepted:
         raise ModelSchemaError(f"Generated tests failed checks: {errors}", action="Retry the stage. Each problem above names the file and the rule it broke.")
     suite = GeneratedSuite(framework=next((framework for _, framework, _ in outcomes if framework), ""), files=list(accepted.values()))

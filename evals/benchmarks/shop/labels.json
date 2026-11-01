@@ -1,0 +1,231 @@
+{
+ "reviewed": false,
+ "provenance": "Drafted by the assistant on 2026-11-02 by reading repo/ line by line and planting the bugs itself. Not checked by a person: the owner must review every item before the numbers are trusted.",
+ "repo": "repo",
+ "bugs": [
+  {
+   "id": "BUG-1",
+   "file": "cart.py",
+   "line": 27,
+   "tolerance": 1,
+   "what": "The discount divides by 10 instead of 100, so 10 percent takes off the whole subtotal."
+  },
+  {
+   "id": "BUG-2",
+   "file": "inventory.py",
+   "line": 14,
+   "tolerance": 1,
+   "what": "The stock check allows a reservation of one more than is on the shelf (quantity - 1), so stock can go negative."
+  },
+  {
+   "id": "BUG-3",
+   "file": "pricing.py",
+   "line": 10,
+   "tolerance": 1,
+   "what": "Floor division // 100 drops the paisa from the tax instead of rounding it."
+  },
+  {
+   "id": "BUG-4",
+   "file": "pricing.py",
+   "line": 14,
+   "tolerance": 1,
+   "what": "The docstring says shipping is free from 500 and above, but > leaves exactly 500 paying the fee."
+  },
+  {
+   "id": "BUG-5",
+   "file": "orders.py",
+   "line": 11,
+   "tolerance": 1,
+   "what": "Stock is reserved line by line, so when a later line fails, the earlier reservations are never released."
+  }
+ ],
+ "clean_files": [
+  "money.py",
+  "validators.py"
+ ],
+ "requirements": [
+  {
+   "id": "R-1",
+   "file": "cart.py",
+   "line": 11,
+   "tolerance": 1,
+   "statement": "A quantity and a price added to the cart must be positive numbers."
+  },
+  {
+   "id": "R-2",
+   "file": "cart.py",
+   "line": 14,
+   "tolerance": 1,
+   "statement": "Adding a SKU already in the cart increases its quantity."
+  },
+  {
+   "id": "R-3",
+   "file": "cart.py",
+   "line": 25,
+   "tolerance": 1,
+   "statement": "A discount percent outside 0 to 100 is rejected."
+  },
+  {
+   "id": "R-4",
+   "file": "cart.py",
+   "line": 28,
+   "tolerance": 1,
+   "statement": "The total is the subtotal less the percentage discount, rounded to two decimals."
+  },
+  {
+   "id": "R-5",
+   "file": "inventory.py",
+   "line": 13,
+   "tolerance": 0,
+   "statement": "Reserving a non-positive quantity is rejected."
+  },
+  {
+   "id": "R-6",
+   "file": "inventory.py",
+   "line": 15,
+   "tolerance": 0,
+   "statement": "Reserving more than the available stock is rejected."
+  },
+  {
+   "id": "R-7",
+   "file": "inventory.py",
+   "line": 16,
+   "tolerance": 0,
+   "statement": "A reservation reduces the stock of that SKU."
+  },
+  {
+   "id": "R-8",
+   "file": "pricing.py",
+   "line": 10,
+   "tolerance": 1,
+   "statement": "Tax is 18 percent of the amount."
+  },
+  {
+   "id": "R-9",
+   "file": "pricing.py",
+   "line": 14,
+   "tolerance": 1,
+   "statement": "Shipping is free above the free-shipping threshold of 500."
+  },
+  {
+   "id": "R-10",
+   "file": "pricing.py",
+   "line": 16,
+   "tolerance": 0,
+   "statement": "Otherwise shipping costs a fee of 40."
+  },
+  {
+   "id": "R-11",
+   "file": "orders.py",
+   "line": 9,
+   "tolerance": 0,
+   "statement": "Placing an order with an empty cart is rejected."
+  },
+  {
+   "id": "R-12",
+   "file": "orders.py",
+   "line": 11,
+   "tolerance": 1,
+   "statement": "Placing an order reserves stock for every cart line."
+  },
+  {
+   "id": "R-13",
+   "file": "money.py",
+   "line": 6,
+   "tolerance": 1,
+   "statement": "Amounts are rounded to two decimals, half up."
+  }
+ ],
+ "brief_facts": [
+  {
+   "id": "F-1",
+   "keywords": [
+    "18"
+   ],
+   "statement": "Tax is 18 percent."
+  },
+  {
+   "id": "F-2",
+   "keywords": [
+    "500"
+   ],
+   "statement": "Shipping is free from 500."
+  },
+  {
+   "id": "F-3",
+   "keywords": [
+    "40"
+   ],
+   "statement": "Otherwise shipping costs 40."
+  },
+  {
+   "id": "F-4",
+   "keywords": [
+    "discount",
+    "100"
+   ],
+   "statement": "Discount is a percentage from 0 to 100."
+  },
+  {
+   "id": "F-5",
+   "keywords": [
+    "stock"
+   ],
+   "statement": "Stock never goes below zero."
+  }
+ ],
+ "failures": [
+  {
+   "id": "FAIL-1",
+   "test": "test_discount_ten_percent",
+   "message": "assert 90.0 == 0.0 in Cart.total",
+   "class": "defect",
+   "points_to": "BUG-1"
+  },
+  {
+   "id": "FAIL-2",
+   "test": "test_reserve_more_than_stock",
+   "message": "DID NOT RAISE ValueError",
+   "class": "defect",
+   "points_to": "BUG-2"
+  },
+  {
+   "id": "FAIL-3",
+   "test": "test_login_button_selector",
+   "message": "TimeoutError: waiting for selector '#btn-login-old'",
+   "class": "test problem",
+   "points_to": "A renamed selector in the test, not the application"
+  },
+  {
+   "id": "FAIL-4",
+   "test": "test_database_connect",
+   "message": "ConnectionRefusedError: [Errno 61] localhost:5432",
+   "class": "environment",
+   "points_to": "A database that is not running"
+  }
+ ],
+ "questions": [
+  {
+   "id": "Q-1",
+   "question": "What is the tax rate in the shop?",
+   "answer_keywords": [
+    "18"
+   ]
+  },
+  {
+   "id": "Q-2",
+   "question": "At what order amount is shipping free?",
+   "answer_keywords": [
+    "500"
+   ]
+  },
+  {
+   "id": "Q-3",
+   "question": "Which file rounds amounts, and how?",
+   "answer_keywords": [
+    "money.py",
+    "half up"
+   ]
+  }
+ ]
+}

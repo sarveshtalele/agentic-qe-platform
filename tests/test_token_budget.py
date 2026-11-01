@@ -252,7 +252,11 @@ def test_a_run_stops_at_the_limit_between_batches_keeps_its_work_and_the_gate_sh
     assert tokens["used"] > 0 and tokens["used"] + tokens["left"] == tokens["limit"] and f"{tokens['left']:,} left" in pending(run)["summary"]
     monkeypatch.setattr(runtime, "RUN_TOKEN_LIMIT", tokens["used"] + 10)
     assert client.post(f"/api/approvals/{pending(run)['id']}/decide", json={"approved": True, "feedback": ""}).status_code == 200
-    run = wait_run(client, run["id"], ("failed", "completed"), timeout=20)
+    run = wait_run(client, run["id"], ("failed", "completed", "waiting_approval"), timeout=20)
+    if run["status"] == "waiting_approval":  # reviews stop first, so the design that fitted reaches its gate unreviewed, and the next model call stops the run
+        assert run["state"]["cases_review"]["counts"]["not_run"] > 0
+        assert client.post(f"/api/approvals/{pending(run)['id']}/decide", json={"approved": True, "feedback": "Unreviewed, accepted for this test"}).status_code == 200
+        run = wait_run(client, run["id"], ("failed", "completed"), timeout=20)
     with db() as con:
         code = con.execute("SELECT code FROM run_failures WHERE run_id=? ORDER BY created_at DESC LIMIT 1", (run["id"],)).fetchone()[0]
         used = con.execute("SELECT tokens_in+tokens_out FROM runs WHERE id=?", (run["id"],)).fetchone()[0]
@@ -260,3 +264,19 @@ def test_a_run_stops_at_the_limit_between_batches_keeps_its_work_and_the_gate_sh
     assert used <= tokens["used"] + 10 + 15 * 4, "only calls already in flight can pass the limit"
     kinds = {d["kind"] for d in client.get(f"/api/projects/{project['id']}/documents").json()}
     assert {"requirements", "test_plan"} <= kinds, "work finished before the stop is kept"
+
+
+def test_reviews_stop_first_so_the_run_can_finish(client):
+    """Past two thirds of the limit, no review or send-back runs: items say why, with no score and no pass, and no model call is made."""
+    import asyncio
+
+    from backend.db import db
+    from backend.maf.engine import RunContext
+    from backend.maf import runtime
+    from backend.maf.workflows import shared
+
+    project_id = client.post("/api/projects", json={"name": "Budget"}).json()["id"]
+    with db() as con:
+        con.execute("INSERT INTO runs (id, project_id, workflow, status, input, started_at, tokens_in, tokens_out) VALUES ('run_budget', ?, 'qe', 'running', '{}', '2026-11-02', ?, 0)", (project_id, runtime.RUN_TOKEN_LIMIT * 2 // 3))
+    records, spent = asyncio.run(shared.review_cases(RunContext("run_budget", project_id), "design", "design cases", [("C1", "case one")], "evidence", None))
+    assert spent == 0 and records[0]["verdict"] == "NOT RUN" and shared.NOT_REVIEWED in str(records[0])

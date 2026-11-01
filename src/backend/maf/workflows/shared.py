@@ -16,6 +16,7 @@ from backend.core.security import (
 )
 from backend.maf.engine import RunContext
 from backend.db import db
+from backend.maf import runtime
 from backend.maf.runtime import AgentCall
 from backend.qe import confidence, model
 from backend.repos import ingest, scan, static_analysis
@@ -113,6 +114,16 @@ def _id_of(text: str) -> str:
     return found.group(1) if found else ""
 
 
+def _review_budget_left(rc: RunContext) -> bool:
+    """Reviews stop first when tokens run low, so a run can still generate and run its tests. A third of the run's limit is kept for that."""
+    with db() as con:
+        found = con.execute("SELECT tokens_in+tokens_out FROM runs WHERE id=?", (rc.run_id,)).fetchone()
+    return not found or found[0] < runtime.RUN_TOKEN_LIMIT * 2 // 3
+
+
+NOT_REVIEWED = "Not reviewed: the token budget is kept for generating and running tests"
+
+
 async def review_cases(rc: RunContext, kind: str, label: str, entries: list[tuple[str, str]], evidence: str | Callable[[list[str]], str], source: Path | None, batch: int = 8) -> tuple[list[dict], int]:
     """Scores each item separately. Batches run together within the model limit. Code checks every record and recomputes totals and verdicts.
 
@@ -141,6 +152,9 @@ async def review_cases(rc: RunContext, kind: str, label: str, entries: list[tupl
         return found
 
     async def one(chunk: list[tuple[str, str]]) -> list[dict]:
+        if not _review_budget_left(rc):
+            rc.log(f"Confidence review of {label}: {NOT_REVIEWED}", {"items": [key for key, _ in chunk]}, "warning")
+            return [confidence.not_run(key, kind, NOT_REVIEWED) for key, _ in chunk]
         try:
             found = await ask(chunk)
         except AllowanceError:
@@ -195,7 +209,7 @@ async def review_with_send_back(rc: RunContext, kind: str, label: str, entries: 
     index = {key: i for i, (key, _) in enumerate(entries)}
     records, spent = await review_cases(rc, kind, label, entries, lambda keys: evidence_for([index[k] for k in keys]), source, batch)
     tokens = {"review": spent, "revise": 0}
-    rejected = [i for i, record in enumerate(records) if record["verdict"] == "REJECT"]
+    rejected = [i for i, record in enumerate(records) if record["verdict"] == "REJECT"] if _review_budget_left(rc) else []
     revised: dict[int, str] = {}
     revise_calls: list[AgentCall] = []
     if rejected:

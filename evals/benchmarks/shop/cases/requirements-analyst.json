@@ -1,0 +1,100 @@
+[
+ {
+  "name": "shop_requirements",
+  "category": "benchmark",
+  "query": "Reverse-engineer the requirements from this code. Each needs file, line, and an exact quote. Reply as JSON with a requirements list.",
+  "context_files": [
+   "cart.py",
+   "inventory.py",
+   "pricing.py",
+   "orders.py",
+   "money.py",
+   "validators.py"
+  ],
+  "reference": "The requirements are: cart.py: A quantity and a price added to the cart must be positive numbers. cart.py: Adding a SKU already in the cart increases its quantity. cart.py: A discount percent outside 0 to 100 is rejected. cart.py: The total is the subtotal less the percentage discount, rounded to two decimals. inventory.py: Reserving a non-positive quantity is rejected. inventory.py: Reserving more than the available stock is rejected. inventory.py: A reservation reduces the stock of that SKU. pricing.py: Tax is 18 percent of the amount. pricing.py: Shipping is free above the free-shipping threshold of 500. pricing.py: Otherwise shipping costs a fee of 40. orders.py: Placing an order with an empty cart is rejected. orders.py: Placing an order reserves stock for every cart line. money.py: Amounts are rounded to two decimals, half up.",
+  "metrics": [
+   "groundedness",
+   "precision",
+   "recall",
+   "f1",
+   "faithfulness",
+   "context_recall",
+   "context_precision",
+   "factual_correctness"
+  ],
+  "checks": {
+   "json_schema": "RequirementSet"
+  },
+  "key": {
+   "list": "requirements",
+   "match": "location",
+   "items": [
+    {
+     "file": "cart.py",
+     "line": 11,
+     "tolerance": 1
+    },
+    {
+     "file": "cart.py",
+     "line": 14,
+     "tolerance": 1
+    },
+    {
+     "file": "cart.py",
+     "line": 25,
+     "tolerance": 1
+    },
+    {
+     "file": "cart.py",
+     "line": 28,
+     "tolerance": 1
+    },
+    {
+     "file": "inventory.py",
+     "line": 13,
+     "tolerance": 0
+    },
+    {
+     "file": "inventory.py",
+     "line": 15,
+     "tolerance": 0
+    },
+    {
+     "file": "inventory.py",
+     "line": 16,
+     "tolerance": 0
+    },
+    {
+     "file": "pricing.py",
+     "line": 10,
+     "tolerance": 1
+    },
+    {
+     "file": "pricing.py",
+     "line": 14,
+     "tolerance": 1
+    },
+    {
+     "file": "pricing.py",
+     "line": 16,
+     "tolerance": 0
+    },
+    {
+     "file": "orders.py",
+     "line": 9,
+     "tolerance": 0
+    },
+    {
+     "file": "orders.py",
+     "line": 11,
+     "tolerance": 1
+    },
+    {
+     "file": "money.py",
+     "line": 6,
+     "tolerance": 1
+    }
+   ]
+  }
+ }
+]

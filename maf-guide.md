@@ -25,7 +25,7 @@ Which MAF features Agentic QE Platform uses, where, and why. Packages: `agent-fr
 | Checkpoints | `FileCheckpointStorage`, `run(checkpoint_id=)` | `src/backend/maf/engine.py` `_storage`, `_resume` | Each decision restores from a checkpoint, so a restart loses nothing | 755 |
 | Streaming run events | `workflow.run(stream=True)` | `src/backend/maf/engine.py` `_consume` | Handles requests, outputs, and failures. Progress is stored for SSE | 121, 159 |
 | AG-UI | `AgentFrameworkAgent` | `src/backend/maf/agui.py` | Turns a project-scoped agent into an AG-UI event stream | 549, 552 |
-| Evaluation | `evaluate_agent`, `LocalEvaluator`, `evaluator` | `src/backend/maf/evals.py`, `evals/*.json` | Quality and safety cases for all 11 agents with content, JSON schema, Gherkin, and score checks. Scores are stored per prompt version | 219 |
+| Evaluation | `evaluate_agent`, `LocalEvaluator`, `evaluator`, `Evaluator` | `src/backend/maf/evals/` (`__init__`, `metrics`, `ragas_evaluator`, `grader`, `store`), `evals/*.json` | Quality and safety cases for all 11 agents with content, JSON schema, Gherkin, and score checks. Scores are stored per prompt version | 219 |
 | Agent Skills validator | `FileSkillsSource` | `src/backend/core/skills.py` | Loads `skills/` once. A skill MAF cannot load is a startup warning and is absent. Its frontmatter gives name, description, version | 228 to 234 |
 | Agent Skills in chat | `SkillsProvider`, `FilteringSkillsSource` | `src/backend/maf/runtime.py` `build` | Only for a model that passed the live tool check (`llm.tool_check`): `disable_load_skill_approval=True`, `disable_read_skill_resource_approval=True`, no script runner, filtered to the agent's skills | 228 to 234, 248 |
 | Observability | `configure_otel_providers` | `src/backend/app.py` `lifespan` | Turns on when `OTEL_EXPORTER_OTLP_ENDPOINT` is set | 213, 590 |
@@ -102,3 +102,9 @@ Measured on the real proxy on 2026-11-01: with tools offered, every model called
 - Chat picks a skill with one structured call (`maf/skill_chat.py`) and adds its text to that turn. On a model whose stored tool check passed, chat uses `SkillsProvider` instead.
 - `llm.tool_check(model)` is the live check. Its result is stored on the `models` row.
 - Skills are trusted platform text; repository and document text stays untrusted and goes through the same guardrails as before.
+
+## Evaluation metrics (phase 6)
+
+- `maf/evals/metrics.py`: Groundedness, Precision, Recall, F1, and Mutation score are plain functions. `metric_check` wraps one as a MAF `@evaluator`, so it runs inside `LocalEvaluator` beside the content checks.
+- `maf/evals/ragas_evaluator.py`: a class with MAF's `Evaluator` interface (`async evaluate(items, *, eval_name)` returning `EvalResults`). It imports `ragas` inside the method, so the app runs without it. Install `requirements-evals.txt` to enable it. The judge client is `llm_factory(model, client=AsyncOpenAI(...))` on the same proxy, with the model from `ATLAS_EVAL_MODEL`.
+- Foundry evaluators stay unused (they need a Foundry project).

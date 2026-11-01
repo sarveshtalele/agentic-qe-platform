@@ -108,7 +108,7 @@
 
 ## Next, after your approval
 
-- [ ] `docs/PLUGIN_AND_UI_PLAN.md`: 15 phases, approved 2026-11-01. Phases 1 to 5 done, phase 6 next
+- [ ] `docs/PLUGIN_AND_UI_PLAN.md`: 15 phases, approved 2026-11-01. Phases 1 to 6 done, phase 7 next
 - [x] Phase 1, agent names: agents use the plugin's hyphenated keys; `doc_reviewer` merged into `confidence-reviewer` and `gherkin_author` into `business-analyst`; migration `006_agent_plugin_names.sql` moves stored history (checked by `test_migration_006_*`)
 - [ ] Phase 1, agent names: live evals of the merged prompts on the real model not yet run
 - [ ] Phase 1, `qa-execution-engineer` arrives with phase 5
@@ -218,4 +218,20 @@
 - [x] e2e `approve_next` fills `reject-reason` when visible
 - [x] Tests in `tests/test_token_budget.py`
 - [ ] Not verified: a live run on the finance repository, e2e, the browser UI
-- [ ] `tracing-coverage #2` eval still fails on the real model (`contains:NOT_RUN`)
+- [x] `tracing-coverage #2` eval: the case now names its review type, and passes on the real model
+- [ ] Feature Builder sometimes ends with a failing test verdict on the finance repository (`test_f4`). Phase 7 gives it the whole repository
+
+## Phase 6: evaluation metrics (EVL), 2026-11-02
+
+- [x] specs.md EVL-1 to EVL-10, tasks.md, maf-guide.md written first
+- [x] `git mv maf/evals.py maf/evals/__init__.py` (approved)
+- [x] `maf/evals/metrics.py`, `store.py`, `grader.py`, `ragas_evaluator.py`; migration 012; `requirements-evals.txt`; CI job `evals-install` (allowed to fail)
+- [x] Benchmarks `shop` (repo, labels, 4 case files) and `finance` (labels only); labels marked `reviewed: false`
+- [x] Case format (`context`, `context_files`, `reference`, `metrics`, `key`, `mutation`); API `/api/evals/cards`, `/api/agents/{agent}/metrics`, `/api/prompts/{agent}/scores`; live groundedness in `AgentCall.text`
+- [x] Cards, agent page scores, prompts page scores (type-checked and linted only)
+- [x] `docs/EVALUATIONS.md` and the docs page `evaluations`
+- [x] `tracing-coverage #2` investigated: flaky (3 of 6 replies contain NOT_RUN) because the confidence-reviewer is asked a review-less question; no code change
+- [x] Real numbers on `shop` for bug-reviewer, requirements-analyst, business-analyst (see the phase report)
+- [ ] Not verified: the browser UI, the Windows install of requirements-evals.txt (CI job reports it), e2e
+- [ ] Not done: labels reviewed by a person; `finance` cases run on the pinned commit; trend line on cards; Skill Studio agents; skill evals started by a user (no such feature yet)
+- [x] Reviews stop first when tokens run low, cases a batch leaves out get one more try, and the default case limit is 40

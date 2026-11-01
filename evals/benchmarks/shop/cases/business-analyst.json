@@ -1,0 +1,55 @@
+[
+ {
+  "name": "shop_brief",
+  "category": "benchmark",
+  "query": "Write the document.\nBRIEF: A shop lets customers add items to a cart and apply a percentage discount from 0 to 100 percent. Tax is 18 percent. Shipping is free from 500 rupees; below that it costs 40 rupees. Stock must never go below zero when an order is placed.\nTEMPLATE (keep every heading):\n## Scope\n## Functional Requirements\n## Open Questions",
+  "context": "A shop lets customers add items to a cart and apply a percentage discount from 0 to 100 percent. Tax is 18 percent. Shipping is free from 500 rupees; below that it costs 40 rupees. Stock must never go below zero when an order is placed.",
+  "reference": "Tax is 18 percent. Shipping is free from 500. Otherwise shipping costs 40. Discount is a percentage from 0 to 100. Stock never goes below zero.",
+  "metrics": [
+   "recall",
+   "faithfulness",
+   "context_recall",
+   "context_precision",
+   "factual_correctness"
+  ],
+  "checks": {
+   "contains": [
+    "## Scope",
+    "## Functional Requirements",
+    "## Open Questions"
+   ]
+  },
+  "key": {
+   "list": "text",
+   "match": "contains",
+   "items": [
+    {
+     "keywords": [
+      "18"
+     ]
+    },
+    {
+     "keywords": [
+      "500"
+     ]
+    },
+    {
+     "keywords": [
+      "40"
+     ]
+    },
+    {
+     "keywords": [
+      "discount",
+      "100"
+     ]
+    },
+    {
+     "keywords": [
+      "stock"
+     ]
+    }
+   ]
+  }
+ }
+]

@@ -22,7 +22,7 @@ TEMPLATES_DIR = ROOT / "templates"
 MAX_UPLOAD_BYTES = int(os.environ.get("ATLAS_MAX_UPLOAD_MB", "200")) * 1024 * 1024
 RUN_TOKEN_LIMIT = int(os.environ.get("ATLAS_RUN_TOKEN_LIMIT", "600000"))
 # The most test cases a QE run keeps after design. P0 cases are never cut. What is left out is reported at the gate.
-MAX_CASES = int(os.environ.get("ATLAS_MAX_CASES", "60"))
+MAX_CASES = int(os.environ.get("ATLAS_MAX_CASES", "40"))
 MODEL_TIMEOUT = int(os.environ.get("ATLAS_MODEL_TIMEOUT", "180"))
 # LiteLLM answers an identical prompt from its cache, so a retry would get the same bad reply. Set 0 for endpoints that reject the field.
 MODEL_NO_CACHE = os.environ.get("ATLAS_MODEL_NO_CACHE", "1") != "0"

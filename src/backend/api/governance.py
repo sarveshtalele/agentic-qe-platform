@@ -121,14 +121,44 @@ def agent_settings(agent: str, body: AgentSettingsIn):
     return agent_detail(agent)
 
 
+class EvalRunIn(BaseModel):
+    benchmark: str = ""
+    repeats: int = Field(1, ge=1, le=5)
+    ragas: bool = False  # model-graded metrics cost tokens, so they are asked for
+
+
 @router.post("/api/agents/{agent}/evals")
-async def run_agent_eval(agent: str):
-    return await evals.run(agent)
+async def run_agent_eval(agent: str, body: EvalRunIn | None = None):
+    body = body or EvalRunIn()
+    try:
+        return await evals.run(agent, benchmark=body.benchmark, repeats=body.repeats, ragas=body.ragas)
+    except KeyError as exc:
+        raise HTTPException(404, str(exc.args[0])) from exc
+
+
+@router.get("/api/agents/{agent}/metrics")
+def agent_metrics(agent: str):
+    """Every metric with its caveats, the trend by prompt version, the spread over repeated runs, and the latest cases, worst first."""
+    if agent not in governance.POLICIES:
+        raise HTTPException(404, f"No agent {agent}")
+    return {**evals.store.detail(agent), "cases": evals.cases_worst_first(agent)}
+
+
+@router.get("/api/prompts/{agent}/scores")
+def prompt_scores(agent: str):
+    return evals.store.by_version(agent)
 
 
 @router.get("/api/evals")
 def list_evals():
     return evals.available()
+
+
+@router.get("/api/evals/cards")
+def eval_cards():
+    """The four tiles of every agent card, plus whether RAGAS can run and which judge model is set."""
+    ok, why = evals.ragas_evaluator.installed()
+    return {"cards": evals.store.cards(), "ragas": {"installed": ok, "reason": why, "judge_model": evals.ragas_evaluator.judge_model()}, "benchmarks": evals.benchmarks()}
 
 
 @router.get("/api/evals/{agent}")

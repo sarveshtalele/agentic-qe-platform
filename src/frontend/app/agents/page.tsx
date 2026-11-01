@@ -6,6 +6,7 @@ import Link from "next/link";
 import { AppShell } from "../../components/AppShell";
 import { useAuth } from "../../components/AuthGate";
 import { Badge, Button, Card, Empty, ErrorNote, PageTitle, Spinner } from "../../components/ui";
+import { Tiles } from "../../components/EvalScores";
 import { api, when } from "../../lib/api";
 
 const riskTone: Record<string, string> = { low: "emerald", medium: "amber", high: "rose" };
@@ -16,10 +17,12 @@ export default function AgentsPage() {
   const admin = user?.role === "admin";
   const [agents, setAgents] = useState<any[] | null>(null);
   const [events, setEvents] = useState<any[]>([]);
+  const [scores, setScores] = useState<any>(null);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState("");
   const load = useCallback(() => {
     api("/agents").then(setAgents).catch((e) => setError(e.message));
+    api("/evals/cards").then(setScores).catch(() => setScores(null));
     if (admin) api("/agents/guardrail-events").then(setEvents);
   }, [admin]);
   useEffect(() => {
@@ -62,6 +65,7 @@ export default function AgentsPage() {
               <Badge>{a.prompt_ref.split(":")[0].split("@")[1]}</Badge>
               {a.eval ? <Badge tone={a.eval.passed === a.eval.total ? (a.eval.current ? "emerald" : "amber") : "rose"}>{`evals ${a.eval.passed}/${a.eval.total}${a.eval.current ? "" : " old prompt"}`}</Badge> : <Badge>evals not run</Badge>}
             </span>
+            <Tiles tiles={scores?.cards?.[a.key]?.tiles} />
             <span className="mt-2 text-[11px] text-slate-500">{a.calls} calls · {a.tokens.toLocaleString()} tokens · {a.errors} errors</span>
           </Link>
         ))}

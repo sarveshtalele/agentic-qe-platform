@@ -19,7 +19,7 @@ from agent_framework import (
 )
 from pydantic import BaseModel, ValidationError
 
-from backend.config import MODEL_CONCURRENCY, MODEL_NO_CACHE, RUN_TOKEN_LIMIT
+from backend.config import MODEL_CONCURRENCY, MODEL_NO_CACHE, RUN_TOKEN_LIMIT, repo_dir
 from backend.core import auth, documents, ledger, prompts
 from backend.core import skills as skill_lib
 from backend.core.errors import AllowanceError, ModelJsonError, ModelSchemaError, ModelTruncated
@@ -212,7 +212,7 @@ class AgentCall:
     def __init__(self, run_id: str | None, project_id: str, agent_key: str, *, root: Path | None = None, tool_list=None, source: str = "workflow", chat: bool = False,
                  skills: tuple[str, ...] | None = None, refs: tuple[str, ...] | None = None):
         """`skills` picks which of the agent's plugin skills this stage sends (default all of them, () none) and `refs` which of their reference files (default all)."""
-        self.run_id, self.project_id, self.key = run_id, project_id, agent_key
+        self.run_id, self.project_id, self.key, self.source = run_id, project_id, agent_key, source
         policy_skills = governance.POLICIES[agent_key].skills
         if skills is not None and (unknown := [n for n in skills if n not in policy_skills]):
             raise ValueError(f"{agent_key} does not use the skill {', '.join(unknown)}. Its policy lists: {', '.join(policy_skills) or 'none'}")
@@ -294,7 +294,20 @@ class AgentCall:
         final = governance.guard_text(self.key, final.strip(), "output", self.project_id, self.run_id)
         if self.last_call["finish_reason"] == "length" and not cut_off_ok:
             raise ModelTruncated(f"Agent {self.key} was cut off at the token limit after {len(final)} characters.", reply=final, **self._facts())
+        self._live_groundedness(final)
         return final
+
+    def _live_groundedness(self, reply: str) -> None:
+        """Free check of every real reply: do its cited files, lines, and quotes exist in this project's repository? A reply with no citations records nothing."""
+        root = repo_dir(self.project_id)
+        if self.source == "eval" or not root.is_dir():
+            return
+        from backend.maf.evals import metrics, store  # late: evals imports this module
+
+        try:
+            store.record_live(self.key, self.project_id, self.prompt_ref, metrics.groundedness(reply, root=root))
+        except (OSError, ValueError):  # the check must never fail a run
+            return
 
     async def typed(self, message: str, schema: type[T], attempts: int = 3) -> T:
         """Ask for JSON matching schema, feeding validation errors back until it passes."""

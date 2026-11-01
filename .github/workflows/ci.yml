@@ -44,3 +44,17 @@ jobs:
       - run: npm ci
         working-directory: src/frontend
       - run: python -m pytest tests/e2e/test_smoke.py -v -m smoke
+
+  evals-install:
+    # RAGAS is optional (requirements-evals.txt). This job only shows whether it installs and imports on Windows, and may fail without failing the build.
+    runs-on: windows-latest
+    continue-on-error: true
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt -r requirements-evals.txt
+      - run: python -c "import ragas; from ragas.llms import llm_factory; from ragas.metrics.collections import Faithfulness, ContextRecall, ContextPrecision, FactualCorrectness; print('ragas', ragas.__version__)"
+      - run: python -m pytest tests/test_evaluation_metrics.py -q

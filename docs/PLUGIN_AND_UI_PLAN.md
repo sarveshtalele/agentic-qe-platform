@@ -1138,9 +1138,10 @@ Two builders never edit the same files at once.
 | Before skills, 3 | 68 | 26% | 47% | Not recorded |
 | Before skills, 4 | 64 | 25% | 50% | Not recorded |
 | With skills (phase 4) | 66 | 61% | 73% | 372,223 |
-| **With per-case review and fixes (phase 5)** | **60** | **48%** | **75%** | **572,948** |
+| With per-case review and fixes (phase 5) | 60 | 48% | 75% | 572,948 |
+| **Default limit of 40 cases (phase 6)** | **56** | **25%** | **53%** | **446,876** |
 
-**What phase 5 clearly improved:** every case and test now has its own score, code recomputes each verdict, no case went unreviewed, no citation was missing, a failed test's score is capped, and all 31 failures were sorted: 17 defects and 14 environment. **What it cost:** about 54% more tokens than the phase 4 run, close to the 600,000 limit per run.
+**What phase 5 clearly improved:** every case and test now has its own score, code recomputes each verdict, no case went unreviewed, no citation was missing, a failed test's score is capped, and all 31 failures were sorted: 17 defects and 14 environment. **What it cost:** about 54% more tokens than the phase 4 run, close to the 600,000 limit per run. So reviews now stop first when tokens run low, and the default case limit is 40.
 
 ## Part 13: Review of this plan
 

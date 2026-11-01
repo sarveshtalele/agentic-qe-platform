@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from "react";
 import { AppShell } from "../../../components/AppShell";
 import { useAuth } from "../../../components/AuthGate";
 import { Badge, Button, Card, ErrorNote, Field, inputClass, PageTitle, Spinner, useToast } from "../../../components/ui";
+import { AgentScores } from "../../../components/EvalScores";
 import { api, when } from "../../../lib/api";
 
 const RISK_MEANING: Record<string, string> = {
@@ -126,6 +127,7 @@ function Detail({ agentKey }: { agentKey: string }) {
           </>
         ) : <p className="text-sm text-slate-500">Not evaluated yet.</p>}
       </Card>
+      <AgentScores agentKey={agentKey} admin={admin} enabled={item.enabled} />
       <Card title={`Recent model calls (${item.calls_recent.length})`}>
         {item.calls_recent.length ? (
           <div className="max-h-64 overflow-auto"><table className="w-full text-left text-xs"><thead className="text-slate-500"><tr><th className="py-1">When</th><th>Source</th><th>Tokens</th><th>ms</th><th>Tools</th><th>Status</th></tr></thead>

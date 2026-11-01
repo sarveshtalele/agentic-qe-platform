@@ -1277,6 +1277,40 @@ def test_every_case_gets_a_test_across_batches_and_gaps_are_reported(client, pro
     assert sum(1 for n in numbers if n >= 4) == 3, "28 cases split into batches of 10"
 
 
+def test_cases_a_batch_keeps_leaving_out_get_one_more_try(client, project):
+    upload_repo(client, project, {"calc.py": "def add(a, b):\n    return a + b\n", "conftest.py": ""})
+    ids = [f"REQ-{n:03d}" for n in range(1, 8)]  # 7 P1 requirements, 4 cases each, which the case budget allows (28 of 60)
+    requirements = json.dumps({"requirements": [{"id": i, "title": "A", "statement": "add", "priority": "P1", "tier": "observed", "file": "calc.py", "line": 2, "quote": "return a + b"} for i in ids]})
+    plan = json.dumps({"strategy": "Unit first", "areas": [{"id": "A1", "name": "Add", "requirement_ids": ids, "risk": "P1", "level": "Unit", "framework": "pytest", "rationale": "Pure logic"}], "skipped_levels": {"Integration": "No IO", "E2E": "No UI"}})
+    kinds = ["Positive", "Negative", "Negative (Boundary)", "Exception"]
+
+    def cases(text: str) -> str:
+        wanted = re.findall(r'"id": "(REQ-\d+)"', text.rsplit("REQUIREMENTS:", 1)[-1].split("CASE QUOTA")[0])
+        return json.dumps({"cases": [{"id": "x", "requirement_id": r, "scenario": f"{r} {kind}", "type": kind, "level": "Unit", "steps": ["call add"], "expected_result": "returns the sum 2", "oracle": "specified"} for r in wanted for kind in kinds]})
+
+    numbers = []
+
+    def author(text: str) -> str:
+        wanted = re.findall(r'"id": "TC-APP-(\d+)"', text.rsplit("CASES:", 1)[-1].split("DETECTED RUNNERS")[0])
+        # a real run lost 9 of 60 cases with no error: however often it is asked, a full batch leaves its last case out
+        chosen = re.findall(r"TC-APP-(\d+)", text.rsplit("have no test yet", 1)[-1].split("CODE:")[0])[:0] or (wanted[:-1] if len(wanted) > 5 else wanted)
+        numbers.append(len(chosen))
+        return json.dumps({"framework": "pytest", "files": [{"path": f"tests/agentic_qe/test_tc_app_{n}.py", "case_ids": [f"TC-APP-{n}"], "content": f"# CASE_ID: TC-APP-{n}\nfrom calc import add\n\n\ndef test_tc_app_{n}():\n    assert add(1, 1) == 2\n"} for n in chosen]})
+
+    llm.set_client_override(ScriptedClient([
+        ("You are a repository intelligence analyst", "## Purpose\nCalculator"), ("You are a requirements analyst", requirements), ("You are a principal test architect", plan),
+        *case_rules(), ("You are an independent reviewer", '{"score": 95, "verdict": "APPROVED", "issues": []}'), ("You are a test design architect", cases), ("You are a test automation engineer", author),
+    ]))
+    run = client.post(f"/api/projects/{project['id']}/runs", json={"workflow": "qe"}).json()
+    for _ in range(7):
+        run = wait_run(client, run["id"])
+        assert run["status"] == "waiting_approval", run["error"]
+        if pending(run)["gate"] == 4:
+            break
+        client.post(f"/api/approvals/{pending(run)['id']}/decide", json={"approved": True})
+    assert "28 of 28 cases have tests" in pending(run)["summary"]
+
+
 def test_signer_is_the_signed_in_account_never_a_typed_name(client):
     name = unique()
     user = make_user(client, name)

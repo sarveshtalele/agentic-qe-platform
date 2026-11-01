@@ -1,0 +1,60 @@
+[
+ {
+  "name": "shop_planted_bugs",
+  "category": "benchmark",
+  "query": "Review these files for real defects. Reply as JSON with a findings list (title, severity, file, line, quote, explanation). An empty list is correct when the code is sound.",
+  "context_files": [
+   "cart.py",
+   "inventory.py",
+   "pricing.py",
+   "orders.py",
+   "money.py",
+   "validators.py"
+  ],
+  "reference": "The defects are: cart.py line 27: The discount divides by 10 instead of 100, so 10 percent takes off the whole subtotal. inventory.py line 14: The stock check allows a reservation of one more than is on the shelf (quantity - 1), so stock can go negative. pricing.py line 10: Floor division // 100 drops the paisa from the tax instead of rounding it. pricing.py line 14: The docstring says shipping is free from 500 and above, but > leaves exactly 500 paying the fee. orders.py line 11: Stock is reserved line by line, so when a later line fails, the earlier reservations are never released.",
+  "metrics": [
+   "groundedness",
+   "precision",
+   "recall",
+   "f1",
+   "faithfulness",
+   "context_recall",
+   "context_precision",
+   "factual_correctness"
+  ],
+  "checks": {
+   "json_schema": "ReviewFindings"
+  },
+  "key": {
+   "list": "findings",
+   "match": "location",
+   "items": [
+    {
+     "file": "cart.py",
+     "line": 27,
+     "tolerance": 1
+    },
+    {
+     "file": "inventory.py",
+     "line": 14,
+     "tolerance": 1
+    },
+    {
+     "file": "pricing.py",
+     "line": 10,
+     "tolerance": 1
+    },
+    {
+     "file": "pricing.py",
+     "line": 14,
+     "tolerance": 1
+    },
+    {
+     "file": "orders.py",
+     "line": 11,
+     "tolerance": 1
+    }
+   ]
+  }
+ }
+]

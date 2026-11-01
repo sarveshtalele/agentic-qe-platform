@@ -46,11 +46,12 @@ Modify the existing project into a production-ready app for BAs and developers, 
 | 9 | Agent governance: policy, guardrails, evals, observability | `maf/governance.py`, `maf/evals.py`, `/agents` |
 | 10 | Sign-in, per-user allocations, confidence review beside each stage | `core/auth.py`, `api/auth.py`, `core/doc_checks.py`, `/login`, `/users` |
 | 11 | Roadmap: Skill Studio, repository-aware changes, application builder, chatbot, new UI | `docs/PLUGIN_AND_UI_PLAN.md`. Approved, not built |
+| 15 | Delivery phase 6: deterministic metrics, RAGAS evaluator, benchmarks, stored scores, score cards | `maf/evals/`, `evals/benchmarks/`, `docs/EVALUATIONS.md` | Built |
 | 14 | Delivery phase 5: per-case confidence, code-computed verdicts, gate reopening, signature checks, setup and data stages, defect records, case budget, `qa-execution-engineer` | `qe/confidence.py`, `qe/emit.py`, `qe/test_data.py` | Built |
 | 13 | Delivery phase 4: plugin skills injected into workflows, chat skill selection, and a live tool check per model | `skills/`, `core/skills.py`, `maf/skill_chat.py`, `llm.tool_check` | Built |
 | 12 | Delivery phases 1 to 3 of `docs/PLUGIN_AND_UI_PLAN.md`: names and integrity, typed errors and logs, models, limits, and roles | `core/models.py`, `core/errors.py`, `core/logs.py`, `core/auth.py`, `api/settings.py`, `maf/engine.py`. Built. Phase 4, Skills, is next |
 
-Latest results, after phase 5: offline 420 passed, end-to-end 33 of 33 passed, agent evaluations 32 of 33 passed. The finance repository QE run executed 60 tests, 29 passed and 31 failed, coverage 75%, verdict FAIL, 572,948 tokens. Results vary between runs.
+Latest results, after phase 6: offline 447 passed, end-to-end 32 of 33 passed (`test_f4` failed, as Feature Builder ended with a failing verdict), agent evaluations 33 of 33 passed. The finance repository QE run executed 56 tests, 14 passed and 42 failed, coverage 53%, verdict FAIL, 446,876 tokens. Results vary widely between runs.
 
 ## How MAF is used
 

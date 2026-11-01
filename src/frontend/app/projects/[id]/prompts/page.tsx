@@ -3,6 +3,7 @@
 import { Check, Save } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Badge, Button, Card, ErrorNote, inputClass, PageTitle, Spinner, useToast } from "../../../../components/ui";
+import { VersionScores } from "../../../../components/EvalScores";
 import { api, when } from "../../../../lib/api";
 
 export default function PromptsPage() {
@@ -68,6 +69,7 @@ export default function PromptsPage() {
                 {evalRuns.length ? <ul className="space-y-1 text-sm">{evalRuns.map((r) => <li key={r.id} className="flex items-center justify-between gap-2"><span className="mono truncate text-xs">{r.prompt_ref}</span><span className="flex shrink-0 items-center gap-2 text-xs">{when(r.created_at)} <Badge tone={r.passed === r.total ? "emerald" : "rose"}>{`${r.passed}/${r.total} passed`}</Badge></span></li>)}</ul> : <p className="text-sm text-slate-500">Not evaluated yet.</p>}
               </Card>
             )}
+            {evalAgents.includes(agent) && <Card title="Scores by version"><VersionScores agent={agent} versions={history} /><p className="mt-2 text-[11px] text-slate-500">Measure a new version on the agent page before relying on these numbers. A version never measured reads Not measured.</p></Card>}
             <Card title="History">
               <ul className="divide-y divide-slate-200 text-sm dark:divide-slate-800">{history.map((p) => (
                 <li key={p.version} className="flex items-center justify-between gap-2 py-1.5">

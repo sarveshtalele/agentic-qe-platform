@@ -23,7 +23,7 @@
     }
   },
   "tracing-coverage": {
-    "Trace coverage when results.json is missing.": {
+    "Review type: evidence. Trace coverage when results.json is missing.": {
       "contains": ["NOT_RUN"]
     }
   }

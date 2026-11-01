@@ -1,0 +1,113 @@
+{
+ "reviewed": false,
+ "provenance": "Drafted by the assistant on 2026-11-02 by reading src/tools/tvm.py of the pinned commit line by line. The module's own code was not executed; each bug follows from Python semantics on the lines cited. Not checked by a person: the owner must review every item before the numbers are trusted.",
+ "repo": "https://github.com/sarveshtalele/personal-finance-mcp",
+ "commit": "aff44ea06ffa10090954b66e35d6b0426fe3eea8",
+ "scope": [
+  "src/tools/tvm.py"
+ ],
+ "bugs": [
+  {
+   "id": "FIN-BUG-1",
+   "file": "src/tools/tvm.py",
+   "line": 42,
+   "tolerance": 1,
+   "what": "growth_multiple divides by pv, so a present value of 0 raises ZeroDivisionError."
+  },
+  {
+   "id": "FIN-BUG-2",
+   "file": "src/tools/tvm.py",
+   "line": 151,
+   "tolerance": 1,
+   "what": "Only growth_rate > 0 takes the growing branch, so a negative growth rate silently falls through to the simple PMT / r result and ignores the growth."
+  },
+  {
+   "id": "FIN-BUG-3",
+   "file": "src/tools/tvm.py",
+   "line": 160,
+   "tolerance": 1,
+   "what": "A simple perpetuity divides by r, so an annual rate of 0 raises ZeroDivisionError instead of returning an error like the growing branch does."
+  },
+  {
+   "id": "FIN-BUG-4",
+   "file": "src/tools/tvm.py",
+   "line": 174,
+   "tolerance": 1,
+   "what": "Rule of 72 divides by annual_rate, and the exact formula divides by log(1 + rate/100), so a rate of 0 raises ZeroDivisionError."
+  },
+  {
+   "id": "FIN-BUG-5",
+   "file": "src/tools/tvm.py",
+   "line": 264,
+   "tolerance": 2,
+   "what": "required_monthly_savings divides by (1+r)^n - 1 (and by n when r is 0); for a period under one month n is 0, so this raises ZeroDivisionError."
+  }
+ ],
+ "requirements": [
+  {
+   "id": "FIN-R-1",
+   "file": "src/tools/tvm.py",
+   "line": 30,
+   "tolerance": 1,
+   "statement": "Future value with n compounding periods per year is PV x (1 + r/n)^(n x t)."
+  },
+  {
+   "id": "FIN-R-2",
+   "file": "src/tools/tvm.py",
+   "line": 27,
+   "tolerance": 1,
+   "statement": "Compounding periods of 0 mean continuous compounding, FV = PV x e^(r x t)."
+  },
+  {
+   "id": "FIN-R-3",
+   "file": "src/tools/tvm.py",
+   "line": 34,
+   "tolerance": 1,
+   "statement": "Future value also reports the simple interest and the compounding benefit over it."
+  },
+  {
+   "id": "FIN-R-4",
+   "file": "src/tools/tvm.py",
+   "line": 86,
+   "tolerance": 1,
+   "statement": "An annuity has int(years x periods per year) payments."
+  },
+  {
+   "id": "FIN-R-5",
+   "file": "src/tools/tvm.py",
+   "line": 94,
+   "tolerance": 1,
+   "statement": "An annuity due is worth the ordinary annuity times (1 + r)."
+  },
+  {
+   "id": "FIN-R-6",
+   "file": "src/tools/tvm.py",
+   "line": 152,
+   "tolerance": 1,
+   "statement": "A growing perpetuity needs the required return to exceed the growth rate, otherwise an error is returned."
+  },
+  {
+   "id": "FIN-R-7",
+   "file": "src/tools/tvm.py",
+   "line": 175,
+   "tolerance": 1,
+   "statement": "Rule of 72 also reports the exact years to double, log 2 / log(1 + rate/100)."
+  },
+  {
+   "id": "FIN-R-8",
+   "file": "src/tools/tvm.py",
+   "line": 211,
+   "tolerance": 1,
+   "statement": "The real rate of return uses the Fisher equation (1 + nominal) / (1 + inflation) - 1."
+  },
+  {
+   "id": "FIN-R-9",
+   "file": "src/tools/tvm.py",
+   "line": 254,
+   "tolerance": 1,
+   "statement": "If current savings will already exceed the target, the monthly savings needed is 0 with a message."
+  }
+ ],
+ "failures": [],
+ "questions": []
+}

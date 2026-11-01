@@ -1,0 +1,45 @@
+[
+ {
+  "name": "shop_mutation",
+  "category": "benchmark",
+  "query": "Generate executable pytest tests under tests/agentic_qe/ as JSON with framework and files (path, case_ids, content). Put CASE_ID = 'TC-SHOP-001' in each file. Import modules directly, as in `from validators import require_positive`.\nCASES: [{\"id\":\"TC-SHOP-001\",\"requirement_id\":\"REQ-1\",\"scenario\":\"require_positive accepts positive numbers and returns them\",\"type\":\"Positive\",\"steps\":[\"call require_positive(5, 'n')\"],\"expected_result\":\"returns 5\"},{\"id\":\"TC-SHOP-002\",\"requirement_id\":\"REQ-1\",\"scenario\":\"require_positive rejects zero and negatives\",\"type\":\"Negative (Boundary)\",\"steps\":[\"call require_positive(0, 'n')\",\"call require_positive(-1, 'n')\"],\"expected_result\":\"ValueError both times\"},{\"id\":\"TC-SHOP-003\",\"requirement_id\":\"REQ-2\",\"scenario\":\"round_money rounds half up to two decimals\",\"type\":\"Positive\",\"steps\":[\"call round_money(2.675)\",\"call round_money(1.004)\"],\"expected_result\":\"2.68 and 1.0\"}]",
+  "context_files": [
+   "validators.py",
+   "money.py"
+  ],
+  "metrics": [],
+  "checks": {
+   "json_schema": "GeneratedSuite"
+  },
+  "mutation": {
+   "repo": "repo",
+   "target": "tests/agentic_qe",
+   "mutants": [
+    {
+     "id": "M-1",
+     "file": "validators.py",
+     "find": "if value <= 0:",
+     "replace": "if value < 0:"
+    },
+    {
+     "id": "M-2",
+     "file": "validators.py",
+     "find": "isinstance(value, bool)",
+     "replace": "False"
+    },
+    {
+     "id": "M-3",
+     "file": "money.py",
+     "find": "ROUND_HALF_UP)",
+     "replace": "ROUND_DOWN)"
+    },
+    {
+     "id": "M-4",
+     "file": "money.py",
+     "find": "\"0.01\"",
+     "replace": "\"0.1\""
+    }
+   ]
+  }
+ }
+]

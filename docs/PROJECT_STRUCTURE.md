@@ -30,15 +30,15 @@ flowchart LR
   QE --> SBX
 ```
 
-The project has 272 files, not counting screenshots.
+The project has 295 files, not counting screenshots.
 
 ## Backend application
 
 | File | What it does | Uses | Used by |
 |---|---|---|---|
 | `src/backend/app.py` | FastAPI application: REST API for the UI, AG-UI for the chatbot, background MAF workflows. | `__init__.py`, `api/__init__.py`, `config.py`, `core/auth.py`, `core/documents.py`, `core/errors.py`, `core/files.py`, `core/gates.py`, and 15 more | `tests/test_access.py`, `tests/test_api_workflows.py`, `tests/test_errors.py`, `tests/test_ops.py`, `tests/test_skills.py` |
-| `src/backend/config.py` | Paths and environment. ATLAS_DATA_DIR lets tests run against a throwaway store. |  | `api/common.py`, `api/logs.py`, `api/projects.py`, `api/repository.py`, `api/templates.py`, `app.py`, `core/documents.py`, `core/files.py`, and 25 more |
-| `src/backend/db.py` | SQLite access: one short connection per unit of work, numbered SQL migrations via user_version. | `config.py` | `api/chat.py`, `api/common.py`, `api/documents.py`, `api/findings.py`, `api/governance.py`, `api/observability.py`, `api/projects.py`, `api/runs.py`, and 36 more |
+| `src/backend/config.py` | Paths and environment. ATLAS_DATA_DIR lets tests run against a throwaway store. |  | `api/common.py`, `api/logs.py`, `api/projects.py`, `api/repository.py`, `api/templates.py`, `app.py`, `core/documents.py`, `core/files.py`, and 27 more |
+| `src/backend/db.py` | SQLite access: one short connection per unit of work, numbered SQL migrations via user_version. | `config.py` | `api/chat.py`, `api/common.py`, `api/documents.py`, `api/findings.py`, `api/governance.py`, `api/observability.py`, `api/projects.py`, `api/runs.py`, and 38 more |
 
 ## REST API
 
@@ -46,19 +46,19 @@ The project has 272 files, not counting screenshots.
 |---|---|---|---|
 | `src/backend/api/__init__.py` | REST API, one router per area. | `api/auth.py`, `api/chat.py`, `api/documents.py`, `api/findings.py`, `api/governance.py`, `api/logs.py`, `api/observability.py`, `api/projects.py`, and 5 more | `app.py` |
 | `src/backend/api/auth.py` | Sign-in and user management. | `core/auth.py` | `api/__init__.py` |
-| `src/backend/api/chat.py` | Chat API. | `api/common.py`, `core/auth.py`, `db.py`, `maf/agui.py`, `maf/engine.py`, `maf/evals.py`, `maf/governance.py`, `maf/llm.py`, and 2 more | `api/__init__.py` |
+| `src/backend/api/chat.py` | Chat API. | `api/common.py`, `core/auth.py`, `db.py`, `maf/agui.py`, `maf/engine.py`, `maf/evals/__init__.py`, `maf/governance.py`, `maf/llm.py`, and 2 more | `api/__init__.py` |
 | `src/backend/api/common.py` | Helpers shared by routers. | `__init__.py`, `config.py`, `db.py` | `api/chat.py`, `api/documents.py`, `api/governance.py`, `api/projects.py`, `api/repository.py`, `api/runs.py`, `api/templates.py` |
 | `src/backend/api/documents.py` | Documents API. | `api/common.py`, `core/auth.py`, `core/doc_checks.py`, `core/documents.py`, `core/files.py`, `core/gates.py`, `core/security.py`, `db.py`, and 7 more | `api/__init__.py` |
-| `src/backend/api/findings.py` | Findings API. | `core/auth.py`, `core/ledger.py`, `db.py`, `maf/agui.py`, `maf/engine.py`, `maf/evals.py`, `maf/governance.py`, `maf/llm.py`, and 1 more | `api/__init__.py` |
+| `src/backend/api/findings.py` | Findings API. | `core/auth.py`, `core/ledger.py`, `db.py`, `maf/agui.py`, `maf/engine.py`, `maf/evals/__init__.py`, `maf/governance.py`, `maf/llm.py`, and 1 more | `api/__init__.py` |
 | `src/backend/api/governance.py` | Governance API. | `api/common.py`, `core/auth.py`, `core/gates.py`, `core/ledger.py`, `core/prompts.py`, `db.py`, `maf/agui.py`, `maf/engine.py`, and 4 more | `api/__init__.py` |
 | `src/backend/api/logs.py` | Admin download of one day's application log. | `config.py`, `core/logs.py`, `core/security.py` | `api/__init__.py` |
 | `src/backend/api/observability.py` | Observability API: the log of agents, skills, tools, workflows, approvals, guardrails, and the ledger. | `core/auth.py`, `db.py`, `maf/observability.py` | `api/__init__.py` |
 | `src/backend/api/projects.py` | Projects API. | `api/common.py`, `config.py`, `core/auth.py`, `core/documents.py`, `core/gates.py`, `core/ledger.py`, `core/security.py`, `db.py`, and 7 more | `api/__init__.py` |
-| `src/backend/api/repository.py` | Repository API. | `api/common.py`, `config.py`, `core/auth.py`, `core/security.py`, `maf/agui.py`, `maf/engine.py`, `maf/evals.py`, `maf/governance.py`, and 5 more | `api/__init__.py` |
-| `src/backend/api/runs.py` | Workflows API. | `api/common.py`, `core/auth.py`, `core/ledger.py`, `core/security.py`, `db.py`, `maf/agui.py`, `maf/engine.py`, `maf/evals.py`, and 6 more | `api/__init__.py` |
-| `src/backend/api/settings.py` | Connections and settings API. | `core/auth.py`, `core/models.py`, `maf/agui.py`, `maf/engine.py`, `maf/evals.py`, `maf/governance.py`, `maf/llm.py`, `maf/workflows/__init__.py`, and 1 more | `api/__init__.py` |
+| `src/backend/api/repository.py` | Repository API. | `api/common.py`, `config.py`, `core/auth.py`, `core/security.py`, `maf/agui.py`, `maf/engine.py`, `maf/evals/__init__.py`, `maf/governance.py`, and 5 more | `api/__init__.py` |
+| `src/backend/api/runs.py` | Workflows API. | `api/common.py`, `core/auth.py`, `core/ledger.py`, `core/security.py`, `db.py`, `maf/agui.py`, `maf/engine.py`, `maf/evals/__init__.py`, and 6 more | `api/__init__.py` |
+| `src/backend/api/settings.py` | Connections and settings API. | `core/auth.py`, `core/models.py`, `maf/agui.py`, `maf/engine.py`, `maf/evals/__init__.py`, `maf/governance.py`, `maf/llm.py`, `maf/workflows/__init__.py`, and 1 more | `api/__init__.py` |
 | `src/backend/api/skills.py` | Skills API, read only. The skills are the plugin folders under skills/, validated by MAF at startup. | `core/skills.py` | `api/__init__.py` |
-| `src/backend/api/templates.py` | Templates and source documents API. | `api/common.py`, `config.py`, `core/files.py`, `core/security.py`, `db.py`, `maf/agui.py`, `maf/engine.py`, `maf/evals.py`, and 3 more | `api/__init__.py` |
+| `src/backend/api/templates.py` | Templates and source documents API. | `api/common.py`, `config.py`, `core/files.py`, `core/security.py`, `db.py`, `maf/agui.py`, `maf/engine.py`, `maf/evals/__init__.py`, and 3 more | `api/__init__.py` |
 
 ## Agents
 
@@ -115,31 +115,35 @@ The project has 272 files, not counting screenshots.
 | File | What it does | Uses | Used by |
 |---|---|---|---|
 | `src/backend/maf/agui.py` | AG-UI endpoint for the chatbot. MAF's AgentFrameworkAgent produces the protocol stream. | `core/auth.py`, `core/errors.py`, `core/ledger.py`, `core/security.py`, `core/skills.py`, `db.py`, `maf/engine.py`, `maf/governance.py`, and 4 more | `api/chat.py`, `api/documents.py`, `api/findings.py`, `api/governance.py`, `api/projects.py`, `api/repository.py`, `api/runs.py`, `api/settings.py`, and 2 more |
-| `src/backend/maf/engine.py` | Run manager over real MAF workflows: typed stages, HITL via request_info, file checkpoints, durable events. | `config.py`, `core/auth.py`, `core/errors.py`, `core/gates.py`, `core/ledger.py`, `core/security.py`, `db.py`, `maf/runtime.py`, and 1 more | `api/chat.py`, `api/documents.py`, `api/findings.py`, `api/governance.py`, `api/projects.py`, `api/repository.py`, `api/runs.py`, `api/settings.py`, and 12 more |
-| `src/backend/maf/evals.py` | Agent evals on MAF's evaluation API. Each case runs the real active prompt, so prompt versions can be compared. | `config.py`, `core/errors.py`, `core/gherkin.py`, `core/prompts.py`, `core/skills.py`, `db.py`, `maf/runtime.py`, `maf/workflows/__init__.py`, and 1 more | `api/chat.py`, `api/documents.py`, `api/findings.py`, `api/governance.py`, `api/projects.py`, `api/repository.py`, `api/runs.py`, `api/settings.py`, and 5 more |
-| `src/backend/maf/governance.py` | Agent governance: one registry, per-agent tool policy, an admin kill switch, guardrails, and call telemetry. | `core/auth.py`, `core/errors.py`, `core/ledger.py`, `core/models.py`, `core/prompts.py`, `core/security.py`, `db.py`, `maf/agents/__init__.py`, and 1 more | `api/chat.py`, `api/documents.py`, `api/findings.py`, `api/governance.py`, `api/projects.py`, `api/repository.py`, `api/runs.py`, `api/settings.py`, and 8 more |
-| `src/backend/maf/llm.py` | Model provider settings. Environment wins on first run; the Settings page can override and encrypts the key. | `config.py`, `core/errors.py`, `core/models.py`, `core/security.py`, `db.py` | `api/chat.py`, `api/documents.py`, `api/findings.py`, `api/governance.py`, `api/projects.py`, `api/repository.py`, `api/runs.py`, `api/settings.py`, and 15 more |
+| `src/backend/maf/engine.py` | Run manager over real MAF workflows: typed stages, HITL via request_info, file checkpoints, durable events. | `config.py`, `core/auth.py`, `core/errors.py`, `core/gates.py`, `core/ledger.py`, `core/security.py`, `db.py`, `maf/runtime.py`, and 1 more | `api/chat.py`, `api/documents.py`, `api/findings.py`, `api/governance.py`, `api/projects.py`, `api/repository.py`, `api/runs.py`, `api/settings.py`, and 13 more |
+| `src/backend/maf/evals/__init__.py` | Agent evals on MAF's evaluation API. Each case runs the real active prompt, so prompt versions can be compared. | `config.py`, `core/errors.py`, `core/gherkin.py`, `core/prompts.py`, `core/security.py`, `core/skills.py`, `db.py`, `maf/evals/grader.py`, and 6 more | `api/chat.py`, `api/documents.py`, `api/findings.py`, `api/governance.py`, `api/projects.py`, `api/repository.py`, `api/runs.py`, `api/settings.py`, and 7 more |
+| `src/backend/maf/evals/grader.py` | Grades a skill case's `expected_behavior` sentences with the judge model. A PASS needs evidence quoted from the output, and code checks the quote is there. | `maf/llm.py`, `maf/runtime.py` | `maf/evals/__init__.py`, `tests/test_evaluation_metrics.py` |
+| `src/backend/maf/evals/metrics.py` | Deterministic, free evaluation metrics. A metric with nothing to measure has the value None, never 0 and never 1. | `core/security.py`, `maf/runtime.py`, `qe/execution.py`, `repos/static_analysis.py` | `maf/evals/__init__.py`, `maf/runtime.py`, `tests/test_evaluation_metrics.py` |
+| `src/backend/maf/evals/ragas_evaluator.py` | RAGAS metrics as a MAF `Evaluator`. `ragas` is optional (requirements-evals.txt) and is imported only when a score is asked for. | `config.py`, `maf/llm.py` | `maf/evals/__init__.py`, `tests/test_evaluation_metrics.py` |
+| `src/backend/maf/evals/store.py` | Stored metric values and what the cards show. A value exists only when a metric really ran; otherwise a card says why not. | `core/prompts.py`, `db.py` | `maf/evals/__init__.py`, `maf/runtime.py`, `tests/test_evaluation_metrics.py` |
+| `src/backend/maf/governance.py` | Agent governance: one registry, per-agent tool policy, an admin kill switch, guardrails, and call telemetry. | `core/auth.py`, `core/errors.py`, `core/ledger.py`, `core/models.py`, `core/prompts.py`, `core/security.py`, `db.py`, `maf/agents/__init__.py`, and 1 more | `api/chat.py`, `api/documents.py`, `api/findings.py`, `api/governance.py`, `api/projects.py`, `api/repository.py`, `api/runs.py`, `api/settings.py`, and 9 more |
+| `src/backend/maf/llm.py` | Model provider settings. Environment wins on first run; the Settings page can override and encrypts the key. | `config.py`, `core/errors.py`, `core/models.py`, `core/security.py`, `db.py` | `api/chat.py`, `api/documents.py`, `api/findings.py`, `api/governance.py`, `api/projects.py`, `api/repository.py`, `api/runs.py`, `api/settings.py`, and 18 more |
 | `src/backend/maf/observability.py` | One log of everything agents and workflows did, for a run, a project, or all projects. Reads stored records only. | `core/auth.py`, `core/ledger.py`, `core/security.py`, `db.py` | `api/observability.py`, `maf/governance.py`, `maf/runtime.py`, `tests/test_access.py`, `tests/test_api_workflows.py` |
-| `src/backend/maf/runtime.py` | Agent construction on the real Microsoft Agent Framework, with middleware and JSON validation. | `config.py`, `core/auth.py`, `core/documents.py`, `core/errors.py`, `core/ledger.py`, `core/prompts.py`, `core/security.py`, `core/skills.py`, and 7 more | `api/chat.py`, `api/documents.py`, `maf/agui.py`, `maf/engine.py`, `maf/evals.py`, `maf/skill_chat.py`, `maf/tools/remember.py`, `maf/workflows/ba.py`, and 10 more |
+| `src/backend/maf/runtime.py` | Agent construction on the real Microsoft Agent Framework, with middleware and JSON validation. | `config.py`, `core/auth.py`, `core/documents.py`, `core/errors.py`, `core/ledger.py`, `core/prompts.py`, `core/security.py`, `core/skills.py`, and 10 more | `api/chat.py`, `api/documents.py`, `maf/agui.py`, `maf/engine.py`, `maf/evals/__init__.py`, `maf/evals/grader.py`, `maf/evals/metrics.py`, `maf/skill_chat.py`, and 13 more |
 | `src/backend/maf/skill_chat.py` | Skills in chat. Tools are unreliable through the proxy, so by default code picks the skill and adds its text to the turn. | `config.py`, `core/models.py`, `core/prompts.py`, `core/skills.py`, `maf/governance.py`, `maf/llm.py`, `maf/runtime.py` | `maf/agui.py`, `maf/runtime.py`, `tests/test_skills.py` |
 
 ## Core services
 
 | File | What it does | Uses | Used by |
 |---|---|---|---|
-| `src/backend/core/auth.py` | Accounts and access. The admin login comes from .env. Users are created by the admin. | `core/errors.py`, `core/ledger.py`, `core/models.py`, `core/security.py`, `db.py`, `maf/llm.py` | `api/auth.py`, `api/chat.py`, `api/documents.py`, `api/findings.py`, `api/governance.py`, `api/observability.py`, `api/projects.py`, `api/repository.py`, and 13 more |
+| `src/backend/core/auth.py` | Accounts and access. The admin login comes from .env. Users are created by the admin. | `core/errors.py`, `core/ledger.py`, `core/models.py`, `core/security.py`, `db.py`, `maf/llm.py` | `api/auth.py`, `api/chat.py`, `api/documents.py`, `api/findings.py`, `api/governance.py`, `api/observability.py`, `api/projects.py`, `api/repository.py`, and 14 more |
 | `src/backend/core/doc_checks.py` | Deterministic requirements checks. They cap the reviewer's score, so a model cannot pass a weak document. | `core/files.py` | `api/documents.py`, `maf/workflows/ba.py`, `maf/workflows/qe.py`, `tests/test_api_workflows.py`, `tests/test_core.py` |
 | `src/backend/core/documents.py` | Versioned documents. Every save is an immutable version with SHA-256, author, and prompt reference. | `config.py`, `core/gates.py`, `core/gherkin.py`, `core/ledger.py`, `core/security.py`, `db.py`, `qe/model.py` | `api/documents.py`, `api/projects.py`, `app.py`, `maf/runtime.py`, `maf/tools/common.py`, `maf/tools/list_documents.py`, `maf/tools/read_document.py`, `maf/tools/save_document.py`, and 7 more |
-| `src/backend/core/errors.py` | Typed errors. Each says what happened, what to do next, and whether a plain retry may help. | `core/security.py` | `app.py`, `core/auth.py`, `core/models.py`, `maf/agui.py`, `maf/engine.py`, `maf/evals.py`, `maf/governance.py`, `maf/llm.py`, and 9 more |
+| `src/backend/core/errors.py` | Typed errors. Each says what happened, what to do next, and whether a plain retry may help. | `core/security.py` | `app.py`, `core/auth.py`, `core/models.py`, `maf/agui.py`, `maf/engine.py`, `maf/evals/__init__.py`, `maf/governance.py`, `maf/llm.py`, and 9 more |
 | `src/backend/core/files.py` | Uploaded-file text extraction, templates, and DOCX export. | `config.py`, `core/security.py`, `db.py` | `api/documents.py`, `api/templates.py`, `app.py`, `core/doc_checks.py`, `maf/workflows/ba.py`, `tests/conftest.py`, `tests/test_core.py` |
 | `src/backend/core/gates.py` | Quality gates G0-G5. Sequential approval, HMAC-signed records, human signer required. | `core/ledger.py`, `core/security.py`, `db.py` | `api/documents.py`, `api/governance.py`, `api/projects.py`, `app.py`, `core/documents.py`, `maf/engine.py`, `maf/tools/project_status.py`, `maf/workflows/shared.py`, and 2 more |
-| `src/backend/core/gherkin.py` | Gherkin validation with the official Cucumber parser. |  | `core/documents.py`, `maf/evals.py`, `maf/workflows/ba.py`, `tests/test_core.py` |
+| `src/backend/core/gherkin.py` | Gherkin validation with the official Cucumber parser. |  | `core/documents.py`, `maf/evals/__init__.py`, `maf/workflows/ba.py`, `tests/test_core.py` |
 | `src/backend/core/ledger.py` | Tamper-evident audit ledger: each entry hashes the previous entry, per project. | `core/security.py`, `db.py` | `api/findings.py`, `api/governance.py`, `api/projects.py`, `api/runs.py`, `core/auth.py`, `core/documents.py`, `core/gates.py`, `maf/agui.py`, and 9 more |
 | `src/backend/core/logs.py` | Daily JSON-lines application log: data/logs/app-YYYY-MM-DD.jsonl. | `__init__.py`, `config.py`, `core/security.py` | `api/logs.py`, `app.py`, `tests/test_ops.py` |
 | `src/backend/core/models.py` | The model list, who may use which model, and token limits per period. | `core/errors.py`, `db.py` | `api/settings.py`, `app.py`, `core/auth.py`, `maf/governance.py`, `maf/llm.py`, `maf/skill_chat.py`, `tests/test_api_workflows.py`, `tests/test_models.py`, and 1 more |
-| `src/backend/core/prompts.py` | Versioned agent prompts. prompts/*.md seed v1; every edit is a new immutable version in the DB. | `config.py`, `core/security.py`, `db.py` | `api/governance.py`, `app.py`, `maf/evals.py`, `maf/governance.py`, `maf/runtime.py`, `maf/skill_chat.py`, `tests/conftest.py`, `tests/test_core.py`, and 1 more |
-| `src/backend/core/security.py` | Secrets at rest, secret detection, redaction, path confinement, and shell-free command policy. | `config.py` | `api/documents.py`, `api/logs.py`, `api/projects.py`, `api/repository.py`, `api/runs.py`, `api/templates.py`, `app.py`, `core/auth.py`, and 30 more |
-| `src/backend/core/skills.py` | Plugin skills from skills/, validated by MAF's FileSkillsSource and read through safe_path. | `config.py`, `core/security.py`, `maf/agents/__init__.py` | `api/skills.py`, `app.py`, `maf/agui.py`, `maf/evals.py`, `maf/runtime.py`, `maf/skill_chat.py`, `tests/test_skills.py` |
+| `src/backend/core/prompts.py` | Versioned agent prompts. prompts/*.md seed v1; every edit is a new immutable version in the DB. | `config.py`, `core/security.py`, `db.py` | `api/governance.py`, `app.py`, `maf/evals/__init__.py`, `maf/evals/store.py`, `maf/governance.py`, `maf/runtime.py`, `maf/skill_chat.py`, `tests/conftest.py`, and 3 more |
+| `src/backend/core/security.py` | Secrets at rest, secret detection, redaction, path confinement, and shell-free command policy. | `config.py` | `api/documents.py`, `api/logs.py`, `api/projects.py`, `api/repository.py`, `api/runs.py`, `api/templates.py`, `app.py`, `core/auth.py`, and 32 more |
+| `src/backend/core/skills.py` | Plugin skills from skills/, validated by MAF's FileSkillsSource and read through safe_path. | `config.py`, `core/security.py`, `maf/agents/__init__.py` | `api/skills.py`, `app.py`, `maf/agui.py`, `maf/evals/__init__.py`, `maf/runtime.py`, `maf/skill_chat.py`, `tests/test_skills.py` |
 
 ## Repositories
 
@@ -150,7 +154,7 @@ The project has 272 files, not counting screenshots.
 | `src/backend/repos/ingest.py` | Bring code into a project: clone a git URL (public or with a saved token) or unpack a ZIP safely. | `config.py`, `core/errors.py`, `core/ledger.py`, `db.py`, `repos/git.py`, `repos/github.py`, `repos/scan.py` | `api/projects.py`, `api/repository.py`, `api/runs.py`, `app.py`, `maf/runtime.py`, `maf/workflows/change.py`, `maf/workflows/shared.py`, `tests/test_core.py` |
 | `src/backend/repos/sandbox.py` | Each project's sandbox: its own folder with a full clone, one worktree per run, its own Python environment. | `config.py`, `db.py`, `repos/git.py`, `repos/github.py` | `api/repository.py`, `maf/workflows/bug_scan.py` |
 | `src/backend/repos/scan.py` | Evidence-only repository analysis: every field comes from files on disk. Port of plugin scan-repo.ts, extended. |  | `api/repository.py`, `maf/tools/grep.py`, `maf/tools/list_files.py`, `maf/workflows/bug_scan.py`, `maf/workflows/change.py`, `maf/workflows/qe.py`, `maf/workflows/shared.py`, `qe/execution.py`, and 3 more |
-| `src/backend/repos/static_analysis.py` | Deterministic scanners. A finding exists only with a file, a line, and the quoted line from disk. | `core/security.py`, `repos/scan.py` | `maf/workflows/bug_scan.py`, `maf/workflows/change.py`, `maf/workflows/qe.py`, `maf/workflows/shared.py`, `tests/test_core.py` |
+| `src/backend/repos/static_analysis.py` | Deterministic scanners. A finding exists only with a file, a line, and the quoted line from disk. | `core/security.py`, `repos/scan.py` | `maf/evals/metrics.py`, `maf/workflows/bug_scan.py`, `maf/workflows/change.py`, `maf/workflows/qe.py`, `maf/workflows/shared.py`, `tests/test_core.py` |
 
 ## Quality engineering
 
@@ -158,8 +162,8 @@ The project has 272 files, not counting screenshots.
 |---|---|---|---|
 | `src/backend/qe/confidence.py` | Per-case confidence, ported from the plugin's confidence.ts. The reviewer model scores; this code decides. | `core/security.py` | `maf/engine.py`, `maf/workflows/qe.py`, `maf/workflows/shared.py`, `tests/test_confidence.py` |
 | `src/backend/qe/emit.py` | Pre-run checks for generated tests. Port of the idea behind emit-tests.ts: nothing a model wrote is run to find out it was wrong. | `qe/execution.py` | `maf/workflows/qe.py`, `qe/execution.py`, `tests/test_emit.py` |
-| `src/backend/qe/execution.py` | Registered test runners, JUnit parsing, honest verdicts. No shell, bounded time, scrubbed environment. | `core/security.py`, `qe/emit.py`, `repos/scan.py` | `maf/workflows/change.py`, `maf/workflows/edits.py`, `maf/workflows/qe.py`, `qe/emit.py`, `tests/test_core.py`, `tests/test_emit.py`, `tests/test_errors.py`, `tests/test_execution_stages.py` |
-| `src/backend/qe/model.py` | Structured QE artifacts and the plugin's validators, ported from TypeScript to Python. |  | `core/documents.py`, `maf/evals.py`, `maf/workflows/qe.py`, `maf/workflows/shared.py`, `tests/test_core.py`, `tests/test_execution_stages.py`, `tests/test_token_budget.py` |
+| `src/backend/qe/execution.py` | Registered test runners, JUnit parsing, honest verdicts. No shell, bounded time, scrubbed environment. | `core/security.py`, `qe/emit.py`, `repos/scan.py` | `maf/evals/metrics.py`, `maf/workflows/change.py`, `maf/workflows/edits.py`, `maf/workflows/qe.py`, `qe/emit.py`, `tests/test_core.py`, `tests/test_emit.py`, `tests/test_errors.py`, and 1 more |
+| `src/backend/qe/model.py` | Structured QE artifacts and the plugin's validators, ported from TypeScript to Python. |  | `core/documents.py`, `maf/evals/__init__.py`, `maf/workflows/qe.py`, `maf/workflows/shared.py`, `tests/test_core.py`, `tests/test_execution_stages.py`, `tests/test_token_budget.py` |
 | `src/backend/qe/test_data.py` | Deterministic test data. Port of the generating-test-data skill's synthesize-data.ts, with its shapes unchanged. | `core/security.py` | `maf/workflows/qe.py`, `tests/test_execution_stages.py` |
 | `src/backend/qe/trace.py` | Traceability matrix and release score, ported from build-matrix.ts and the plugin's verdict rules. |  | `maf/workflows/qe.py`, `tests/test_core.py` |
 
@@ -178,6 +182,7 @@ The project has 272 files, not counting screenshots.
 | `src/backend/migrations/009_models_limits.sql` | Database change: models limits |  |  |
 | `src/backend/migrations/010_roles_members.sql` | Database change: roles members |  |  |
 | `src/backend/migrations/011_skills_tool_check.sql` | Database change: skills tool check |  |  |
+| `src/backend/migrations/012_evaluation_metrics.sql` | Database change: evaluation metrics |  |  |
 
 ## Agent prompts
 
@@ -200,6 +205,20 @@ The project has 272 files, not counting screenshots.
 
 | File | What it does | Uses | Used by |
 |---|---|---|---|
+| `evals/benchmarks/finance/labels.json` | Quality and safety cases for the labels agent |  |  |
+| `evals/benchmarks/shop/cases/bug-reviewer.json` | Quality and safety cases for the bug-reviewer agent |  |  |
+| `evals/benchmarks/shop/cases/business-analyst.json` | Quality and safety cases for the business-analyst agent |  |  |
+| `evals/benchmarks/shop/cases/requirements-analyst.json` | Quality and safety cases for the requirements-analyst agent |  |  |
+| `evals/benchmarks/shop/cases/test-automation-engineer.json` | Quality and safety cases for the test-automation-engineer agent |  |  |
+| `evals/benchmarks/shop/labels.json` | Quality and safety cases for the labels agent |  |  |
+| `evals/benchmarks/shop/repo/cart.py` | Shopping cart: holds items and works out what the customer owes. |  |  |
+| `evals/benchmarks/shop/repo/inventory.py` | Stock levels. A reservation must never take more than is on the shelf. |  |  |
+| `evals/benchmarks/shop/repo/money.py` | Money helpers. Amounts are rounded to two decimals, half up. |  |  |
+| `evals/benchmarks/shop/repo/orders.py` | Places an order: reserve stock, then price it. |  |  |
+| `evals/benchmarks/shop/repo/pricing.py` | Tax and shipping for an order. Tax is 18 percent of the amount, kept to the paisa. Shipping is free from 500 and above. |  |  |
+| `evals/benchmarks/shop/repo/pytest.ini` | Quality and safety cases for the pytest agent |  |  |
+| `evals/benchmarks/shop/repo/tests/test_money.py` | Quality and safety cases for the test_money agent |  |  |
+| `evals/benchmarks/shop/repo/validators.py` | Small input checks shared by the shop modules. |  |  |
 | `evals/bug-reviewer.json` | Quality and safety cases for the bug-reviewer agent |  |  |
 | `evals/business-analyst.json` | Quality and safety cases for the business-analyst agent |  |  |
 | `evals/confidence-reviewer.json` | Quality and safety cases for the confidence-reviewer agent |  |  |
@@ -227,8 +246,8 @@ The project has 272 files, not counting screenshots.
 | File | What it does | Uses | Used by |
 |---|---|---|---|
 | `src/frontend/app/account/page.tsx` | Page at `/account` | `ui/components/AppShell.tsx`, `ui/components/ui.tsx`, `ui/lib/api.ts` |  |
-| `src/frontend/app/agents/[key]/page.tsx` | Page for one agent: details table, controls, evaluations | `ui/components/AppShell.tsx`, `ui/components/AuthGate.tsx`, `ui/components/ui.tsx`, `ui/lib/api.ts` |  |
-| `src/frontend/app/agents/page.tsx` | Page at `/agents` | `ui/components/AppShell.tsx`, `ui/components/AuthGate.tsx`, `ui/components/ui.tsx`, `ui/lib/api.ts` |  |
+| `src/frontend/app/agents/[key]/page.tsx` | Page for one agent: details table, controls, evaluations | `ui/components/AppShell.tsx`, `ui/components/AuthGate.tsx`, `ui/components/EvalScores.tsx`, `ui/components/ui.tsx`, `ui/lib/api.ts` |  |
+| `src/frontend/app/agents/page.tsx` | Page at `/agents` | `ui/components/AppShell.tsx`, `ui/components/AuthGate.tsx`, `ui/components/EvalScores.tsx`, `ui/components/ui.tsx`, `ui/lib/api.ts` |  |
 | `src/frontend/app/api/copilotkit/[[...path]]/route.ts` | CopilotKit runtime, connecting chat to the AG-UI endpoint |  |  |
 | `src/frontend/app/approvals/page.tsx` | Page at `/approvals` | `ui/components/AppShell.tsx`, `ui/components/ApprovalsList.tsx`, `ui/components/ui.tsx` |  |
 | `src/frontend/app/chat/[id]/page.tsx` | Page at `/chat/{id}` | `ui/components/Chat.tsx` |  |
@@ -255,7 +274,7 @@ The project has 272 files, not counting screenshots.
 | `src/frontend/app/projects/[id]/layout.tsx` | Wraps project pages in the project sidebar | `ui/components/ProjectShell.tsx` |  |
 | `src/frontend/app/projects/[id]/observability/page.tsx` | Page at `/projects/{id}/observability` | `ui/components/Observability.tsx`, `ui/components/ProjectShell.tsx`, `ui/components/ui.tsx` |  |
 | `src/frontend/app/projects/[id]/page.tsx` | Page at `/projects/{id}` | `ui/components/AuthGate.tsx`, `ui/components/ProjectShell.tsx`, `ui/components/ui.tsx`, `ui/lib/api.ts` |  |
-| `src/frontend/app/projects/[id]/prompts/page.tsx` | Page at `/projects/{id}/prompts` | `ui/components/ui.tsx`, `ui/lib/api.ts` |  |
+| `src/frontend/app/projects/[id]/prompts/page.tsx` | Page at `/projects/{id}/prompts` | `ui/components/EvalScores.tsx`, `ui/components/ui.tsx`, `ui/lib/api.ts` |  |
 | `src/frontend/app/projects/[id]/qe/page.tsx` | Page at `/projects/{id}/qe` | `ui/components/ModelPicker.tsx`, `ui/components/ProjectShell.tsx`, `ui/components/RunPanel.tsx`, `ui/components/ui.tsx`, `ui/lib/api.ts` |  |
 | `src/frontend/app/projects/[id]/repository/page.tsx` | Page at `/projects/{id}/repository` | `ui/components/ProjectShell.tsx`, `ui/components/ui.tsx`, `ui/lib/api.ts` |  |
 | `src/frontend/app/projects/[id]/runs/[runId]/page.tsx` | Page at `/projects/{id}/runs/{runId}` | `ui/components/ProjectShell.tsx`, `ui/components/RunPanel.tsx` |  |
@@ -275,13 +294,14 @@ The project has 272 files, not counting screenshots.
 | `src/frontend/components/AuthGate.tsx` | Sends people to sign in, and holds the sign-out menu | `ui/components/ui.tsx`, `ui/lib/api.ts` | `ui/app/agents/[key]/page.tsx`, `ui/app/agents/page.tsx`, `ui/app/layout.tsx`, `ui/app/projects/[id]/documents/[docId]/page.tsx`, `ui/app/projects/[id]/governance/page.tsx`, `ui/app/projects/[id]/page.tsx`, `ui/app/settings/page.tsx`, `ui/components/AppShell.tsx`, and 2 more |
 | `src/frontend/components/Chat.tsx` | Chat threads and conversation | `ui/components/ModelPicker.tsx`, `ui/components/ui.tsx`, `ui/lib/api.ts` | `ui/app/chat/[id]/page.tsx`, `ui/app/projects/[id]/chat/page.tsx` |
 | `src/frontend/components/DocumentEditor.tsx` | Formatted document with in-place editing, table grids, and images | `ui/components/ui.tsx`, `ui/lib/api.ts` | `ui/app/projects/[id]/documents/[docId]/page.tsx` |
+| `src/frontend/components/EvalScores.tsx` |  | `ui/components/ui.tsx`, `ui/lib/api.ts` | `ui/app/agents/[key]/page.tsx`, `ui/app/agents/page.tsx`, `ui/app/projects/[id]/prompts/page.tsx` |
 | `src/frontend/components/ModelPicker.tsx` | Menu to choose the model for a run or a chat thread | `ui/components/ui.tsx`, `ui/lib/api.ts` | `ui/app/projects/[id]/ba/page.tsx`, `ui/app/projects/[id]/bugs/page.tsx`, `ui/app/projects/[id]/feature/page.tsx`, `ui/app/projects/[id]/qe/page.tsx`, `ui/components/Chat.tsx` |
 | `src/frontend/components/Observability.tsx` | Log with filters, run trace, and download | `ui/components/ui.tsx`, `ui/lib/api.ts` | `ui/app/observability/page.tsx`, `ui/app/projects/[id]/observability/page.tsx` |
 | `src/frontend/components/ProjectShell.tsx` | Project sidebar and header | `ui/components/AuthGate.tsx`, `ui/components/ui.tsx`, `ui/lib/api.ts` | `ui/app/projects/[id]/approvals/page.tsx`, `ui/app/projects/[id]/ba/page.tsx`, `ui/app/projects/[id]/bugs/page.tsx`, `ui/app/projects/[id]/chat/page.tsx`, `ui/app/projects/[id]/documents/[docId]/page.tsx`, `ui/app/projects/[id]/documents/page.tsx`, `ui/app/projects/[id]/feature/page.tsx`, `ui/app/projects/[id]/governance/page.tsx`, and 7 more |
 | `src/frontend/components/RunPanel.tsx` | Live run view, approval card, and past runs | `ui/components/AuthGate.tsx`, `ui/components/ui.tsx`, `ui/lib/api.ts` | `ui/app/projects/[id]/ba/page.tsx`, `ui/app/projects/[id]/bugs/page.tsx`, `ui/app/projects/[id]/feature/page.tsx`, `ui/app/projects/[id]/qe/page.tsx`, `ui/app/projects/[id]/runs/[runId]/page.tsx`, `ui/components/ApprovalsList.tsx` |
-| `src/frontend/components/ui.tsx` | Shared buttons, cards, badges, fields, and toasts |  | `ui/app/account/page.tsx`, `ui/app/agents/[key]/page.tsx`, `ui/app/agents/page.tsx`, `ui/app/approvals/page.tsx`, `ui/app/docs/[slug]/page.tsx`, `ui/app/docs/layout.tsx`, `ui/app/documents/page.tsx`, `ui/app/error.tsx`, and 32 more |
+| `src/frontend/components/ui.tsx` | Shared buttons, cards, badges, fields, and toasts |  | `ui/app/account/page.tsx`, `ui/app/agents/[key]/page.tsx`, `ui/app/agents/page.tsx`, `ui/app/approvals/page.tsx`, `ui/app/docs/[slug]/page.tsx`, `ui/app/docs/layout.tsx`, `ui/app/documents/page.tsx`, `ui/app/error.tsx`, and 33 more |
 | `src/frontend/content/docs.ts` | All documentation pages |  | `ui/app/docs/[slug]/page.tsx`, `ui/app/docs/layout.tsx` |
-| `src/frontend/lib/api.ts` | Browser calls to the API |  | `ui/app/account/page.tsx`, `ui/app/agents/[key]/page.tsx`, `ui/app/agents/page.tsx`, `ui/app/documents/page.tsx`, `ui/app/findings/page.tsx`, `ui/app/login/page.tsx`, `ui/app/page.tsx`, `ui/app/projects/[id]/ba/page.tsx`, and 24 more |
+| `src/frontend/lib/api.ts` | Browser calls to the API |  | `ui/app/account/page.tsx`, `ui/app/agents/[key]/page.tsx`, `ui/app/agents/page.tsx`, `ui/app/documents/page.tsx`, `ui/app/findings/page.tsx`, `ui/app/login/page.tsx`, `ui/app/page.tsx`, `ui/app/projects/[id]/ba/page.tsx`, and 25 more |
 
 ## Frontend configuration
 
@@ -308,19 +328,20 @@ The project has 272 files, not counting screenshots.
 | `tests/e2e/test_finance_repo.py` | Every feature on a real repository, sarveshtalele/personal-finance-mcp, adding a new MCP tool. Nothing is mocked. | `tests/e2e/conftest.py`, `tests/e2e/test_app.py` |  |
 | `tests/e2e/test_smoke.py` | Browser smoke test with no model: a built app, an empty throwaway data folder, and a real browser. | `tests/e2e/conftest.py` |  |
 | `tests/reviewing.py` | A scripted confidence reviewer for tests. It answers the per-case review requests the QE workflow sends, standing in for the model. |  | `tests/test_api_workflows.py`, `tests/test_confidence.py`, `tests/test_errors.py`, `tests/test_models.py`, `tests/test_token_budget.py` |
-| `tests/scripted_client.py` | Test double only. A real MAF chat client whose replies come from a script, so workflow logic runs offline. |  | `tests/test_api_workflows.py`, `tests/test_confidence.py`, `tests/test_core.py`, `tests/test_errors.py`, `tests/test_execution_stages.py`, `tests/test_models.py`, `tests/test_ops.py`, `tests/test_skills.py`, and 1 more |
+| `tests/scripted_client.py` | Test double only. A real MAF chat client whose replies come from a script, so workflow logic runs offline. |  | `tests/test_api_workflows.py`, `tests/test_confidence.py`, `tests/test_core.py`, `tests/test_errors.py`, `tests/test_evaluation_metrics.py`, `tests/test_execution_stages.py`, `tests/test_models.py`, `tests/test_ops.py`, and 2 more |
 | `tests/test_access.py` | Roles, gate signing, project members, the account page, and the idle timeout. Only the model is ever scripted; none of this needs it. | `__init__.py`, `app.py`, `config.py`, `core/auth.py`, `db.py`, `maf/observability.py`, `tests/test_api_workflows.py` |  |
-| `tests/test_api_workflows.py` | Integration: real FastAPI, real SQLite, real git, real pytest, real MAF workflow engine. Only the model is scripted. | `app.py`, `config.py`, `core/auth.py`, `core/doc_checks.py`, `core/documents.py`, `core/models.py`, `core/security.py`, `db.py`, and 11 more | `tests/test_access.py`, `tests/test_confidence.py`, `tests/test_errors.py`, `tests/test_execution_stages.py`, `tests/test_models.py`, `tests/test_ops.py`, `tests/test_skills.py`, `tests/test_token_budget.py` |
+| `tests/test_api_workflows.py` | Integration: real FastAPI, real SQLite, real git, real pytest, real MAF workflow engine. Only the model is scripted. | `app.py`, `config.py`, `core/auth.py`, `core/doc_checks.py`, `core/documents.py`, `core/models.py`, `core/security.py`, `db.py`, and 11 more | `tests/test_access.py`, `tests/test_confidence.py`, `tests/test_errors.py`, `tests/test_evaluation_metrics.py`, `tests/test_execution_stages.py`, `tests/test_models.py`, `tests/test_ops.py`, `tests/test_skills.py`, and 1 more |
 | `tests/test_confidence.py` | Per-case confidence (qe/confidence.py), the QE review and send-back rounds, the human reason for REJECT items, and gate reopening. Only the model is scripted. | `config.py`, `core/documents.py`, `core/gates.py`, `core/ledger.py`, `maf/llm.py`, `qe/confidence.py`, `tests/__init__.py`, `tests/reviewing.py`, and 2 more | `tests/test_execution_stages.py`, `tests/test_token_budget.py` |
 | `tests/test_core.py` | Unit tests for governance, versioning, ingest safety, scanners, and QE rules. No network, no model. | `__init__.py`, `config.py`, `core/doc_checks.py`, `core/documents.py`, `core/files.py`, `core/gates.py`, `core/gherkin.py`, `core/ledger.py`, and 21 more |  |
 | `tests/test_emit.py` | Static pre-run checks of generated tests (qe/emit.py), on small real modules in tmp_path. Nothing is mocked and nothing is run. | `qe/emit.py`, `qe/execution.py` |  |
 | `tests/test_errors.py` | Typed errors, failure records, retry from the failed stage, kept batches, and the API error shape. Only the model is scripted. | `__init__.py`, `app.py`, `config.py`, `core/auth.py`, `core/errors.py`, `db.py`, `maf/engine.py`, `maf/llm.py`, and 8 more | `tests/test_models.py` |
+| `tests/test_evaluation_metrics.py` | Evaluation metrics (EVL): formulas, groundedness, mutation score with real pytest, the n/a table, the grader, RAGAS missing, storage, and the cards. | `config.py`, `core/auth.py`, `core/prompts.py`, `db.py`, `maf/evals/__init__.py`, `maf/evals/grader.py`, `maf/evals/metrics.py`, `maf/evals/ragas_evaluator.py`, and 7 more |  |
 | `tests/test_execution_stages.py` | Classification, setup facts, case limits, test data, defect records, healing limits, and the execution summary. Only the model is scripted. | `db.py`, `maf/engine.py`, `maf/llm.py`, `maf/workflows/__init__.py`, `maf/workflows/qe.py`, `qe/execution.py`, `qe/model.py`, `qe/test_data.py`, and 3 more |  |
 | `tests/test_migration_006.py` | Migration 006 renames agent keys to the plugin names. A database at schema 005 with history under the old keys must lose nothing. | `__init__.py`, `config.py`, `core/ledger.py`, `core/prompts.py`, `core/security.py`, `db.py`, `maf/agents/__init__.py` |  |
-| `tests/test_models.py` | Models per account, the order a call picks one, and daily, weekly, monthly, and per-model token limits. Only the model is scripted. | `__init__.py`, `config.py`, `core/auth.py`, `core/models.py`, `db.py`, `maf/evals.py`, `maf/llm.py`, `maf/runtime.py`, and 4 more |  |
+| `tests/test_models.py` | Models per account, the order a call picks one, and daily, weekly, monthly, and per-model token limits. Only the model is scripted. | `__init__.py`, `config.py`, `core/auth.py`, `core/models.py`, `db.py`, `maf/evals/__init__.py`, `maf/llm.py`, `maf/runtime.py`, and 4 more | `tests/test_evaluation_metrics.py` |
 | `tests/test_ops.py` | Phase 2, second half: observability paging, one active run, daily JSON logs, run file removal. | `__init__.py`, `app.py`, `config.py`, `core/logs.py`, `db.py`, `maf/llm.py`, `tests/scripted_client.py`, `tests/test_api_workflows.py` |  |
-| `tests/test_skills.py` | Plugin skills on MAF: loading, the agent mapping, injection into the message, prompt references, the chat pick, the live tool check, skill evals, the API, and the package. | `app.py`, `core/auth.py`, `core/models.py`, `core/skills.py`, `db.py`, `maf/agents/__init__.py`, `maf/evals.py`, `maf/governance.py`, and 5 more |  |
-| `tests/test_token_budget.py` | The case budget before design, smaller review evidence, review retries, and the run token limit. Only the model is scripted. | `db.py`, `maf/llm.py`, `maf/runtime.py`, `maf/workflows/__init__.py`, `maf/workflows/qe.py`, `maf/workflows/shared.py`, `qe/model.py`, `tests/__init__.py`, and 4 more |  |
+| `tests/test_skills.py` | Plugin skills on MAF: loading, the agent mapping, injection into the message, prompt references, the chat pick, the live tool check, skill evals, the API, and the package. | `app.py`, `core/auth.py`, `core/models.py`, `core/skills.py`, `db.py`, `maf/agents/__init__.py`, `maf/evals/__init__.py`, `maf/governance.py`, and 5 more |  |
+| `tests/test_token_budget.py` | The case budget before design, smaller review evidence, review retries, and the run token limit. Only the model is scripted. | `db.py`, `maf/engine.py`, `maf/llm.py`, `maf/runtime.py`, `maf/workflows/__init__.py`, `maf/workflows/qe.py`, `maf/workflows/shared.py`, `qe/model.py`, and 5 more |  |
 
 ## Scripts and deployment
 
@@ -342,6 +363,7 @@ The project has 272 files, not counting screenshots.
 | `docs/ARCHITECTURE.md` | Plugin to platform mapping and workflow details |  |  |
 | `docs/AZURE_DEPLOY.md` | Portal guide for Azure with INR costs |  |  |
 | `docs/AZURE_SYSTEM_DESIGN.md` | Multi-user Azure design: storage, sandboxes, costs |  |  |
+| `docs/EVALUATIONS.md` |  |  |  |
 | `docs/PLUGIN_AND_UI_PLAN.md` | Plan awaiting approval: plugin parity, UI, evaluations, error handling |  |  |
 | `docs/PROJECT_STRUCTURE.md` | This file |  |  |
 | `docs/REUSE_AUDIT.md` | Which earlier code was reused and which was replaced |  |  |
@@ -364,6 +386,7 @@ The project has 272 files, not counting screenshots.
 | `plan.md` | Design decisions and reuse audit |  |  |
 | `progress.md` | Timestamped activity log written by hooks |  |  |
 | `pytest.ini` | Test settings |  |  |
+| `requirements-evals.txt` |  |  |  |
 | `requirements.txt` | Python dependencies |  |  |
 | `skills/README.md` | Overview of the plugin skills copied here |  |  |
 | `skills/analyzing-repositories/SKILL.md` | Analyzes repository structures, detects programming languages, frameworks, package managers, and existing test inventory. Use when assessing a new codebase or preparing for test generation. |  |  |

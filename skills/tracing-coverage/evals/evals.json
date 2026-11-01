@@ -15,7 +15,7 @@
     "skills": [
       "tracing-coverage"
     ],
-    "query": "Trace coverage when results.json is missing.",
+    "query": "Review type: evidence. Trace coverage when results.json is missing.",
     "files": [],
     "expected_behavior": [
       "Reports results as NOT_RUN rather than PASS",

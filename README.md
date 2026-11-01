@@ -114,10 +114,10 @@ python scripts/dev.py e2e
 
 | Check | Result |
 |---|---|
-| Offline tests | 420 passed |
-| End-to-end tests (real model, repository, browser) | 33 of 33 passed |
-| Agent evaluations (real model) | 32 of 33 passed. `tracing-coverage #2` failed for `confidence-reviewer`. Other skill cases wait for a grader in phase 6 |
-| QE run on the finance repository | 60 tests executed, 29 passed, 31 failed (17 defects, 14 environment), coverage 75%, verdict FAIL, 572,948 tokens. Results vary between runs |
+| Offline tests | 447 passed |
+| End-to-end tests (real model, repository, browser) | 32 of 33 passed. `test_f4` failed: Feature Builder ended with a failing test verdict, which happens in some runs |
+| Agent evaluations (real model) | 33 of 33 passed. Skill cases that need a judge wait until one is set |
+| QE run on the finance repository | 56 tests executed, 14 passed, 42 failed, coverage 53%, verdict FAIL, 446,876 tokens. Results vary widely between runs |
 
 CI status for this commit: not yet confirmed.
 
@@ -125,7 +125,7 @@ The end-to-end suite checks that the platform runs every stage. It does not mean
 
 ## Roadmap
 
-Phases 1 to 5 of `docs/PLUGIN_AND_UI_PLAN.md` are done: names and integrity, errors and logs, models, limits, and access, skills, and accuracy. Phase 6, Evaluations, is next. Everything below is planned, and not built.
+Phases 1 to 6 of `docs/PLUGIN_AND_UI_PLAN.md` are done: names and integrity, errors and logs, models, limits, and access, skills, accuracy, and evaluations. Phase 7, repository-aware changes and tested ZIP delivery, is next. Everything below is planned, and not built.
 
 | Item | Purpose |
 |---|---|
@@ -152,7 +152,7 @@ Azure has not been deployed for real yet. This makes separate backend and fronte
 | `docs/AZURE_DEPLOY.md` | Azure deployment with the portal and ZIPs |
 | `docs/AZURE_SYSTEM_DESIGN.md` | Multi-user Azure design: storage, sandboxes, and costs in East US 2 |
 | `docs/ARCHITECTURE.md` | Plugin mapping and workflow details |
-| `docs/PLUGIN_AND_UI_PLAN.md` | Approved plan. Phases 1 to 5 are built, and the rest is not built yet |
+| `docs/PLUGIN_AND_UI_PLAN.md` | Approved plan. Phases 1 to 6 are built, and the rest is not built yet |
 | `maf-guide.md` | MAF features used, by file |
 | `plan.md`, `specs.md`, `tasks.md` | Decisions, requirements, status |
 | `Design.md` | UI design rules |
