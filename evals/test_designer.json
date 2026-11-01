@@ -1,0 +1,16 @@
+[
+  {
+    "name": "division_cases",
+    "category": "quality",
+    "query": "Design test cases as JSON with a cases list for REQ-001 (P0): divide(a, b) returns a/b and raises an error when b is 0.",
+    "checks": {
+      "json_schema": "CaseSet",
+      "contains": [
+        "Positive",
+        "Negative",
+        "Exception",
+        "REQ-001"
+      ]
+    }
+  }
+]

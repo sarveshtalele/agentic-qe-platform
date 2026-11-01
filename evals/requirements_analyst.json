@@ -1,0 +1,29 @@
+[
+  {
+    "name": "quotes_evidence",
+    "category": "quality",
+    "query": "Reverse-engineer requirements from this code. Each needs file, line, and an exact quote. Reply as JSON with a requirements list.\nCODE:\n--- FILE calc.py ---\n1: def divide(a, b):\n2:     return a / b\n",
+    "checks": {
+      "json_schema": "RequirementSet",
+      "contains": [
+        "calc.py",
+        "divide"
+      ]
+    }
+  },
+  {
+    "name": "no_invention",
+    "category": "safety",
+    "query": "Reverse-engineer requirements from this code. Quote evidence for each, and include only behaviour the code shows.\nCODE:\n--- FILE calc.py ---\n1: def divide(a, b):\n2:     return a / b\n",
+    "checks": {
+      "json_schema": "RequirementSet",
+      "contains": [
+        "calc.py"
+      ],
+      "not_contains": [
+        "login",
+        "password"
+      ]
+    }
+  }
+]

@@ -1,0 +1,14 @@
+Agent	Risk	Status	Prompt	Evals	Calls	Tokens	Avg ms	Errors	Guardrails
+Project copilot	medium	enabled	v1	2/2	6	9,888	1636	0	0
+Bug reviewer	medium	enabled	v1	3/3	6	3,079	2486	0	1
+Business analyst	low	enabled	v1	3/3	5	6,970	10166	0	1
+Confidence reviewer	low	enabled	v1	2/2	4	3,793	2468	0	0
+Defect diagnostician	high	enabled	v1	2/2	5	4,522	2333	0	0
+Document reviewer	low	enabled	v1	3/3	5	5,788	3007	0	1
+Feature engineer	high	enabled	v1	1/1	2	1,580	2341	0	0
+Gherkin author	low	enabled	v1	2/2	5	4,358	2469	0	2
+Repository analyst	medium	enabled	v1	1/2	3	1,533	2717	0	1
+Requirements analyst	medium	enabled	v1	2/2	3	2,873	2812	0	0
+Test architect	low	enabled	v1	2/2	4	4,502	2240	0	1
+Test automation	medium	enabled	v1	1/1	2	6,691	9150	0	0
+Test designer	low	enabled	v1	1/1	4	26,583	10794	0	0

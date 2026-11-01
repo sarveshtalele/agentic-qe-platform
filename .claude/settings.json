@@ -1,0 +1,19 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      { "hooks": [{ "type": "command", "command": "python3 \"$CLAUDE_PROJECT_DIR/scripts/hooks/activity_log.py\" pre || python \"$CLAUDE_PROJECT_DIR/scripts/hooks/activity_log.py\" pre", "timeout": 5 }] }
+    ],
+    "PostToolUse": [
+      { "hooks": [{ "type": "command", "command": "python3 \"$CLAUDE_PROJECT_DIR/scripts/hooks/activity_log.py\" post || python \"$CLAUDE_PROJECT_DIR/scripts/hooks/activity_log.py\" post", "timeout": 5 }] }
+    ],
+    "PostToolUseFailure": [
+      { "hooks": [{ "type": "command", "command": "python3 \"$CLAUDE_PROJECT_DIR/scripts/hooks/activity_log.py\" fail || python \"$CLAUDE_PROJECT_DIR/scripts/hooks/activity_log.py\" fail", "timeout": 5 }] }
+    ],
+    "UserPromptSubmit": [
+      { "hooks": [{ "type": "command", "command": "python3 \"$CLAUDE_PROJECT_DIR/scripts/hooks/activity_log.py\" prompt || python \"$CLAUDE_PROJECT_DIR/scripts/hooks/activity_log.py\" prompt", "timeout": 5 }] }
+    ],
+    "Stop": [
+      { "hooks": [{ "type": "command", "command": "python3 \"$CLAUDE_PROJECT_DIR/scripts/hooks/activity_log.py\" stop || python \"$CLAUDE_PROJECT_DIR/scripts/hooks/activity_log.py\" stop", "timeout": 5 }] }
+    ]
+  }
+}

@@ -1,9 +1,15 @@
-import sys
-from pathlib import Path
+"""Every test run uses a throwaway data directory. The app's real data is never touched."""
+import os
+import tempfile
 
-root = Path(__file__).resolve().parents[1]
-src = root / "src"
+_store = tempfile.mkdtemp(prefix="atlas-test-")
+os.environ["ATLAS_DATA_DIR"] = _store
+os.environ["ATLAS_WORKSPACES"] = os.path.join(_store, "projects")
+os.environ.setdefault("ATLAS_SECRET_KEY", "test-only-key")
 
-for p in (str(src), str(root)):
-    if p not in sys.path:
-        sys.path.insert(0, p)
+from backend import db as database  # noqa: E402
+from backend.core import files, prompts  # noqa: E402
+
+database.migrate()
+prompts.seed()
+files.seed_templates()

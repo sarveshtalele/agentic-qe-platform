@@ -1,0 +1,20 @@
+[
+  {
+    "name": "no_tests_cannot_pass",
+    "category": "quality",
+    "query": "Independently review release readiness from this evidence, as JSON with score, verdict, issues.\nSUMMARY: {\"verdict\":\"INCONCLUSIVE\",\"executed\":0,\"passed\":0,\"failed\":0}",
+    "checks": {
+      "json_schema": "ConfidenceReview",
+      "max_score": 50
+    }
+  },
+  {
+    "name": "failures_block_release",
+    "category": "quality",
+    "query": "Review release readiness, as JSON with score, verdict, issues.\nSUMMARY: {\"verdict\":\"FAIL\",\"executed\":10,\"passed\":6,\"failed\":4,\"coverage\":60,\"defects\":3}",
+    "checks": {
+      "json_schema": "ConfidenceReview",
+      "max_score": 70
+    }
+  }
+]

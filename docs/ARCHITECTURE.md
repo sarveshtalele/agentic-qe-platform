@@ -1,62 +1,163 @@
-# Architecture — ForgeSDLC MVP
+# Agentic QE Platform system design
 
-## Runtime model
+## Goal
 
-```text
-Browser (vanilla JS + CSS)
-       │ same origin, JSON + multipart
-       ▼
-FastAPI app (`backend/app.py`) ─── OpenAPI (`/docs`)
-       │
-       ├── SQLite (`data/sdlc.sqlite3`)
-       ├── Uploaded source documents (`data/uploads/`)
-       ├── Local workspaces (`workspaces/`)
-       └── Validated project ZIPs (`data/exports/`)
+Agentic QE Platform gives BAs and developers one governed workspace. It turns briefs into templated requirements and Gherkin, scans real repositories, builds features and fixes on isolated branches, runs the full test lifecycle, and offers a project-aware chatbot. It brings the [agentic-qe](https://github.com/sarveshtalele/agentic-qe) plugin's lifecycle into a standalone web app built on Microsoft Agent Framework (MAF) in Python.
+
+## Runtime
+
+```mermaid
+flowchart LR
+  B[Browser] -->|pages| N[Next.js 16 UI]
+  N -->|/api rewrite| A[FastAPI]
+  B -->|CopilotKit| R[CopilotKit runtime route]
+  R -->|AG-UI HttpAgent| G[/agui/agent]
+  G --> M[MAF Agent]
+  A --> E[Run engine]
+  E --> W[MAF Workflows]
+  W --> M
+  W --> D[Deterministic checks]
+  M --> L[OpenAI-compatible model]
+  A --> S[(SQLite)]
+  E --> C[(File checkpoints)]
+  W --> F[(Project files, repo, worktrees)]
+  D --> X[Git, ruff, test runners]
 ```
 
-The app is served by one Uvicorn process and needs no frontend build step or remote production server. The frontend uses ordinary browser APIs and is served at `/static`. The default server host is `127.0.0.1`.
+| Layer | Responsibility | Trust rule |
+|---|---|---|
+| UI | Projects page, inside-project views, editors, approval cards, chat | Holds no business rules |
+| API | REST, uploads, SSE timelines, origin and host guard | Validates all input |
+| Engine | Starts runs, stores events, pauses at approvals, resumes from checkpoints | A restart between pause and decision is safe |
+| Workflows | Typed stages on MAF `WorkflowBuilder` | Code checks all model output |
+| Agents | Prompted MAF agents with project-scoped tools | Read repo content as untrusted data |
+| Governance | Gates, ledger, versions, prompt history, agent policy, guardrails, evals | Humans approve; agents cannot |
 
-## Module responsibilities
+## Stored data
 
-- **Application shell and views:** `frontend/index.html`, `frontend/app.js`, `frontend/styles.css`. The sidebar switches among dashboard, projects, documents, requirements, backlog, repository explorer, development plans, Test Center, Security, traceability, run history, deliverables and settings.
-- **HTTP and validation:** FastAPI route handlers and Pydantic request models in `backend/app.py`.
-- **Persistence:** SQLite tables are created idempotently on import/startup. Foreign keys are enabled. Public artefact IDs use a shared counter per prefix to avoid collisions across projects.
-- **Document ingestion:** `parse_document` adapters for text, PDF, DOCX, XLSX and PPTX; uploaded bytes and extracted text are stored separately. Duplicate content is detected with SHA-256.
-- **Requirement generation:** `generate_requirements` calls an optional OpenAI-compatible endpoint when configured; otherwise `heuristic_requirements` extracts candidate sentences from real input. Both paths produce drafts. Source evidence is linked only when an exact excerpt can be associated with a stored document.
-- **Repository intelligence:** directory inventory and metadata inspection exclude common secrets, binary files, VCS metadata, dependency directories and caches. Git queries are limited to read-only metadata (`rev-parse`, branch name and status). API route detection is based on static patterns.
-- **Security scan:** small set of heuristic source patterns plus sensitive filename detection. Evidence for possible secrets is redacted. No dependency database is contacted.
-- **Test runner:** test commands are selected from fixed supported runners (pytest or npm test). Execution is disabled by default, bounded by a timeout, and captures the real process outcome. The process inherits host permissions; no sandbox is claimed.
-- **Packaging:** ZIP files are constructed from a resolved workspace root, exclude sensitive/unnecessary files, include an inclusion/exclusion manifest, and are integrity-checked before registration and download.
-
-## Core data model
-
-| Table | Purpose |
+| Store | Contents |
 |---|---|
-| `projects` | Project identity, description, repo path/remote metadata, latest analysis snapshot |
-| `documents` | Source file metadata, digest, extraction text/method, warnings and version |
-| `requirements` | Stable requirement ID, type, statement, priority/status, source reference and evidence classification |
-| `stories` | User story text, acceptance criteria and persisted requirement relationships |
-| `test_cases` | Test specification, steps, expected result and linked requirement/story |
-| `workflow_runs` | Workflow type, actual stage/status, summary, logs and timestamps |
-| `test_runs` | Test command, exit code, duration, captured outputs and `executed` evidence |
-| `security_findings` | Scanner source, severity/confidence, file/line evidence, remediation and review status |
-| `implementation_plans` | Objective, linked artefacts, baseline commit, affected files, steps/risks and approval status |
-| `exports` | ZIP path, name, source snapshot, manifest and creation timestamp |
-| `counters` | Globally unique per-prefix identifier allocation |
+| `data/atlas.sqlite3` | Projects, documents and versions, templates, prompts, runs and events, approvals, gates, ledger, findings, chats, memories, encrypted credentials, evals, agent settings, agent calls, guardrail events |
+| `data/projects/<id>/repo` | Cloned or unpacked code |
+| `data/projects/<id>/worktrees/<run>` | Isolated branch per change or QE run |
+| `data/projects/<id>/documents/<kind>/<doc>/vNNNN.*` | Every document version as a readable file |
+| `data/projects/<id>/sources` | Uploaded source files |
+| `data/checkpoints/<run>` | MAF workflow checkpoints |
 
-## Evidence vocabulary
+## Plugin to Agentic QE Platform mapping
 
-- **Source-backed:** the artefact carries a source excerpt tied to the supplied material.
-- **Inferred:** the artefact is a reasoned or heuristic draft without a fully verifiable source link.
-- **Draft:** editable and not approved.
-- **Approved:** an explicit workflow status. In this MVP, approval of an implementation plan does not imply source changes have taken place.
-- **Verified:** used only when evidence such as actual test execution or archive integrity supports it. Merely creating a test case is not verification.
+### Commands and workflow stages
 
-## Trust boundaries and known limitations
+| Plugin command | Gate | Agentic QE Platform stage | Code | How it works in Agentic QE Platform |
+|---|---|---|---|---|
+| `qe-start` | G0 | `intake` in `ba` and `qe` | `maf/workflows/shared.py` `intake`, `intake_gate` | Detects mode from real files, then pauses for a signer. Skipped once G0 is approved |
+| `qe-discover` | none | `discover` | `qe_discover`, `repos/scan.py` | `scan.analyze` builds facts from disk. The agent writes the summary and can verify with tools |
+| `qe-stories` | part of G1 | `ba` with Stories template; CSV and Jira export | `ba_draft`, `api/documents.py` export | Any template works. Test case tables export as 11-column CSV and Jira CSV |
+| `qe-requirements` | G1 | `requirements` | `qe_requirements` | Each code-derived requirement carries file, line, and quote. `verify_quote` drops any that are not on disk |
+| `qe-plan` | G2 | `plan` | `qe_plan`, `qe/model.py` `plan_confidence` | Deterministic score plus an independent reviewer. A low score triggers a revision |
+| `qe-design` | G3 | `design` | `qe_design`, `coverage_gaps` | Enforces 1 Positive, 2 Negative, 1 Exception per P0 or P1 requirement, with no duplicates |
+| `qe-data` | part of G3 | `design` output and fixtures file | `qe_design`, `qe_generate` | Test data from cases is saved as a document and as `tests/agentic_qe/fixtures.json` |
+| `qe-generate` | G4 | `generate` | `qe_generate` | One file per case, `CASE_ID` first line, no placeholders or tautologies, syntax-checked, on a separate branch |
+| `qe-execute` | none | `execute` | `qe_execute`, `qe/execution.py` | Registered runners only, no shell, scrubbed environment, JUnit parsing. Zero tests is `INCONCLUSIVE`. Greenfield records a RED baseline |
+| `qe-heal` | none | `heal` | `qe_heal`, `classify_failure`, `assertions_preserved` | Heals drift only. Defects stay failing and are reported. Assertion changes are refused |
+| `qe-trace` | none | `trace` | `qe_trace`, `qe/trace.py` | Requirement to case to test to result, with gaps and orphans |
+| `qe-sign` | G5 | `sign` | `qe_sign` | Independent review from evidence, then a named human signs |
+| `qe-panel` | none | QE Studio and run timeline | `app/projects/[id]/qe`, `RunPanel` | Live SSE timeline from stored events |
+| `qe-doctor` | none | Settings health panel | `/api/health` | Checks git, Node, ruff, and model configuration |
 
-- Uploaded ZIP paths are checked for traversal and symlinks are not extracted.
-- Local paths must resolve inside the configured workspace root.
-- This is a single-user local tool, without login/session authorization. Do not bind it to a public interface.
-- Command execution is opt-in, but enabling it does not sandbox the process.
-- `backend/app.py` contains the initial MVP implementation and schema. As the app grows, separate routers/services/repositories and adopt versioned migrations (for example Alembic), a persistent worker queue, sandboxed execution and a more formal audit model.
-- GitHub OAuth, branch/worktree-based change generation, diff review, PR integration, dedicated security scanners and complete E2E frameworks are future increments.
+### Agents
+
+| Plugin agent | Agentic QE Platform prompt | Where it runs | Tools |
+|---|---|---|---|
+| `repo-intelligence-analyst` | `prompts/repo_analyst.md` | QE discover, chat | Code in the message; read tools in chat |
+| `requirements-analyst` | `prompts/requirements_analyst.md` | QE requirements, chat | Code in the message; read tools in chat |
+| `principal-test-architect` | `prompts/test_architect.md` | QE plan, chat | Text in the message; read tools in chat |
+| `test-design-architect` | `prompts/test_designer.md` | QE design, chat | Text in the message; read tools in chat |
+| `test-automation-engineer` | `prompts/test_automation.md` | QE generate | Code in the message |
+| `qa-execution-engineer` | No model; `qe/execution.py` | QE execute, change verify | Deterministic by design |
+| `defect-diagnostician` | `prompts/defect_diagnostician.md` | Heal, bug fix, diagnose, chat | Read and guarded write tools on the worktree |
+| `confidence-reviewer` | `prompts/confidence_reviewer.md` | Plan and release review | Works from supplied evidence |
+| Agentic QE Platform addition | `business_analyst`, `doc_reviewer`, `gherkin_author`, `bug_reviewer`, `feature_engineer`, `copilot` | BA, bug scan, change, chat | As listed in `maf-guide.md` |
+
+### Hooks and guardrails
+
+| Plugin hook | Agentic QE Platform equivalent | Enforced in |
+|---|---|---|
+| `guard-write` | Path confinement, protected directories, secret scan on every agent edit | `core/security.py`, `apply_edits` |
+| `guard-bash` | Agents have no shell tool. Subprocesses use fixed argument lists | `repos/git.py`, `qe/execution.py` |
+| `approval-hook`, `on-decision` | Approval cards, gate order, named signer, HMAC signature | `maf/engine.py`, `core/gates.py` |
+| `ledger-hook`, `memory-logger` | Hash-chained ledger with tamper detection | `core/ledger.py` |
+| `stamp-metadata` | Version, hash, author, and prompt reference on each document | `core/documents.py` |
+| `session-check` | Startup recovery of interrupted runs, health endpoint | `engine.recover`, `/api/health` |
+
+### Capability scripts
+
+| Plugin script | Python port |
+|---|---|
+| `scan-repo.ts` | `repos/scan.py` `analyze` |
+| `extract-contracts.ts` | `static_analysis.verify_quote`, `qe/model.py` `Requirement` |
+| `calculate-risk.ts` | `qe/model.py` `plan_confidence` |
+| `generate-cases.ts` | `qe/model.py` `TestCase`, `coverage_gaps` |
+| `export-cases.ts` | `api/documents.py` CSV and Jira export |
+| `emit-tests.ts` | `prompts/test_automation.md` with checks in `qe_generate` |
+| `synthesize-data.ts` | Test data in the design stage, written as fixtures |
+| `parse-junit.ts`, `run-isolated.ts` | `qe/execution.py` `parse_junit`, `verdict` |
+| `diagnose-failure.ts`, `apply-healing.ts` | `classify_failure`, `assertions_preserved` |
+| `build-matrix.ts` | `qe/trace.py` `build_matrix` |
+| `build-dashboard.ts`, reports | Release and traceability documents with MD and DOCX export |
+
+## Workflows in detail
+
+### BA (`ba`)
+
+```mermaid
+flowchart LR
+  I[intake G0] --> C[context] --> D[draft] --> R[review]
+  R -->|score under 75, up to 2 tries| D
+  R --> G[gherkin, parser-validated] --> A{G1 human}
+  A -->|send back| D
+  A -->|approve| Done
+```
+
+The draft must keep every template heading, or it is sent back naming the missing ones. Each draft and edit is a new version.
+
+### QE (`qe`)
+
+```mermaid
+flowchart LR
+  I[intake G0] --> Di[discover] --> Rq[requirements G1] --> P[plan G2] --> De[design G3] --> Ge[generate G4] --> Ex[execute]
+  Ex -->|drift, up to 2 tries| H[heal] --> Ex
+  Ex --> T[trace] --> S[sign G5]
+```
+
+Sending back at any gate reruns that stage with the feedback.
+
+### Bug scan (`bug_scan`)
+
+`prepare` fans out to `static` (ruff, secrets, JS rules, manifests) and `agent_review` (the riskiest files), then fans in to `merge`. Agent claims survive only if the quote exists in the file. Findings are de-duplicated across scans.
+
+### Change (`change`)
+
+`prepare` creates a worktree and branch. `implement` sends the selected code in the message to the feature engineer or diagnostician, which reply with structured edits. Agentic QE Platform applies them through path, secret, and scope guards, and sends refusals and current files back for another round. Existing assertions a change alters are shown to the reviewer. A fix for a finding must change that finding's file. `verify` runs the real tests, with up to 3 attempts on failure. The diff waits for a human. On approval Agentic QE Platform commits to the branch and can push, open a pull request, and merge on a further click. The main checkout is never edited.
+
+## Private repositories
+
+A GitHub fine-grained token is validated against GitHub, encrypted at rest, and used to list repositories. It reaches git through an environment-scoped `http.extraHeader`, so it never appears in argv, URLs, or `.git/config`. Any HTTPS Git host works for public clones. A local folder or ZIP covers the case with no host.
+
+## Chatbot
+
+CopilotKit's headless hooks in the browser call a Next.js runtime route, which reaches `/agui/{agent}` over AG-UI. The server finds the project from the thread row, so a client cannot reach another project through a thread id. Threads and messages are stored in SQLite. Project memory is injected by a MAF context provider. Tools read documents and code, report status, remember facts, and start workflows. Gates still need a human on the app pages. The chat also opens in its own window at `/chat/{project}`.
+
+## Agent governance
+
+`src/backend/maf/governance.py` holds the registry of 13 agents: risk tier, tools, token limit. The Agents page shows policy, eval scores, calls, tokens, latency, errors, and guardrail events from stored data, and lets a named person disable an agent. Text from briefs, sources, and repositories passes secret and injection filters before the model sees it. Model providers can reject such text, which would otherwise fail a whole run.
+
+## Limits
+
+- Single user on loopback. There is no login or tenant isolation.
+- Target test code runs with host permissions, in a scrubbed environment, after G4 approval. There is no OS sandbox.
+- Keyword document search has no embeddings.
+- JavaScript static rules are line patterns; JS depth comes from agent review.
+- Windows and Linux are covered by the CI matrix and have not been run on a host in this build.
+- Injection detection uses patterns, so it reduces risk and does not eliminate it. Worktree isolation, human gates, and path guards are the real boundary.
+- A secret split across two streamed chat chunks can appear in the live stream. The final snapshot and stored copy are clean.

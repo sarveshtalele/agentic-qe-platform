@@ -1,105 +1,77 @@
-# Agentic QE Platform — Autonomous SDLC & Quality Engineering
+# Agentic QE Platform
 
-An enterprise-grade, autonomous software development lifecycle (SDLC) platform powered by **Microsoft Agent Framework (MAF)** and **Agentic Quality Engineering (QE)**.
+A governed workspace for BAs and developers, built on Microsoft Agent Framework. Turn briefs into templated requirements and Gherkin, scan real repositories, build features and fixes on isolated branches, run the full test lifecycle with human gates, and chat with project-aware agents.
 
-The platform coordinates specialized autonomous AI agents across 6 strict quality gates, from greenfield business requirements synthesis to brownfield repository ingestion, autonomous feature engineering, runtime debugging, Gherkin BDD specifications, and tamper-evident SHA-256 governance.
+## Requirements
 
----
+Python 3.12+, Node.js 20+, and Git, on Windows, macOS, or Linux.
 
-## 🏛️ Modular Repository Architecture
-
-The platform is organized with clean separation between frontend, backend, tests, and documentation:
-
-```
-atlas-ba-mvp/
-├── src/
-│   ├── frontend/         # Next.js 16 + React 19 + Tailwind CSS v4 Web Application
-│   │   ├── app/          # App router, page layouts, global styling (high contrast)
-│   │   └── components/   # Views: BA Studio, Feature Studio, QE Hub, Settings, etc.
-│   └── backend/          # FastAPI + Microsoft Agent Framework (MAF)
-│       ├── app.py        # Main API entrypoint & static mounting
-│       ├── maf/          # MAF Core, Pregel Engine, Agents, Workflows & Evaluators
-│       ├── governance/   # SHA-256 Cryptographic Audit Ledger, Gates G0-G5, HITL
-│       ├── ba/           # Greenfield Requirements Generator & Gherkin BDD Engine
-│       ├── qe/           # Quality Engineering Runner & ISTQB Oracles
-│       ├── github/       # Real Octokit-compatible GitHub Client
-│       └── llm/          # Multi-provider LLM Client (LiteLLM, Azure, Anthropic)
-├── tests/                # Comprehensive Pytest Suite (Unit, Integration, E2E)
-├── docs/                 # System Architecture, File Guide & MAF Reference
-│   ├── ARCHITECTURE.md   # System architecture and agent topology
-│   ├── FILES_AND_MODULES.md # Line-by-line guide to every file in the codebase
-│   └── AMBITION_CHECKLIST.md# Felix Rieseberg Ambition Framework (Altitude, Depth, Range)
-├── data/                 # SQLite database, cryptographic audit ledger, documents
-├── workspaces/           # Isolated sandbox environments for feature code & git repos
-├── package.json          # Root orchestration runner for frontend, backend, and tests
-├── pytest.ini            # Pytest configuration with pythonpath = ["src"]
-└── requirements.txt      # Python dependencies for backend and MAF agents
-```
-
----
-
-## 🚀 Quickstart & Execution
-
-### 1. Prerequisites
-- Python 3.11+
-- Node.js 18+ (Next.js 16)
-- GitHub Personal Access Token (for repository ingestion & PR creation)
-
-### 2. Environment Setup
-```bash
-# Clone the repository
-git clone https://github.com/sarveshtalele/agentic-qe-platform.git
-cd agentic-qe-platform
-
-# Setup Python virtual environment
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-
-# Setup Frontend dependencies
-cd src/frontend && npm install && cd ../..
-```
-
-### 3. Running the Platform
-Using root orchestration scripts:
-```bash
-# Terminal 1: Start Backend (FastAPI on Port 8000)
-npm run start:backend
-# Or: PYTHONPATH=src .venv/bin/python -m uvicorn backend.app:app --host 127.0.0.1 --port 8000
-
-# Terminal 2: Start Frontend (Next.js on Port 3000)
-npm run start:frontend
-# Or: cd src/frontend && npm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) to access the platform.
-
----
-
-## 🧪 Comprehensive Verification & Test Suite
-
-The test suite covers unit tests, MAF agent evaluation suites, governance gates, and Playwright end-to-end scenarios:
+## Setup
 
 ```bash
-# Run full test suite (70 tests)
-npm run test
-# Or: .venv/bin/pytest tests/ -v
-
-# Run MAF unit & evaluation tests
-npm run test:unit
-# Or: .venv/bin/pytest tests/test_maf_unit.py tests/test_maf_governance.py tests/test_maf_evaluation.py -v
-
-# Run Playwright E2E browser tests (Next.js & static fallback)
-npm run test:e2e
-# Or: .venv/bin/pytest tests/test_nextjs_e2e_playwright.py tests/test_e2e_playwright.py -v
+python scripts/dev.py setup
 ```
 
----
+Add your model to `.env`, or use the Settings page. Any OpenAI-compatible endpoint works.
 
-## 🛡️ Enterprise Governance & Security Controls
+## Run
 
-- **CTL-DOC-04**: Immutable versioning of all business specifications with incremental SHA-256 ledger chaining.
-- **CTL-SEC-01**: Shannon entropy secret scanning before database or log persistence.
-- **CTL-SEC-02**: Subprocess command whitelist blocking destructive shell operations (`rm -rf`, `sudo`).
-- **CTL-SEC-04**: Path traversal boundary guards preventing directory escape outside project workspaces.
-- **CTL-GATE-05**: Human-in-the-Loop (HITL) cryptographic nonce authorization required before production cutover.
+Double-click `start-windows.bat` on Windows, or `start-mac.command` on macOS. The first run installs everything, then the app opens in your browser. Press Ctrl+C in that window to stop it. If macOS blocks the file, right-click it and choose **Open**.
+
+You can run the same thing from a terminal:
+
+```bash
+python scripts/dev.py up
+```
+
+For development with live reload:
+
+In two terminals:
+
+```bash
+python scripts/dev.py backend
+```
+
+```bash
+python scripts/dev.py frontend
+```
+
+Open http://127.0.0.1:3000. For a production build of the UI, use `python scripts/dev.py start`.
+
+## Test
+
+```bash
+python scripts/dev.py test
+```
+
+```bash
+python scripts/dev.py e2e
+```
+
+The E2E suite uses the real model and network on ports 8010 and 3010, and saves screenshots to `docs/evidence`.
+
+## Deploy
+
+```bash
+python scripts/package_azure.py
+```
+
+This makes separate backend and frontend ZIPs in `dist/`. `docs/AZURE_DEPLOY.md` has the portal steps. Add `--repo` for a clean copy with no legacy code in `dist/agentic-qe-platform`.
+
+## Documents
+
+| File | Contents |
+|---|---|
+| `docs/SYSTEM_DESIGN.md` | End-to-end design and how to add agents, tools, and workflows |
+| `docs/AZURE_DEPLOY.md` | Deploy to Azure with the portal and ZIPs, with costs in INR |
+| `docs/ARCHITECTURE.md` | Plugin mapping and workflow details |
+| `maf-guide.md` | MAF features used, by file |
+| `plan.md`, `specs.md`, `tasks.md` | Audit, requirements, status |
+| `Design.md` | UI design |
+| `CLAUDE.md` | Project rules and guardrails |
+| `progress.md` | Timestamped activity log |
+| `legacy/` | Previous code, unchanged |
+
+## Security limits
+
+Agentic QE Platform is a single-user app that binds to loopback, with no login. Do not expose it to a network without adding authentication. Generated and repository tests run on your machine with a scrubbed environment after you approve Gate 4; there is no OS sandbox.

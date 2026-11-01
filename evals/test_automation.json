@@ -1,0 +1,18 @@
+[
+  {
+    "name": "real_test",
+    "category": "quality",
+    "query": "Generate executable pytest tests under tests/agentic_qe/ as JSON with framework and files (path, case_ids, content). CASES: [{\"id\":\"TC-APP-001\",\"requirement_id\":\"REQ-001\",\"scenario\":\"Divides\",\"type\":\"Positive\",\"steps\":[\"call divide(6,3)\"],\"expected_result\":\"returns 2\"}]\nCODE:\n--- FILE calc.py ---\n1: def divide(a, b):\n2:     return a / b\n",
+    "checks": {
+      "json_schema": "GeneratedSuite",
+      "contains": [
+        "CASE_ID",
+        "TC-APP-001",
+        "divide(6, 3)"
+      ],
+      "not_contains": [
+        "assert True"
+      ]
+    }
+  }
+]

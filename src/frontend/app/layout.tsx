@@ -1,30 +1,22 @@
 import type { Metadata } from "next";
+import { ToastProvider } from "../components/ui";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Agentic QE Platform — Autonomous SDLC & Quality Engineering",
-  description: "Enterprise Multi-Agent Quality Engineering & Autonomous SDLC Platform (MAF + Agentic-QE).",
-  generator: "ForgeSDLC MAF Agentic-QE",
+  title: "Agentic QE Platform — Agentic BA and QE workspace",
+  description: "Requirements, code changes, bug scans, and governed test engineering on Microsoft Agent Framework.",
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+const themeScript = `try{var t=localStorage.getItem('atlas_theme');if(t==='light'){document.documentElement.classList.remove('dark');document.documentElement.classList.add('light')}}catch(e){}`;
+
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en" className="dark" suppressHydrationWarning>
       <head>
-        <meta name="generator" content="ForgeSDLC MAF Agentic-QE" />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
-          rel="stylesheet"
-        />
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body className="antialiased bg-slate-50 dark:bg-[#030712] text-slate-900 dark:text-slate-100 min-h-screen">
-        {children}
+        <ToastProvider>{children}</ToastProvider>
       </body>
     </html>
   );
