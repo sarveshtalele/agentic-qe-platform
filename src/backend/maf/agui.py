@@ -7,6 +7,7 @@ built per request with project-scoped tools. Messages are persisted here, around
 from __future__ import annotations
 
 import json
+import logging
 
 from ag_ui.core import RunErrorEvent
 from ag_ui.encoder import EventEncoder
@@ -16,6 +17,7 @@ from fastapi.responses import StreamingResponse
 
 from backend.core import auth
 from backend.core import ledger
+from backend.core.errors import stack_of
 from backend.core.security import redact
 from backend.db import db, new_id, now, row, rows
 from backend.maf import engine, governance, llm, tools
@@ -97,8 +99,12 @@ async def agui(agent_key: str, request: Request):
                 yield redact(encoder.encode(event))
         except llm.LLMNotConfigured as exc:
             yield encoder.encode(RunErrorEvent(message=str(exc), code="LLM_NOT_CONFIGURED"))
-        except Exception as exc:  # the user sees the failure in chat instead of a dead stream
-            yield encoder.encode(RunErrorEvent(message=governance.explain_error(agent_key, exc, project_id), code=type(exc).__name__))
+        except Exception as exc:  # recorded in the log with an id, and the user sees the failure in chat instead of a dead stream
+            error = governance.typed_error(agent_key, exc, project_id)
+            error_id = new_id("err")
+            logging.getLogger("aqe.chat").error("chat %s failed: %s error_id=%s %s", thread_id, error.code, error_id, error.message)
+            logging.getLogger("aqe.chat").error("stack for %s: %s", error_id, stack_of(exc))
+            yield encoder.encode(RunErrorEvent(message=f"{error.message} {error.action} (error {error_id})", code=error.code))
         finally:
             if answer:
                 reply = governance.guard_text(agent_key, "".join(answer), "output", project_id)

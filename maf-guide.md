@@ -84,3 +84,10 @@ An agent key has hyphens, as in the plugin, and its policy file uses underscores
 | MCP tools | Tools run in-process | External tools are needed in agents |
 | Durable, Foundry, A2A hosting | One process with SQLite and local files | Cloud deployment at scale |
 | Foundry evaluators | Local checks need no cloud | Hosted evals are wanted |
+
+## Errors and retries (phase 2)
+
+- `Agent.run` returns an `AgentResponse` whose `finish_reason` is `"length"` when the model hit `max_tokens`; `AgentCall` turns that into `AQE-MODEL-002` and never parses it. Checked against the real proxy: `finish_reason` is `"stop"` on a normal reply.
+- Provider failures reach us as `ChatClientException` with the OpenAI error as `__cause__`/`inner_exception`. `core.errors.classify` walks that chain for status, request id, timeout, and content filter.
+- `default_options["extra_body"]` is passed straight to `chat.completions.create`. Setting `{"cache": {"no-cache": True}}` stops LiteLLM answering a repeated prompt from its cache (checked live: with it, the same prompt gave different replies at about 1.5 s each; without it the second reply was identical and about 0.9 s). `ATLAS_MODEL_NO_CACHE=0` turns it off.
+- Retry of a failed run loads the latest `FileCheckpointStorage` checkpoint with `workflow.run(checkpoint_id=..., checkpoint_storage=..., stream=True)`; the failed stage's pending message is delivered again. A run that failed before its first checkpoint starts again from its input.

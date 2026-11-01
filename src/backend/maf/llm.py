@@ -9,11 +9,12 @@ from agent_framework.openai import OpenAIChatCompletionClient
 from openai import AsyncOpenAI
 
 from backend.config import MODEL_TIMEOUT
+from backend.core.errors import ModelEndpointError
 from backend.core.security import decrypt, encrypt
 from backend.db import db
 
 
-class LLMNotConfigured(RuntimeError):
+class LLMNotConfigured(ModelEndpointError):
     pass
 
 

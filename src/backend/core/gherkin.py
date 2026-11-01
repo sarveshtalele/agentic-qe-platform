@@ -1,13 +1,14 @@
 """Gherkin validation with the official Cucumber parser."""
 from __future__ import annotations
 
+from gherkin.errors import ParserError
 from gherkin.parser import Parser
 
 
 def validate(text: str) -> dict:
     try:
         parsed = Parser().parse(text)
-    except Exception as exc:  # the parser raises composite errors with line details in the message
+    except ParserError as exc:  # the parser's own errors carry the line details; anything else is a bug and propagates
         return {"valid": False, "errors": [str(exc)], "scenarios": 0, "steps": 0, "feature": None}
     feature = parsed.get("feature")
     if not feature:

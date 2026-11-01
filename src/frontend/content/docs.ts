@@ -463,6 +463,42 @@ Azure has not been deployed for real yet, so treat the steps as untested until y
 
 Open **Observability**, choose the run, and select the error line for details.`,
       },
+      {
+        slug: "error-codes",
+        title: "Error codes",
+        summary: "Every error code, what it means, whether a retry can help, and what to do.",
+        body: `## Codes
+
+Each failed stage records one code. The run page shows it with the message and the action to take. Failures are grouped by code and agent on **Observability**, under **Errors**.
+
+| Code | Meaning | Retry can help | What to do |
+|---|---|---|---|
+| AQE-MODEL-001 | The model reply was empty or was not valid JSON | Yes | Retry the stage. The saved reply shows the exact character that broke. |
+| AQE-MODEL-002 | The model reply was cut off at the agent's token limit | No | Raise the agent's token limit on the Agents page, then retry the stage. |
+| AQE-MODEL-003 | The model sent JSON with a missing or wrong field | Yes | Retry the stage. The message names the missing or wrong field. |
+| AQE-MODEL-004 | The model did not reply in time. Message: The model did not reply in time. | Yes | Check the model endpoint, or raise ATLAS_MODEL_TIMEOUT, then retry the stage. |
+| AQE-MODEL-005 | The model provider blocked the request under its content policy. Message starts: The model provider blocked this request | No | Remove the flagged text from the input or the repository, then retry the stage. |
+| AQE-MODEL-006 | The model endpoint rejected the API key, refused the request, or cannot be reached. Messages: The model endpoint rejected the API key (HTTP {code}). The model endpoint is busy or failing (HTTP {code}). Cannot reach the model endpoint. | No, except when the endpoint is busy or failing (HTTP 429 or 5xx) or cannot be reached: then Yes | Open Settings and check the base URL, model, and API key, then retry the stage. For busy or failing endpoints the action is: Wait a moment and retry the stage. If it keeps happening, check the provider. |
+| AQE-ALLOW-001 | The project owner has no time or tokens left, or the run reached its token limit | No | Ask your administrator to raise the allocation or limit, then retry the stage. |
+| AQE-REPO-001 | The repository address or access token did not work | No | Check the repository address and access token, then try again. |
+| AQE-EVID-001 | No requirement passed evidence checks. No quote was found on disk at the stated file and line | No | Review the requirements and the repository, then retry the stage. |
+| AQE-TEST-001 | Dependencies could not be installed, so the tests could not run | No | Tick install dependencies for this run, or fix the environment, then retry the stage. |
+| AQE-INT-001 | An unexpected error. The message gives the exception type and a short description | No | Copy the diagnostics and report it. |
+
+"Retry can help" means a plain retry may succeed without any change. The run page still offers Retry failed stage for every failed run, because the fix named in the action may already be done.
+
+## Retry failed stage
+
+A failed run shows **Retry failed stage**. It repeats the stage that failed, not the whole run. Use it after you have applied the fix named in the action. Design and generate keep the batches they finished, so only the unfinished part runs again.
+
+## Copy diagnostics
+
+**Copy diagnostics** copies the run's error code, message, action, and technical details to the clipboard, so you can attach them to a report. Secrets are masked before the copy is made.
+
+## Partial results
+
+A stage that keeps failing after its retries can end with a partial result. The run page then lists the missing requirements. A partial result is marked PARTIAL in its document, and it **cannot be approved**. Send it back, or fix the cause named in the error and run the stage again.`,
+      },
     ],
   },
 ];

@@ -1,6 +1,7 @@
 "use client";
 
 import { Loader2, Moon, Sun } from "lucide-react";
+import Link from "next/link";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { createContext, ReactNode, useCallback, useContext, useEffect, useState } from "react";
@@ -74,7 +75,9 @@ export function Spinner({ label = "Loading" }: { label?: string }) {
 
 export function ErrorNote({ message }: { message?: string | null }) {
   if (!message) return null;
-  return <p role="alert" className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-700 dark:text-rose-300">{message}</p>;
+  // a run page named in the message (for example the run that is already active) becomes a link
+  const parts = message.split(/(\/projects\/[\w-]+\/runs\/[\w-]+)/);
+  return <p role="alert" className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-700 dark:text-rose-300">{parts.map((part, i) => (i % 2 ? <Link key={i} href={part} className="mono underline">{part}</Link> : part))}</p>;
 }
 
 // document text is untrusted, and loading an outside image would tell that site who is reading

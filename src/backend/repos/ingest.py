@@ -10,6 +10,7 @@ from pathlib import Path
 
 from backend.config import MAX_UPLOAD_BYTES, project_dir, repo_dir
 from backend.core import ledger
+from backend.core.errors import RepoError
 from backend.db import db, now, row
 from backend.repos import git, github, scan
 
@@ -17,7 +18,7 @@ MAX_ZIP_FILES = 100_000
 MAX_RATIO = 200
 
 
-class IngestError(ValueError):
+class IngestError(RepoError, ValueError):
     pass
 
 

@@ -9,6 +9,7 @@ from pydantic import ValidationError
 
 from backend.config import ROOT
 from backend.core import gherkin, prompts
+from backend.core.errors import classify
 from backend.db import db, new_id, now, rows
 from backend.maf import runtime as agents
 from backend.qe import model
@@ -86,8 +87,9 @@ async def _run_case(agent_key: str, case: dict) -> dict:
     try:
         schema = _schemas().get(case["checks"].get("json_schema"))
         await call.text(f"{case['query']}\n\n{agents.format_rule(schema)}" if schema else case["query"])
-    except Exception as exc:  # a failing agent is an eval failure, not a crash of the whole suite
-        return {"name": case["name"], "category": case.get("category", "quality"), "passed": False, "failed_checks": [f"error: {str(exc)[:200]}"]}
+    except Exception as exc:  # a failing agent is an eval failure recorded in the result, not a crash of the whole suite
+        error = classify(exc)
+        return {"name": case["name"], "category": case.get("category", "quality"), "passed": False, "failed_checks": [f"error: {error.code} {error.message[:200]}"]}
     outcome = await evaluate_agent(agent=call.agent, queries=[case["query"]], responses=[call.last_response], evaluators=[LocalEvaluator(*build_checks(case["checks"]))], eval_name=f"{agent_key}:{case['name']}")
     items = outcome[0].items or []
     failed = [s.name for item in items for s in item.scores if s.passed is False] if items else []

@@ -1,12 +1,15 @@
 "use client";
 
-import { Trash2 } from "lucide-react";
+import { Download, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Button, Card, ErrorNote, Field, inputClass, PageTitle, useToast } from "../../components/ui";
 import { AppShell } from "../../components/AppShell";
+import { useAuth } from "../../components/AuthGate";
 import { api } from "../../lib/api";
 
 export default function SettingsPage() {
+  const { user } = useAuth();
+  const [logDay, setLogDay] = useState("");
   const [llm, setLlm] = useState<any>(null);
   const [baseUrl, setBaseUrl] = useState("");
   const [model, setModel] = useState("");
@@ -21,6 +24,7 @@ export default function SettingsPage() {
   const toast = useToast();
   const loadConnections = useCallback(() => api("/connections").then(setConnections), []);
   useEffect(() => {
+    setLogDay(new Date().toLocaleDateString("en-CA")); // YYYY-MM-DD, set after mount so server and browser render alike
     api("/settings/llm").then((data) => {
       setLlm(data);
       setBaseUrl(data.base_url);
@@ -65,6 +69,15 @@ export default function SettingsPage() {
             {result && (result.ok ? <p className="text-sm text-emerald-600 dark:text-emerald-400" data-testid="llm-ok">Connected to {result.model} in {result.latency_ms} ms. Reply: {result.reply}</p> : <ErrorNote message={result.error} />)}
           </div>
         </Card>
+        {user?.role === "admin" && (
+          <Card title="Application log">
+            <div className="flex flex-wrap items-end gap-3">
+              <Field label="Day"><input type="date" aria-label="Log day" className={inputClass} value={logDay} onChange={(e) => setLogDay(e.target.value)} /></Field>
+              {logDay && <a className="inline-flex items-center gap-1.5 text-sm text-indigo-500 underline" href={`/api/logs?date=${logDay}`}><Download className="h-4 w-4" /> Download log for {logDay}</a>}
+            </div>
+            <p className="mt-2 text-xs text-slate-500">One JSON line per event that day. Passwords, keys, and request bodies are not written to it.</p>
+          </Card>
+        )}
         <Card title="Private repository access">
           <p className="mb-3 text-sm text-slate-600 dark:text-slate-400">Create a GitHub fine-grained personal access token with read access to the repository contents, plus write access to contents and pull requests if you want Agentic QE Platform to open pull requests. It is checked against GitHub, encrypted at rest, and never placed in URLs or clone config.</p>
           <div className="space-y-3">

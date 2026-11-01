@@ -7,6 +7,7 @@
   python scripts/dev.py up         install if needed, build, run backend and UI, open the browser
   python scripts/dev.py start      production: build the UI, run backend and UI together
   python scripts/dev.py test       unit and integration tests (no network, no model)
+  python scripts/dev.py smoke      browser smoke test on its own ports with no model (used by CI)
   python scripts/dev.py e2e        Playwright end-to-end tests against real servers and the real model
 """
 from __future__ import annotations
@@ -139,7 +140,8 @@ COMMANDS = {
     "backend": lambda: run(BACKEND),
     "frontend": lambda: run([npm(), "run", "dev", "--", "--hostname", "127.0.0.1"], FRONTEND),
     "start": start,
-    "test": lambda: run([str(PYTHON), "-m", "pytest", "tests", "-q", "-m", "not e2e and not live"]),
+    "test": lambda: run([str(PYTHON), "-m", "pytest", "tests", "-q", "-m", "not e2e and not live and not smoke"]),
+    "smoke": lambda: run([str(PYTHON), "-m", "pytest", "tests/e2e/test_smoke.py", "-v", "-m", "smoke"]),
     "e2e": lambda: run([str(PYTHON), "-m", "pytest", "tests/e2e", "-v", "-m", "e2e", "-s"]),
 }
 

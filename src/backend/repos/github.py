@@ -5,13 +5,14 @@ import re
 
 import httpx
 
+from backend.core.errors import RepoError
 from backend.core.security import decrypt, encrypt
 from backend.db import db, new_id, now, row, rows
 
 API = "https://api.github.com"
 
 
-class GitHubError(RuntimeError):
+class GitHubError(RepoError):
     pass
 
 

@@ -10,8 +10,9 @@ from fastapi.responses import (
 from pydantic import BaseModel, Field
 
 from backend.api.common import _project
-from backend.config import project_dir
+from backend.config import RUNS, project_dir
 from backend.core import auth, documents, gates, ledger
+from backend.core.security import safe_path
 from backend.db import db, new_id, now, rows
 from backend.maf import agui, engine, evals, governance, llm, workflows  # noqa: F401 - workflows registers definitions
 from backend.repos import ingest
@@ -81,7 +82,10 @@ def patch_project(project_id: str, body: ProjectPatch):
 def delete_project(project_id: str):
     _project(project_id)
     with db() as con:
+        run_ids = [r["id"] for r in con.execute("SELECT id FROM runs WHERE project_id=?", (project_id,))]
         con.execute("DELETE FROM projects WHERE id=?", (project_id,))
+    for run_id in filter(None, run_ids):  # saved failure replies and finished batches belong to the project's runs
+        ingest._rm_tree(safe_path(RUNS, run_id, for_write=True))
     ingest._rm_tree(project_dir(project_id))
     return Response(status_code=204)
 

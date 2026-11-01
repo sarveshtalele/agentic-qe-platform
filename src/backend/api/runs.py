@@ -40,6 +40,8 @@ async def start_run(project_id: str, body: RunIn):
     _project(project_id)
     try:
         return await engine.start(project_id, body.workflow, body.input)
+    except engine.RunActive as exc:
+        raise HTTPException(409, str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
 
@@ -85,6 +87,15 @@ def cancel_run(run_id: str):
         return engine.cancel(run_id)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
+
+
+@router.post("/api/runs/{run_id}/retry")
+async def retry_run(run_id: str):
+    """Resume a failed or interrupted run from its failed stage. Only one retry can start."""
+    try:
+        return await engine.retry(run_id)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
 
 
 @router.get("/api/approvals")

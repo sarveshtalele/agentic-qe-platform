@@ -1055,7 +1055,7 @@ def test_login_failures_are_uniform_and_lock_out(client):
     wrong_value = secrets.token_hex(8)
     _, wrong = sign_in(name, wrong_value)
     _, absent = sign_in(unique("ghost"), wrong_value)
-    assert wrong.status_code == absent.status_code == 401 and wrong.json() == absent.json()
+    assert wrong.status_code == absent.status_code == 401 and {**wrong.json(), "error_id": ""} == {**absent.json(), "error_id": ""}  # every error response has its own id
     for _ in range(5):
         sign_in(name, wrong_value)
     _, locked = sign_in(name)

@@ -19,8 +19,9 @@ from agent_framework import (
 )
 from pydantic import BaseModel, ValidationError
 
-from backend.config import MODEL_CONCURRENCY, RUN_TOKEN_LIMIT
+from backend.config import MODEL_CONCURRENCY, MODEL_NO_CACHE, RUN_TOKEN_LIMIT
 from backend.core import auth, documents, ledger, prompts
+from backend.core.errors import AllowanceError, ModelJsonError, ModelSchemaError, ModelTruncated
 from backend.core.security import redact
 from backend.db import db, new_id, now, rows
 from backend.maf import governance, llm, observability, tools
@@ -105,6 +106,8 @@ def build(agent_key: str, project_id: str, tool_list=None, *, root=None, chat: b
     # deny by default: a tool reaches the model only if this agent's policy lists it
     tool_list = governance.allowed(agent_key, tools.repo_tools(project_id, root) + list(tool_list or []), chat)
     options = {"max_tokens": governance.token_limit(agent_key)}
+    if MODEL_NO_CACHE:  # LiteLLM's proxy cache would answer a retried prompt with the same bad reply
+        options["extra_body"] = {"cache": {"no-cache": True}}
     middleware = [tool_audit(agent_key, project_id, run_id, source), governance.telemetry(agent_key, project_id, run_id, source)]
     providers = [ProjectContext(project_id, full=chat)]
     return Agent(
@@ -129,24 +132,49 @@ def _decode(text: str, start: int):
         return _LENIENT.raw_decode(_BAD_ESCAPE.sub(r"\\\\", text[start:]))[0]  # paths and regexes often carry a lone backslash
 
 
+class ReplyError(ValueError):
+    """Why a reply gave no usable JSON. kind is "json" when it is not JSON at all and "shape" when it is JSON of the wrong shape."""
+
+    def __init__(self, message: str, pos: int | None = None, kind: str = "json"):
+        super().__init__(message)
+        self.pos, self.kind = pos, kind
+
+
+_LOOKS_LIKE_JSON = re.compile(r'[\[{]\s*(?:["\[{}\]]|$)')  # prose brackets such as [FR-001] or {note} do not match
+
+
+def _list_is_answer(text: str, start: int, required: tuple[str, ...]) -> bool:
+    """A list that is the value of some other key belongs to a bigger object, so on its own it is a fragment."""
+    key = re.search(r'"([^"\\]+)"\s*:\s*$', text[max(0, start - 200) : start])
+    return key is None or key.group(1) in required
+
+
 def extract_json(text: str, required: tuple[str, ...] = ()):
     """Return the first real object or list of objects. Prose can hold brackets like [FR-001].
 
-    With required names, an object without them is skipped: when a large reply is malformed, an inner fragment
-    would otherwise pass as the answer and hide the real error.
+    A reply that starts as JSON but does not parse is an error with the position. An inner fragment is never the
+    answer: an object needs every required name, and a list must be the answer itself or the value of a required name.
     """
-    problem = None
+    broken = None
+    seen = None
     for match in re.finditer(r"[\[{]", text):
         try:
             found = _decode(text, match.start())
         except json.JSONDecodeError as exc:
-            problem = problem or f"not valid JSON near character {match.start() + exc.pos} of {len(text)}: {exc.msg}"
+            if broken is None and _LOOKS_LIKE_JSON.match(text, match.start()):
+                broken = (match.start() + exc.pos, exc.msg)
             continue
-        if isinstance(found, dict) and found and all(name in found for name in required):
+        if isinstance(found, dict) and found and all(name in found for name in required) and (required or not broken):
             return found
-        if isinstance(found, list) and found and all(isinstance(item, dict) for item in found):
+        if isinstance(found, list) and found and all(isinstance(item, dict) for item in found) and _list_is_answer(text, match.start(), required):
             return found
-    raise ValueError(f"The reply is {problem}" if problem else "No JSON object found in the model reply")
+        if isinstance(found, dict) and found and seen is None:
+            seen = found
+    if broken:
+        raise ReplyError(f"not valid JSON near character {broken[0]} of {len(text)}: {broken[1]}", broken[0])
+    if seen is not None:
+        raise ReplyError(f"valid JSON but without the required fields {[name for name in required if name not in seen]}; it has {sorted(seen)}", kind="shape")
+    raise ReplyError("not JSON at all: no object or list was found")
 
 
 def _fit_schema(found, schema: type[BaseModel]):
@@ -174,27 +202,38 @@ class AgentCall:
         self.session = self.agent.create_session()
         self.has_tools = bool(self.agent.default_options.get("tools"))
         self.last_response = None
+        self.last_call: dict = {}
 
-    async def text(self, message: str, tools_allowed: bool = True) -> str:
+    def _facts(self, **more) -> dict:
+        """What a failure record needs to prove what was asked of which model."""
+        return {"agent": self.key, "prompt_ref": self.prompt_ref, "model": str(getattr(self.agent.client, "model", "") or ""), **self.last_call, **more}
+
+    async def text(self, message: str, tools_allowed: bool = True, *, cut_off_ok: bool = False) -> str:
         if self.run_id:
             with db() as con:
                 used = con.execute("SELECT tokens_in+tokens_out FROM runs WHERE id=?", (self.run_id,)).fetchone()[0]
             if used >= RUN_TOKEN_LIMIT:
-                raise RuntimeError(f"Run stopped: it used {used} tokens, over the limit of {RUN_TOKEN_LIMIT}. Raise ATLAS_RUN_TOKEN_LIMIT to allow more.")
+                raise AllowanceError(f"Run stopped: it used {used} tokens, over the limit of {RUN_TOKEN_LIMIT}.", action="Raise ATLAS_RUN_TOKEN_LIMIT, or ask your administrator, then retry the stage.", agent=self.key)
         auth.check_allowance(self.project_id)  # long runs can reach a limit part way through
         options = {"tool_choice": "none"} if not tools_allowed and self.has_tools else {}
         emit = _emit.get()
         if emit:
             emit("agent_call", f"{self.key} is working, waiting for the model", {"agent": self.key})
         message = governance.guard_text(self.key, message, "input", self.project_id, self.run_id)
+        started = time.perf_counter()
         try:
             async with _model_gate():
                 response = await self.agent.run(message, session=self.session, options=options)
         except Exception as exc:
-            raise RuntimeError(governance.explain_error(self.key, exc, self.project_id, self.run_id)) from exc
+            self.last_call = {"duration_ms": int((time.perf_counter() - started) * 1000)}
+            error = governance.typed_error(self.key, exc, self.project_id, self.run_id)
+            error.detail = {**self._facts(), **error.detail}
+            raise error from exc
         self.last_response = response
         usage = response.usage_details or {}
         tokens = (usage.get("input_token_count") or 0) + (usage.get("output_token_count") or 0)
+        self.last_call = {"tokens_in": usage.get("input_token_count") or 0, "tokens_out": usage.get("output_token_count") or 0, "duration_ms": int((time.perf_counter() - started) * 1000),
+                          "finish_reason": str(getattr(response.finish_reason, "value", response.finish_reason) or "")}
         if self.run_id:
             with db() as con:
                 con.execute("UPDATE runs SET tokens_in=tokens_in+?, tokens_out=tokens_out+? WHERE id=?",
@@ -208,30 +247,43 @@ class AgentCall:
         if not final.strip() and self.has_tools:
             final = "The agent finished without a written summary."
         if not final.strip():
-            raise RuntimeError(f"Agent {self.key} returned an empty reply")
-        return governance.guard_text(self.key, final.strip(), "output", self.project_id, self.run_id)
+            raise ModelJsonError(f"Agent {self.key} returned an empty reply", **self._facts())
+        final = governance.guard_text(self.key, final.strip(), "output", self.project_id, self.run_id)
+        if self.last_call["finish_reason"] == "length" and not cut_off_ok:
+            raise ModelTruncated(f"Agent {self.key} was cut off at the token limit after {len(final)} characters.", reply=final, **self._facts())
+        return final
 
     async def typed(self, message: str, schema: type[T], attempts: int = 3) -> T:
         """Ask for JSON matching schema, feeding validation errors back until it passes."""
         rule = format_rule(schema)
         prompt = f"{message}\n\n{rule}"
-        error = ""
-        for attempt in range(attempts):
+        failure = None
+        for attempt in range(1, attempts + 1):
             # some models narrate after tool calls and never answer, so retries answer from what was already read
-            reply = await self.text(prompt, tools_allowed=attempt == 0)
+            reply = await self.text(prompt, tools_allowed=attempt == 1, cut_off_ok=True)
+            facts = self._facts(attempt=attempt, reply=reply)
             # a cut-off reply can still hold a parseable fragment, so it never reaches the parser
-            if str(getattr(self.last_response.finish_reason, "value", self.last_response.finish_reason) or "") == "length":
-                error = "the reply was cut off at the token limit"
+            if facts["finish_reason"] == "length":
+                failure = ModelTruncated(f"Agent {self.key} was cut off at the token limit after {len(reply)} characters.", **facts)
                 prompt = f"Your reply was cut off at the token limit. Send the complete answer again with every text field much shorter. {rule}"
                 continue
             try:
                 required = tuple(name for name, field in schema.model_fields.items() if field.is_required())
                 return schema.model_validate(_fit_schema(extract_json(reply, required), schema))
-            except (ValueError, ValidationError) as exc:
+            except ReplyError as exc:
+                where = {"parse_pos": exc.pos, "parse_context": redact(reply[max(0, exc.pos - 80) : exc.pos + 80])} if exc.pos is not None else {}
+                failure = (ModelSchemaError if exc.kind == "shape" else ModelJsonError)(f"Agent {self.key} sent a reply that is {exc}.", technical=str(exc), **where, **facts)
+                error = str(exc)
+            except ValidationError as exc:
+                fields = "; ".join(f"{'.'.join(map(str, e['loc'])) or 'reply'}: {e['msg']}" for e in exc.errors()[:5])
+                failure = ModelSchemaError(f"Agent {self.key} sent JSON that does not match {schema.__name__}: {fields}.", technical=str(exc)[:1500], **facts)
                 error = str(exc)[:1500]
-                # same session, so the agent keeps what it read and only has to format its answer
-                prompt = f"That reply was rejected: {error}\nUsing what you have already read, send the complete answer now. {rule}"
-        raise RuntimeError(f"Agent {self.key} did not produce valid {schema.__name__}: {error}. The reply had {len(reply)} characters and began: {reply[:160]!r}")
+            except ValueError as exc:
+                failure = ModelSchemaError(f"Agent {self.key} sent JSON of the wrong shape: {exc}.", technical=str(exc), **facts)
+                error = str(exc)
+            # same session, so the agent keeps what it read and only has to format its answer
+            prompt = f"That reply was rejected: {error}\nUsing what you have already read, send the complete answer now. {rule}"
+        raise failure
 
 
 def memory_add(project_id: str, content: str, source: str) -> dict:

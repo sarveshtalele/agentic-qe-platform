@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, Circle, FileText, Loader2, XCircle } from "lucide-react";
+import { CheckCircle2, Circle, ClipboardCopy, FileText, Loader2, RotateCcw, XCircle } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, when } from "../lib/api";
@@ -14,6 +14,42 @@ function ConfidenceNote({ review }: { review?: any }) {
     <div className="text-sm" data-testid="confidence">
       <span className="flex flex-wrap items-center gap-2"><b>Independent confidence review</b> <Badge tone={tone}>{review.score === null ? "not run" : `${review.score} of 100`}</Badge> <Badge>{review.verdict}</Badge></span>
       {review.issues?.length > 0 && <ul className="mt-1 list-disc pl-5 text-xs text-slate-600 dark:text-slate-400">{review.issues.slice(0, 8).map((issue: string, i: number) => <li key={i}>{issue}</li>)}</ul>}
+    </div>
+  );
+}
+
+/** What happened, what to do, and the technical detail collapsed. The failure record is already redacted by the server. */
+function FailureCard({ run, onRetry, busy }: { run: any; onRetry: () => void; busy: boolean }) {
+  const toast = useToast();
+  const f = run.failure;
+  if (!f) return <ErrorNote message={run.status === "interrupted" ? `${run.error}. Retry the failed stage.` : run.error} />;
+  const diagnostics = () =>
+    [`Run ${run.id} (${run.workflow}) ${run.status}`, `Error ${f.id} ${f.code} at stage ${f.stage || "-"}`, f.message, `Action: ${f.action}`,
+      `Agent ${f.agent || "-"} attempt ${f.attempt ?? "-"} prompt ${f.prompt_ref || "-"} model ${f.model || "-"} finish ${f.finish_reason || "-"}`,
+      `Tokens ${f.tokens_in ?? "-"}/${f.tokens_out ?? "-"} in ${f.duration_ms ?? "-"} ms`,
+      f.parse_pos != null ? `Parser position ${f.parse_pos}: ${JSON.stringify(f.parse_context)}` : "",
+      f.provider_status ? `Provider status ${f.provider_status} request ${f.provider_request_id || "-"}` : "", f.technical, f.stack].filter(Boolean).join("\n");
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(diagnostics());
+      toast("Diagnostics copied (secrets are masked)");
+    } catch {
+      toast("Copy failed. Open the technical detail and copy it by hand.", "error");
+    }
+  };
+  return (
+    <div role="alert" className="space-y-2 rounded-lg border border-rose-500/40 bg-rose-500/10 p-3 text-sm" data-testid="failure-card">
+      <div className="flex flex-wrap items-center gap-2"><b>What happened</b> <Badge tone="rose">{f.code}</Badge>{f.stage && <span className="text-xs text-slate-500">in {f.stage}</span>}</div>
+      <p>{f.message}</p>
+      <p><b>What to do:</b> {f.action}</p>
+      <details className="text-xs">
+        <summary className="cursor-pointer select-none font-semibold">Technical detail (error {f.id})</summary>
+        <pre className="mono mt-1 max-h-64 overflow-auto whitespace-pre-wrap rounded bg-[#070d1f] p-2 text-slate-300">{diagnostics()}</pre>
+      </details>
+      <div className="flex gap-2">
+        <Button variant="primary" busy={busy} onClick={onRetry}><RotateCcw className="mr-1 inline h-3.5 w-3.5" />Retry failed stage</Button>
+        <Button variant="secondary" onClick={copy}><ClipboardCopy className="mr-1 inline h-3.5 w-3.5" />Copy diagnostics</Button>
+      </div>
     </div>
   );
 }
@@ -97,6 +133,7 @@ export function ApprovalCard({ approval, projectId, onDecided }: { approval: any
         <h3 className="text-sm font-bold">{approval.title}</h3>
       </div>
       <p className="text-sm text-slate-700 dark:text-slate-300">{approval.summary}</p>
+      {payload.partial && <div role="alert" className="rounded-lg border border-rose-500/50 bg-rose-500/10 p-2 text-sm" data-testid="partial-result"><b>Partial result, not complete.</b> Missing: {payload.partial.missing.join(", ")}. It cannot be approved. Send it back, or fix the cause ({payload.partial.codes.join(", ")}) and run the stage again.</div>}
       {payload.documents && (
         <ul className="flex flex-wrap gap-2 text-sm">
           {payload.documents.map((doc: string, i: number) => (
@@ -128,7 +165,7 @@ export function ApprovalCard({ approval, projectId, onDecided }: { approval: any
       {payload.can_open_pr && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={openPr} onChange={(e) => setOpenPr(e.target.checked)} /> Push the branch and open a pull request</label>}
       <ErrorNote message={error} />
       <div className="flex gap-2">
-        <Button variant="success" busy={busy} onClick={() => decide(true)}>Approve</Button>
+        <Button variant="success" busy={busy} disabled={!!payload.partial} onClick={() => decide(true)}>Approve</Button>
         <Button variant="danger" busy={busy} disabled={!feedback.trim()} onClick={() => decide(false)}>Send back</Button>
       </div>
     </div>
@@ -192,8 +229,7 @@ export function RunPanel({ runId, projectId, onFinished }: { runId: string; proj
     };
   }, [run?.status, load]);
 
-  const decided = async () => {
-    toast("Decision recorded");
+  const follow = async () => {
     await load();
     const source = new EventSource(`/api/runs/${runId}/events?after=${lastSeq.current}`);
     source.addEventListener("run", (e) => {
@@ -207,6 +243,23 @@ export function RunPanel({ runId, projectId, onFinished }: { runId: string; proj
       if (data.status !== "running") onFinished?.();
     });
     source.onerror = () => source.close();
+  };
+  const decided = async () => {
+    toast("Decision recorded");
+    await follow();
+  };
+  const [retrying, setRetrying] = useState(false);
+  const retry = async () => {
+    setRetrying(true);
+    try {
+      await api(`/runs/${runId}/retry`, { method: "POST" });
+      toast("Retrying from the failed stage");
+      await follow();
+    } catch (e: any) {
+      toast(e.message, "error");
+    } finally {
+      setRetrying(false);
+    }
   };
 
   if (!run) return null;
@@ -246,8 +299,7 @@ export function RunPanel({ runId, projectId, onFinished }: { runId: string; proj
           </ol>
         )}
         <Link className="text-xs text-indigo-500 underline" href={`/projects/${projectId}/observability?run=${runId}`}>Open full trace</Link>
-        {run.status === "failed" && <ErrorNote message={run.error} />}
-        {run.status === "interrupted" && <ErrorNote message={`${run.error}. Start it again.`} />}
+        {(run.status === "failed" || run.status === "interrupted") && <FailureCard run={run} onRetry={retry} busy={retrying} />}
         {(run.state.branch || run.state.pull_request) && (
           <div className="flex flex-wrap items-center gap-3 text-sm">
             {run.state.branch && <span>Branch <span className="mono text-xs">{run.state.branch}</span></span>}

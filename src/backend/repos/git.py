@@ -8,10 +8,11 @@ import subprocess
 from pathlib import Path
 from urllib.parse import urlparse
 
+from backend.core.errors import RepoError
 from backend.core.security import redact
 
 
-class GitError(RuntimeError):
+class GitError(RepoError):
     pass
 
 

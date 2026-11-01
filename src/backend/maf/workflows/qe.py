@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+import subprocess
 from pathlib import Path
 
 from pydantic import BaseModel, Field
@@ -13,7 +14,8 @@ from backend.core import doc_checks, documents
 from backend.core.security import (
     safe_path,
 )
-from backend.maf.engine import REGISTRY, Definition, RunContext, StageSpec
+from backend.core.errors import AqeError, EvidenceError, ExecutionError, ModelSchemaError
+from backend.maf.engine import REGISTRY, Definition, RunContext, StageSpec, part_key
 from backend.maf.runtime import AgentCall
 from backend.maf.workflows.ba import _strip_preamble
 from backend.maf.workflows.edits import ChangeSet, Edit, apply_edits, guarded_apply
@@ -79,7 +81,7 @@ async def qe_requirements(rc: RunContext, state: dict) -> dict:
                 requirement.line = line
             kept.append(requirement.model_dump())
         if not kept:
-            raise RuntimeError("No requirement survived evidence verification")
+            raise EvidenceError("No requirement survived evidence verification: no quote was found on disk at the stated file and line.")
         rc.log(f"{len(kept)} requirements verified; {len(dropped)} dropped for missing evidence", {"dropped": dropped})
         review = await review_artifact(rc, "requirements", json.dumps(kept), _brief_of_analysis(_analysis(rc.project_id)) if brownfield else stories)
         if attempt or not is_low(review):
@@ -118,6 +120,24 @@ async def qe_plan(rc: RunContext, state: dict) -> dict:
 
 
 DESIGN_BATCH = 4
+PARTIAL_AFTER = 2  # earlier failures of a stage before it may end with a partial result
+
+
+def settle(rc: RunContext, batches: list, outcomes: list, what: str) -> dict | None:
+    """Finished batches are already saved. A failed one raises, so Retry repeats only it, until retries are used up: then the stage ends marked partial."""
+    for outcome in outcomes:
+        if isinstance(outcome, BaseException) and not isinstance(outcome, Exception):
+            raise outcome  # cancellation is not a batch failure
+    failed = [(batch, outcome) for batch, outcome in zip(batches, outcomes) if isinstance(outcome, Exception)]
+    if not failed:
+        return None
+    for _, outcome in failed[1:]:
+        rc.log(f"Another {what} batch failed: {getattr(outcome, 'code', type(outcome).__name__)} {str(outcome)[:200]}", kind="warning")
+    if rc.earlier_failures() < PARTIAL_AFTER or len(failed) == len(batches):
+        raise failed[0][1]
+    missing = [item for batch, _ in failed for item in batch]
+    rc.log(f"{what}: {len(failed)} of {len(batches)} batches kept failing. The result is PARTIAL and cannot be approved.", {"missing": missing}, "warning")
+    return {"stage": rc.stage, "missing": missing, "codes": sorted({getattr(o, "code", "AQE-INT-001") for _, o in failed})}
 
 
 def _number_cases(cases: list[dict]) -> None:
@@ -154,9 +174,21 @@ async def qe_design(rc: RunContext, state: dict) -> dict:
 
     # one large reply breaks on real repositories, so batches run in parallel, each with its own review, and code merges them
     batches = [state["requirements"][i : i + DESIGN_BATCH] for i in range(0, len(state["requirements"]), DESIGN_BATCH)]
-    outcomes = await asyncio.gather(*(design_and_review(b) for b in batches))
-    cases = [case for found, _ in outcomes for case in found]
-    reviews = [review for _, review in outcomes]
+
+    async def finished_or_new(batch: list[dict]) -> tuple[list[dict], dict]:
+        key = part_key("design", [r["id"] for r in batch], state.get("feedback", ""))
+        if saved := rc.kept(key):
+            rc.log(f"Kept result reused for {len(batch)} requirements: {batch[0]['id']} to {batch[-1]['id']}")
+            return saved["cases"], saved["review"]
+        found, review = await design_and_review(batch)
+        rc.keep(key, {"cases": found, "review": review})
+        return found, review
+
+    outcomes = await asyncio.gather(*(finished_or_new(b) for b in batches), return_exceptions=True)
+    partial = settle(rc, [[r["id"] for r in b] for b in batches], outcomes, "Design")
+    done = [o for o in outcomes if not isinstance(o, BaseException)]
+    cases = [case for found, _ in done for case in found]
+    reviews = [review for _, review in done]
     scored = [r["score"] for r in reviews if r["score"] is not None]
     cases_review = {"score": min(scored) if scored else None, "verdict": "NOT RUN" if not scored else "APPROVED" if min(scored) >= 85 else "REVISE" if min(scored) >= 60 else "REJECTED", "issues": [issue for r in reviews for issue in r["issues"]][:30]}
     # batches number their cases separately, so ids are assigned here
@@ -165,19 +197,23 @@ async def qe_design(rc: RunContext, state: dict) -> dict:
     if gaps or dupes:
         rc.log(f"Design checks found gaps {gaps} and duplicates {dupes}; revising", kind="warning")
         affected = {g.split(":")[0] for g in gaps} | {c["requirement_id"] for c in cases if c["id"] in dupes}
-        wanted = [r for r in state["requirements"] if r["id"] in affected] or state["requirements"]
-        revised = await design(wanted, f"\n\nThese cases failed checks. Gaps: {gaps}. Duplicates: {dupes}. Return a full corrected set for these requirements.")
-        cases = [c for c in cases if c["requirement_id"] not in {r["id"] for r in wanted}] + revised
+        missing = set(partial["missing"]) if partial else set()  # a partial result is not designed again here
+        wanted = [r for r in state["requirements"] if r["id"] in affected - missing] or ([] if partial else state["requirements"])
+        if wanted:
+            revised = await design(wanted, f"\n\nThese cases failed checks. Gaps: {gaps}. Duplicates: {dupes}. Return a full corrected set for these requirements.")
+            cases = [c for c in cases if c["requirement_id"] not in {r["id"] for r in wanted}] + revised
         gaps = model.coverage_gaps(state["requirements"], cases)
     _number_cases(cases)
     columns = "| TC ID | Requirement | Scenario | Type | Level | Precondition | Test Data | Steps | Expected Result | Oracle | Priority |\n|---|---|---|---|---|---|---|---|---|---|---|\n"
     body = columns + "\n".join(f"| {c['id']} | {c['requirement_id']} | {_cell(c['scenario'])} | {c['type']} | {c['level']} | {_cell(c['precondition'])} | {_cell(c['test_data'])} | {_cell(' '.join(f'{i + 1}. {s}' for i, s in enumerate(c['steps'])))} | {_cell(c['expected_result'])} | {c['oracle']} | {c['priority']} |" for c in cases)
-    doc = documents.create(rc.project_id, "test_cases", "Test cases", body, "agent:test-design-architect", data=cases, prompt_ref=call.prompt_ref, run_id=rc.run_id)
+    if partial:
+        body = f"> PARTIAL RESULT. No cases yet for: {', '.join(partial['missing'])}\n\n" + body
+    doc = documents.create(rc.project_id, "test_cases", f"Test cases (PARTIAL, {len(partial['missing'])} requirements missing)" if partial else "Test cases", body, "agent:test-design-architect", data=cases, prompt_ref=call.prompt_ref, run_id=rc.run_id)
     fixtures = {c["id"]: c["test_data"] for c in cases if c["test_data"]}
     if fixtures:
         documents.create(rc.project_id, "test_data", "Test data", "```json\n" + json.dumps(fixtures, indent=2) + "\n```", "agent:test-design-architect", data=fixtures, run_id=rc.run_id)
     rc.log(f"{len(cases)} cases designed; {len(gaps)} remaining gaps", {"gaps": gaps}, "artifact")
-    return {"cases": cases, "cases_doc": doc["id"], "design_gaps": gaps, "fixtures": fixtures, "cases_review": cases_review}
+    return {"cases": cases, "cases_doc": doc["id"], "design_gaps": gaps, "fixtures": fixtures, "cases_review": cases_review, "partial": partial}
 
 
 class GeneratedFile(BaseModel):
@@ -224,7 +260,8 @@ async def qe_generate(rc: RunContext, state: dict) -> dict:
         worktree = project_dir(rc.project_id) / "worktrees" / rc.run_id
         worktree.parent.mkdir(parents=True, exist_ok=True)
         branch = f"atlas/qe-{rc.run_id[-6:]}"
-        await asyncio.to_thread(git.add_worktree, root, worktree, branch)
+        if not worktree.exists():  # a retry finds the worktree its failed attempt made
+            await asyncio.to_thread(git.add_worktree, root, worktree, branch)
         state = {**state, "worktree": str(worktree), "branch": branch}
     worktree = Path(state["worktree"])
     call = AgentCall(rc.run_id, rc.project_id, "test-automation-engineer")
@@ -240,13 +277,19 @@ async def qe_generate(rc: RunContext, state: dict) -> dict:
         wanted = {c["id"] for c in cases}
         request = (f"Generate executable tests under tests/agentic_qe/ for these cases, one file per case. Send a file for every case.\nCASES:\n{json.dumps(cases)}\nDETECTED RUNNERS: {a['test_runners']}\n"
                    f"Import only names you can see in this code. Name each test function with its case id, for example test_TC_APP_001_empty_input.{feedback}\n\nCODE:\n{code}")
+        key = part_key("generate", sorted(wanted), state.get("feedback", ""))
+        if saved := rc.kept(key):
+            rc.log(f"Kept result reused for {len(wanted)} cases")
+            return {p: GeneratedFile(**f) for p, f in saved["accepted"].items()}, saved["framework"], saved["errors"]
         accepted: dict[str, GeneratedFile] = {}
         errors: list[str] = []
         framework = ""
         for _ in range(3):
             try:
                 suite = await batch_call.typed(request, GeneratedSuite)
-            except RuntimeError as exc:
+            except AqeError as exc:
+                if not accepted:
+                    raise  # nothing from this batch is usable, so it is the one a retry repeats
                 errors = [str(exc)[:300]]
                 break
             framework = suite.framework
@@ -264,14 +307,17 @@ async def qe_generate(rc: RunContext, state: dict) -> dict:
                 break
             # only what is refused or missing goes round again, because resending a whole batch costs many thousands of tokens
             request = "These generated test files were refused. Send corrected versions of only these files, with the same paths and case ids.\nPROBLEMS:\n" + "\n".join(errors[:40]) + (f"\nThese cases have no test yet, so send one file for each: {missing}" if missing else "") + f"\n\nCODE:\n{code}"
+        rc.keep(key, {"accepted": {p: f.model_dump() for p, f in accepted.items()}, "framework": framework, "errors": errors})
         return accepted, framework, errors
 
     batches = [state["cases"][i : i + GENERATE_BATCH] for i in range(0, len(state["cases"]), GENERATE_BATCH)]
-    outcomes = await asyncio.gather(*(generate_batch(batch) for batch in batches))
+    outcomes = await asyncio.gather(*(generate_batch(batch) for batch in batches), return_exceptions=True)
+    partial = settle(rc, [[c["id"] for c in b] for b in batches], outcomes, "Generate")
+    outcomes = [o for o in outcomes if not isinstance(o, BaseException)]
     accepted = {path: item for found, _, _ in outcomes for path, item in found.items()}
     errors = [problem for _, _, found in outcomes for problem in found]
     if not accepted:
-        raise RuntimeError(f"Generated tests failed checks: {errors}")
+        raise ModelSchemaError(f"Generated tests failed checks: {errors}", action="Retry the stage. Each problem above names the file and the rule it broke.")
     suite = GeneratedSuite(framework=next((framework for _, framework, _ in outcomes if framework), ""), files=list(accepted.values()))
     missing = sorted(known - {cid for f in suite.files for cid in f.case_ids})
     if missing:
@@ -285,15 +331,20 @@ async def qe_generate(rc: RunContext, state: dict) -> dict:
     tests = [{"case_id": cid, "path": f.path} for f in suite.files for cid in f.case_ids]
     tests_review = await review_artifact(rc, "generated tests", "\n\n".join(f"{f.path}:\n{f.content}" for f in suite.files), json.dumps(state["cases"]))
     body = "\n\n".join(f"## {f.path}\n\nCases: {', '.join(f.case_ids)}\n\n```\n{f.content}\n```" for f in suite.files)
-    doc = documents.create(rc.project_id, "test_code", "Generated tests", body, "agent:test-automation-engineer", data=tests, prompt_ref=call.prompt_ref, run_id=rc.run_id)
+    if partial:
+        body = f"> PARTIAL RESULT. No tests yet for: {', '.join(partial['missing'])}\n\n" + body
+    doc = documents.create(rc.project_id, "test_code", "Generated tests (PARTIAL)" if partial else "Generated tests", body, "agent:test-automation-engineer", data=tests, prompt_ref=call.prompt_ref, run_id=rc.run_id)
     rc.log(f"{len(suite.files)} test files written to {state['branch']}", kind="artifact")
-    return {"worktree": state["worktree"], "branch": state["branch"], "tests": tests, "framework": suite.framework, "test_doc": doc["id"], "heal_attempts": state.get("heal_attempts", 0), "tests_review": tests_review, "tests_missing": missing}
+    return {"worktree": state["worktree"], "branch": state["branch"], "tests": tests, "framework": suite.framework, "test_doc": doc["id"], "heal_attempts": state.get("heal_attempts", 0), "tests_review": tests_review, "tests_missing": missing, "partial": partial}
 
 
 async def qe_execute(rc: RunContext, state: dict) -> dict:
     worktree = Path(state["worktree"])
     if state.get("install_deps"):
-        await asyncio.to_thread(execution.install_dependencies, worktree, _analysis(rc.project_id), rc.log)
+        try:
+            await asyncio.to_thread(execution.install_dependencies, worktree, _analysis(rc.project_id), rc.log)
+        except (subprocess.SubprocessError, OSError) as exc:
+            raise ExecutionError(f"Dependencies could not be installed: {type(exc).__name__}: {str(exc)[:200]}") from exc
     framework = state["framework"].lower()
     runner = next((r for r in execution.REGISTERED if r in framework), framework)
     result = await asyncio.to_thread(execution.run_suite, runner, worktree, "tests/agentic_qe", worktree.parent / f"{rc.run_id}-results", int(state.get("timeout", 300)))
@@ -375,6 +426,9 @@ def _doc_gate(gate: int, label: str, doc_key: str, summary, review_key: str = ""
             payload = {"documents": [state["discovery_id"], *payload["documents"]], "titles": ["Discovery summary", *payload["titles"]]}
         if review:
             payload["confidence"] = review
+        if state.get("partial"):
+            payload["partial"] = state["partial"]
+            return {"gate": gate, "title": f"Gate {gate} (PARTIAL): {label}", "summary": f"PARTIAL RESULT, not complete. Missing: {', '.join(state['partial']['missing'])}. {summary(state)}", "payload": payload}
         return {"gate": gate, "title": f"Gate {gate}: approve {label}", "summary": summary(state), "payload": payload}
 
     return build

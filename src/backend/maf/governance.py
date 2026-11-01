@@ -8,6 +8,7 @@ from dataclasses import asdict
 from agent_framework import chat_middleware
 
 from backend.core import ledger, prompts
+from backend.core.errors import AllowanceError, AqeError, classify
 from backend.core.security import redact, scan_secrets
 from backend.db import db, now, row, rows
 from backend.maf import observability
@@ -24,8 +25,8 @@ INJECTION = re.compile(
 )
 
 
-class AgentDisabled(RuntimeError):
-    pass
+class AgentDisabled(AllowanceError):
+    action = "Ask your administrator to enable the agent on the Agents page, then retry the stage."
 
 
 def settings(agent: str) -> dict:
@@ -93,15 +94,17 @@ def neutralize(agent: str, text: str, where: str, project_id: str | None, run_id
     return INJECTION.sub(REMOVED, text)
 
 
+def typed_error(agent: str, exc: Exception, project_id: str | None, run_id: str | None = None) -> AqeError:
+    """Turn any failure into a typed error. A provider refusal is also recorded as a guardrail event."""
+    error = classify(exc)
+    if error.code == "AQE-MODEL-005":
+        flag(agent, "provider_filter", "blocked", error.message, project_id, run_id)
+    return error
+
+
 def explain_error(agent: str, exc: Exception, project_id: str | None, run_id: str | None = None) -> str:
-    """Turn provider failures into a sentence a person can act on."""
-    text = str(exc)
-    if "content_filter" in text:
-        label = re.search(r"blocked by label '([^']+)'", text)
-        reason = label.group(1) if label else "content policy"
-        flag(agent, "provider_filter", "blocked", f"Model provider blocked the request: {reason}", project_id, run_id)
-        return f"The model provider blocked this request ({reason}). Reword the input or remove that text from the source."
-    return redact(text)[:500]
+    """The sentence a person can act on, for places that show text only."""
+    return typed_error(agent, exc, project_id, run_id).message
 
 
 def guard_tool_result(agent: str, tool: str, result, project_id: str | None, run_id: str | None):

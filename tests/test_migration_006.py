@@ -71,7 +71,7 @@ def test_migration_moves_every_row_and_keeps_the_ledger_valid(old_db):
     assert ledger.verify("p1")["valid"] and before["ledger"] == 3
 
     database.migrate()
-    assert sqlite3.connect(old_db).execute("PRAGMA user_version").fetchone()[0] == 6
+    assert sqlite3.connect(old_db).execute("PRAGMA user_version").fetchone()[0] == len(list(database.MIGRATIONS.glob("*.sql")))  # later migrations also run
     after = counts(old_db)
     assert after.pop("agent_settings") == 3 and before.pop("agent_settings") == 4, "two merged settings rows fold into their targets, with their content kept in the reason"
     assert after == before, "no other row is gained or lost"

@@ -8,7 +8,8 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import traceback
+import shutil
+import hashlib
 from dataclasses import dataclass, field
 from typing import Awaitable, Callable
 
@@ -22,9 +23,10 @@ from agent_framework import (
     response_handler,
 )
 
-from backend.config import CHECKPOINTS
+from backend.config import CHECKPOINTS, RUN_TOKEN_LIMIT, RUNS
 from backend.core import auth, gates, ledger
-from backend.core.security import redact
+from backend.core.errors import AllowanceError, classify, stack_of
+from backend.core.security import redact, safe_path
 from backend.db import db, new_id, now, row, rows
 from backend.maf import runtime as agent_module
 
@@ -67,6 +69,38 @@ class RunContext:
     def emit(self, kind: str, message: str, data: dict | None = None) -> None:
         add_event(self.run_id, kind, self.stage, message, data)
 
+    def _part(self, key: str):
+        return safe_path(RUNS / self.run_id, f"parts/{self.stage}/{key}.json", for_write=True)
+
+    def keep(self, key: str, data) -> None:
+        """Save one finished batch as it completes, so a retry of this stage repeats only what is missing."""
+        path = self._part(key)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(redact(json.dumps(data, default=str)), encoding="utf-8")
+
+    def kept(self, key: str):
+        path = self._part(key)
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None  # nothing saved, or unreadable: the batch is simply done again
+
+    def clear_parts(self) -> None:
+        shutil.rmtree(safe_path(RUNS / self.run_id, f"parts/{self.stage}", for_write=True), ignore_errors=True)
+
+    def earlier_failures(self) -> int:
+        """Failures of this stage since it last finished, so an old failure does not shorten a later rework."""
+        with db() as con:
+            return con.execute(
+                """SELECT COUNT(*) FROM run_events WHERE run_id=? AND stage=? AND type='error'
+                   AND seq > COALESCE((SELECT MAX(seq) FROM run_events WHERE run_id=? AND stage=? AND type='stage_end'), 0)""",
+                (self.run_id, self.stage, self.run_id, self.stage)).fetchone()[0]
+
+
+def part_key(*inputs) -> str:
+    """Names a batch by what it was asked, so a changed request never reuses an old result."""
+    return hashlib.sha256(json.dumps(inputs, default=str, sort_keys=True).encode()).hexdigest()[:16]
+
 
 def add_event(run_id: str, kind: str, stage: str, message: str, data: dict | None = None) -> None:
     with db() as con:
@@ -75,16 +109,42 @@ def add_event(run_id: str, kind: str, stage: str, message: str, data: dict | Non
         con.execute("INSERT INTO run_events VALUES (?,?,?,?,?,?,?)", (run_id, seq, kind, stage, redact(message), json.dumps(data or {}, default=str), now()))
 
 
-_stage_errors: dict[str, str] = {}
+_failures: dict[str, dict] = {}
+log = logging.getLogger("aqe.engine")
+
+
+def record_failure(run_id: str, stage: str, exc: BaseException) -> dict:
+    """One diagnostic row per failure, redacted. The whole rejected reply goes to a file under the run, never into a column."""
+    error = classify(exc)
+    d = error.detail
+    error_id = new_id("err")
+    reply_file = ""
+    if d.get("reply"):
+        reply_file = f"failures/{error_id}-reply.txt"
+        path = safe_path(RUNS / run_id, reply_file, for_write=True)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(redact(str(d["reply"])), encoding="utf-8")
+    failure = {
+        "id": error_id, "run_id": run_id, "code": error.code, "message": redact(error.message), "action": error.action, "retryable": int(error.retryable), "stage": stage,
+        "agent": d.get("agent", ""), "attempt": d.get("attempt"), "prompt_ref": d.get("prompt_ref", ""), "model": d.get("model", ""), "finish_reason": d.get("finish_reason", ""),
+        "tokens_in": d.get("tokens_in"), "tokens_out": d.get("tokens_out"), "duration_ms": d.get("duration_ms"), "parse_pos": d.get("parse_pos"),
+        "parse_context": redact(d.get("parse_context", "")), "technical": redact(str(d.get("technical", "")))[:2000], "reply_file": reply_file,
+        "stack": stack_of(exc), "provider_status": d.get("provider_status"), "provider_request_id": redact(str(d.get("provider_request_id", ""))), "created_at": now(),
+    }
+    with db() as con:
+        con.execute(f"INSERT INTO run_failures ({', '.join(failure)}) VALUES ({', '.join('?' * len(failure))})", tuple(failure.values()))
+    log.error("run %s stage %s failed: %s error_id=%s %s", run_id, stage, error.code, error_id, failure["message"],
+              extra={"fields": {"run_id": run_id, "stage": stage, "agent": failure["agent"], "error_id": error_id, "code": error.code}})
+    return failure
 
 
 async def _safely(rc: RunContext, awaitable):
-    """MAF reduces executor failures to the exception type, so the real message is kept for the run record."""
+    """MAF reduces executor failures to the exception type, so the real failure is recorded here and handed to _guarded."""
     try:
         return await awaitable
     except Exception as exc:
-        _stage_errors[rc.run_id] = f"{rc.stage}: {exc}"
-        rc.log(str(exc), kind="error")
+        failure = _failures[rc.run_id] = record_failure(rc.run_id, rc.stage, exc)
+        rc.log(f"{failure['code']} {failure['message']}", {"error_id": failure["id"], "code": failure["code"]}, kind="error")
         raise
 
 
@@ -116,6 +176,8 @@ class Stage(Executor):
         rc = self._ctx()
         rc.log(f"Started {self.spec.label or self.spec.id}", kind="stage_start")
         state = {**state, **(await _safely(rc, self.spec.fn(rc, state)) or {})}
+        if not state.get("partial"):  # a partial result keeps its batches for the rework that follows
+            rc.clear_parts()
         state.pop("_to", None)
         rc.log(f"Finished {self.spec.label or self.spec.id}", kind="stage_end")
         request = self.spec.approval(rc, state) if self.spec.approval else None
@@ -273,9 +335,9 @@ async def _guarded(run_id: str, project_id: str, stream) -> None:
     except asyncio.CancelledError:
         _finish(run_id, "cancelled")
         raise
-    except Exception as exc:  # the failure is surfaced on the run, never swallowed
-        traceback.print_exc()
-        _finish(run_id, "failed", _stage_errors.pop(run_id, str(exc)))
+    except Exception as exc:  # recorded in run_failures with a redacted stack, then shown on the run
+        failure = _failures.pop(run_id, None) or record_failure(run_id, "", exc)
+        _finish(run_id, "failed", f"{failure['stage']}: {failure['message']}" if failure["stage"] else failure["message"])
 
 
 def _spawn(run_id: str, coro) -> asyncio.Task:
@@ -301,15 +363,34 @@ def cancel(run_id: str) -> dict:
     return get(run_id)
 
 
+ACTIVE = ("running", "waiting_approval")  # a waiting run still holds its worktree, so it keeps the slot
+
+
+class RunActive(ValueError):
+    """Another run of this kind is in progress in this project. Names it, and where to open it."""
+
+    def __init__(self, project_id: str, workflow: str):
+        with db() as con:
+            found = row(con.execute("SELECT id, status, started_at FROM runs WHERE project_id=? AND workflow=? AND status IN ('running','waiting_approval') ORDER BY started_at LIMIT 1", (project_id, workflow))) or {}
+        self.run_id = found.get("id", "")
+        super().__init__(f"A {workflow} run is already {found.get('status', 'in progress').replace('_', ' ')} in this project: {self.run_id}, started {found.get('started_at', '')}. "
+                         f"Open it at /projects/{project_id}/runs/{self.run_id}, and finish or cancel it before starting another.")
+
+
 async def start(project_id: str, workflow: str, payload: dict) -> dict:
     if workflow not in REGISTRY:
         raise ValueError(f"Unknown workflow {workflow}. Use one of: {', '.join(sorted(REGISTRY))}")
     llm_check = agent_module.llm.client  # fails early with a clear message when no model is configured
     llm_check()
     run_id = new_id("run")
-    with db() as con:
-        con.execute("INSERT INTO runs (id, project_id, workflow, status, input, started_at) VALUES (?,?,?,?,?,?)",
-                    (run_id, project_id, workflow, "running", json.dumps(payload), now()))
+    with db() as con:  # one statement inside one write transaction decides who wins, so two starts cannot both take the slot
+        con.execute("BEGIN IMMEDIATE")
+        claimed = con.execute(
+            """INSERT INTO runs (id, project_id, workflow, status, input, started_at)
+               SELECT ?,?,?,?,?,? WHERE NOT EXISTS (SELECT 1 FROM runs WHERE project_id=? AND workflow=? AND status IN ('running','waiting_approval'))""",
+            (run_id, project_id, workflow, "running", json.dumps(payload), now(), project_id, workflow)).rowcount
+    if not claimed:
+        raise RunActive(project_id, workflow)
     ledger.append(project_id, (auth.current_user.get() or {}).get("id", "system"), "run.started", run_id, {"workflow": workflow})
     add_event(run_id, "status", "", "running")
     storage = _storage(run_id)
@@ -328,6 +409,8 @@ async def decide(approval_id: str, approved: bool, by: str, feedback: str = "", 
         raise KeyError(approval_id)
     if approval["status"] != "pending":
         raise ValueError(f"Approval already {approval['status']}")
+    if approved and (partial := json.loads(approval["payload"]).get("partial")):
+        raise ValueError(f"This result is partial and cannot be approved. Missing: {partial['missing']}. Send it back, or approve nothing and retry after fixing the cause.")
     if approval["gate"] is not None:
         gates.decide(approval["project_id"], approval["gate"], approved, by, feedback, approval["run_id"])
     else:
@@ -340,6 +423,40 @@ async def decide(approval_id: str, approved: bool, by: str, feedback: str = "", 
     response = json.dumps({"approved": approved, "by": by, "feedback": feedback, **(extra or {})})
     _spawn(run["id"], _guarded(run["id"], run["project_id"], _resume(run, approval_id, response)))
     return get(run["id"])
+
+
+async def retry(run_id: str) -> dict:
+    """Resume a failed or interrupted run from its latest checkpoint. Finished batches are kept by the stage itself."""
+    run = get(run_id)
+    agent_module.llm.client()  # a missing model fails now, with its own message
+    auth.check_allowance(run["project_id"])
+    if run["tokens_in"] + run["tokens_out"] >= RUN_TOKEN_LIMIT:
+        raise AllowanceError(f"Run stopped: it used {run['tokens_in'] + run['tokens_out']} tokens, over the limit of {RUN_TOKEN_LIMIT}.", action="Raise ATLAS_RUN_TOKEN_LIMIT, or ask your administrator, then retry.")
+    with db() as con:  # one statement decides who wins, so two retries cannot both start, nor can a retry take a slot a newer run holds
+        con.execute("BEGIN IMMEDIATE")
+        claimed = con.execute(
+            """UPDATE runs SET status='running', error='', ended_at=NULL WHERE id=? AND status IN ('failed','interrupted')
+               AND NOT EXISTS (SELECT 1 FROM runs o WHERE o.project_id=runs.project_id AND o.workflow=runs.workflow AND o.status IN ('running','waiting_approval'))""", (run_id,)).rowcount
+    if not claimed:
+        if get(run_id)["status"] in {"failed", "interrupted"}:
+            raise RunActive(run["project_id"], run["workflow"])
+        raise ValueError(f"Run is {get(run_id)['status']}; only a failed or interrupted run can be retried")
+    ledger.append(run["project_id"], (auth.current_user.get() or {}).get("id", "system"), "run.retried", run_id, {"after": run["status"]})
+    add_event(run_id, "status", "", "running", {"retry": True})
+    _spawn(run_id, _guarded(run_id, run["project_id"], _rerun(run)))
+    return get(run_id)
+
+
+async def _rerun(run: dict):
+    storage = _storage(run["id"])
+    workflow = compile_workflow(REGISTRY[run["workflow"]](), run["id"], run["project_id"], storage)
+    latest = await storage.get_latest(workflow_name=workflow.name)
+    if latest is None:  # it failed before the first checkpoint, so it starts again from its input
+        stream = workflow.run({**run["input"], "project_id": run["project_id"], "run_id": run["id"], "_to": ""}, stream=True)
+    else:
+        stream = workflow.run(checkpoint_id=latest.checkpoint_id, checkpoint_storage=storage, stream=True)
+    async for event in stream:
+        yield event
 
 
 async def _resume(run: dict, approval_id: str, response: str):
@@ -369,6 +486,8 @@ def get(run_id: str) -> dict:
         found["approvals"] = rows(con.execute("SELECT * FROM approvals WHERE run_id=? ORDER BY created_at", (run_id,)))
     for key in ("input", "state"):
         found[key] = json.loads(found[key])
+    with db() as con:
+        found["failure"] = row(con.execute("SELECT * FROM run_failures WHERE run_id=? ORDER BY created_at DESC, rowid DESC LIMIT 1", (run_id,)))
     for approval in found["approvals"]:
         approval["payload"] = json.loads(approval["payload"])
     return found
@@ -382,4 +501,4 @@ def events(run_id: str, after: int = 0) -> list[dict]:
     return items
 
 
-__all__ = ["StageSpec", "Definition", "FanOut", "RunContext", "REGISTRY", "start", "decide", "recover", "get", "events"]
+__all__ = ["RunActive", "StageSpec", "Definition", "FanOut", "RunContext", "REGISTRY", "start", "decide", "retry", "recover", "get", "events", "part_key"]

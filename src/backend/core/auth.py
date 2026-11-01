@@ -15,6 +15,7 @@ import time
 from contextvars import ContextVar
 from datetime import datetime, timedelta, timezone
 
+from backend.core.errors import AllowanceError  # noqa: F401 - re-exported; callers use auth.AllowanceError
 from backend.core.security import decrypt, encrypt, encryption_key, register_secret
 from backend.db import db, new_id, now, row, rows
 
@@ -32,10 +33,6 @@ _failures_lock = threading.Lock()
 
 class AuthError(ValueError):
     pass
-
-
-class AllowanceError(RuntimeError):
-    """The project's owner has no time or tokens left."""
 
 
 def _admin_login() -> tuple[str, str]:
@@ -295,7 +292,7 @@ OWNED_PATHS = [
     (re.compile(r"^/api/chats/([^/]+)"), "SELECT project_id FROM chat_threads WHERE id=?"),
     (re.compile(r"^/api/memories/([^/]+)"), "SELECT project_id FROM memories WHERE id=?"),
 ]
-ADMIN_ONLY = re.compile(r"^/api/(users|connections|auth/events)(/|$)|^/api/agents/guardrail-events$|^/api/projects/[^/]+/repo/local$")
+ADMIN_ONLY = re.compile(r"^/api/(users|connections|logs|auth/events)(/|$)|^/api/agents/guardrail-events$|^/api/projects/[^/]+/repo/local$")
 ADMIN_WRITES = re.compile(r"^/api/(settings|prompts|agents|evals)(/|$)")
 
 

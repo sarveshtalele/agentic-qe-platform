@@ -108,10 +108,31 @@
 
 ## Next, after your approval
 
-- [ ] `docs/PLUGIN_AND_UI_PLAN.md`: 15 phases, approved 2026-11-01. Phase 1 done, phase 2 next
+- [ ] `docs/PLUGIN_AND_UI_PLAN.md`: 15 phases, approved 2026-11-01. Phases 1 and 2 done, phase 3 next
 - [x] Phase 1, agent names: agents use the plugin's hyphenated keys; `doc_reviewer` merged into `confidence-reviewer` and `gherkin_author` into `business-analyst`; migration `006_agent_plugin_names.sql` moves stored history (checked by `test_migration_006_*`)
 - [ ] Phase 1, agent names: live evals of the merged prompts on the real model not yet run
 - [ ] Phase 1, `qa-execution-engineer` arrives with phase 5
+
+## Phase 2: errors, recovery, and debugging (ERR)
+
+- [x] `core/errors.py` typed errors; `run_failures` table (migration 007) with the rejected reply saved under the run
+- [x] JSON parsing never accepts a fragment; length, JSON, and schema failures have separate codes
+- [x] `POST /api/runs/{id}/retry`; design and generate keep finished batches; partial result marked and not approvable
+- [x] API error shape and `X-Request-Id`; run error card; `error.tsx` and `global-error.tsx`
+- [x] No-cache control on model calls, checked against the real proxy
+- [x] Broad `except` audit
+- [x] Observability Errors tab, error code docs page (rest of Part 4 and 5)
+- [x] Settings: admin-only application log download by day (OPS-4 link)
+- [ ] Failure inside a gate approval handler cannot be retried safely yet
+- [ ] Live run on a real repository to see a real partial result
+
+## Phase 2, second half (OPS)
+
+- [x] OPS-1 Observability paged and filtered in SQL, migration 008, Load more
+- [x] OPS-2 One active run per project and workflow kind (409, atomic claim)
+- [x] OPS-3, OPS-4 Daily JSONL app log, retention, admin download
+- [x] OPS-5 Deleting a project removes its `data/runs/<id>/` folders
+- [x] OPS-6 Model-free browser smoke test in CI (`python scripts/dev.py smoke`; first CI run on all three systems not seen yet)
 
 ## Awaiting your decision
 
