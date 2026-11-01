@@ -14,7 +14,7 @@ from backend.core import doc_checks, documents
 from backend.core.security import (
     safe_path,
 )
-from backend.core.errors import AqeError, EvidenceError, ExecutionError, ModelSchemaError
+from backend.core.errors import AllowanceError, AqeError, EvidenceError, ExecutionError, ModelSchemaError
 from backend.maf.engine import REGISTRY, Definition, RunContext, StageSpec, part_key
 from backend.maf.runtime import AgentCall
 from backend.maf.workflows.ba import _strip_preamble
@@ -131,6 +131,8 @@ def settle(rc: RunContext, batches: list, outcomes: list, what: str) -> dict | N
     failed = [(batch, outcome) for batch, outcome in zip(batches, outcomes) if isinstance(outcome, Exception)]
     if not failed:
         return None
+    if limit := next((o for _, o in failed if isinstance(o, AllowanceError)), None):
+        raise limit  # a limit never ends a stage as a partial result: finished batches stay saved, and Retry continues after the reset
     for _, outcome in failed[1:]:
         rc.log(f"Another {what} batch failed: {getattr(outcome, 'code', type(outcome).__name__)} {str(outcome)[:200]}", kind="warning")
     if rc.earlier_failures() < PARTIAL_AFTER or len(failed) == len(batches):
@@ -154,6 +156,8 @@ async def qe_design(rc: RunContext, state: dict) -> dict:
         batch_call = AgentCall(rc.run_id, rc.project_id, "test-design-architect")
         try:
             result = await batch_call.typed(f"Design test cases for only these requirements.\nREQUIREMENTS:\n{json.dumps(requirements)}\nPLAN:\n{json.dumps(state['plan'])}{feedback}{note}", model.CaseSet, attempts=2)
+        except AllowanceError:
+            raise  # a limit is not a bad reply, so the batch is not split; the stage stops and finished batches are kept
         except RuntimeError as exc:
             if len(requirements) < 2:
                 raise
@@ -287,6 +291,8 @@ async def qe_generate(rc: RunContext, state: dict) -> dict:
         for _ in range(3):
             try:
                 suite = await batch_call.typed(request, GeneratedSuite)
+            except AllowanceError:
+                raise
             except AqeError as exc:
                 if not accepted:
                     raise  # nothing from this batch is usable, so it is the one a retry repeats

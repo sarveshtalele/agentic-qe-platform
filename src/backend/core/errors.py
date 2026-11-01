@@ -71,6 +71,13 @@ class AllowanceError(AqeError):
     action = "Ask your administrator to raise the allocation or limit, then retry the stage."
 
 
+class LimitReached(AllowanceError):
+    """A daily, weekly, or monthly token limit is reached. The message names the limit and when it resets."""
+
+    code = "AQE-ALLOW-002"
+    action = "Wait for the reset time in the message, or ask your administrator to raise the limit, then use Retry failed stage."
+
+
 class RepoError(AqeError):
     code = "AQE-REPO-001"
     action = "Check the repository address and access token, then try again."

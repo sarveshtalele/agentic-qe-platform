@@ -4,6 +4,7 @@ import { CopilotKit, useAgent, useCopilotKit } from "@copilotkit/react-core/v2";
 import { Brain, ExternalLink, Loader2, MessageSquarePlus, Pencil, Send, Trash2, Wrench } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, when } from "../lib/api";
+import { ModelPicker } from "./ModelPicker";
 import { Button, Empty, ErrorNote, inputClass, Markdown, Spinner, useToast } from "./ui";
 
 /** Headless CopilotKit over AG-UI: the UI waits until the agent is ready, so a send is never lost. */
@@ -13,7 +14,19 @@ function Conversation({ thread, onReplied }: { thread: any; onReplied: () => voi
   const [text, setText] = useState("");
   const [error, setError] = useState("");
   const [running, setRunning] = useState(false);
+  const [model, setModel] = useState<string>(thread.model || "");
   const bottom = useRef<HTMLDivElement>(null);
+  useEffect(() => setModel(thread.model || ""), [thread.id, thread.model]);
+  // the server checks the pick too: a model this account may not use is refused there
+  const pickModel = async (next: string) => {
+    setError("");
+    try {
+      await api(`/chats/${thread.id}`, { method: "PATCH", json: { model: next } });
+      setModel(next);
+    } catch (e: any) {
+      setError(e.message);
+    }
+  };
   useEffect(() => {
     // eslint-disable-next-line react-hooks/immutability -- AG-UI reads the thread id from the agent object
     agent.threadId = thread.id;
@@ -59,7 +72,8 @@ function Conversation({ thread, onReplied }: { thread: any; onReplied: () => voi
         <ErrorNote message={error} />
         <div ref={bottom} />
       </div>
-      <form className="flex items-end gap-2 border-t border-slate-200 p-3 dark:border-slate-800" onSubmit={(e) => { e.preventDefault(); send(); }}>
+      <div className="flex items-center gap-2 border-t border-slate-200 px-3 pt-2 text-xs text-slate-500 dark:border-slate-800">Model <ModelPicker value={model} onChange={pickModel} compact /></div>
+      <form className="flex items-end gap-2 px-3 pb-3 pt-2" onSubmit={(e) => { e.preventDefault(); send(); }}>
         <textarea aria-label="Message" rows={2} disabled={!isReady} className={`${inputClass} resize-none`} placeholder={isReady ? "Ask about this project, its documents, or run an agent" : "Connecting"} value={text} onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} />
         <Button type="submit" disabled={!isReady || running || !text.trim()} aria-label="Send message"><Send className="h-4 w-4" /></Button>

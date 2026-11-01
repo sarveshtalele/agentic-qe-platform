@@ -10,6 +10,7 @@ from backend.db import db, new_id, now
 from backend.maf.engine import REGISTRY, Definition, FanOut, RunContext, StageSpec
 from backend.maf.runtime import AgentCall
 from backend.maf.workflows.shared import _analysis, review_artifact
+from backend.core.errors import AllowanceError
 from backend.core.security import redact, safe_path
 from backend.repos import git, sandbox, scan, static_analysis
 
@@ -79,6 +80,8 @@ async def scan_llm(rc: RunContext, state: dict) -> dict:
                 async with gate:
                     result = await AgentCall(rc.run_id, rc.project_id, "bug-reviewer").typed(f"Review {path} for real defects.{note}\n\n{part}", ReviewFindings)
                 found += [{**f.model_dump(), "file": f.file or path} for f in result.findings]
+        except AllowanceError:
+            raise
         except RuntimeError as exc:
             missed.append(path)
             rc.log(f"Review of {path} did not finish: {exc}", kind="warning")

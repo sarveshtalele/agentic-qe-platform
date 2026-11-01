@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useProject } from "../../../../components/ProjectShell";
 import { RunDocuments, RunList, RunPanel } from "../../../../components/RunPanel";
+import { ModelPicker } from "../../../../components/ModelPicker";
 import { Button, Card, Empty, ErrorNote, Field, inputClass, PageTitle } from "../../../../components/ui";
 import { api } from "../../../../lib/api";
 
@@ -13,6 +14,7 @@ export default function FeaturePage() {
   const [title, setTitle] = useState("");
   const [spec, setSpec] = useState("");
   const [install, setInstall] = useState(false);
+  const [model, setModel] = useState("");
   const [runId, setRunId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -21,7 +23,7 @@ export default function FeaturePage() {
     setBusy(true);
     setError("");
     try {
-      setRunId((await api(`/projects/${project.id}/runs`, { json: { workflow: "change", input: { kind: "feature", title, spec, install_deps: install } } })).id);
+      setRunId((await api(`/projects/${project.id}/runs`, { json: { workflow: "change", model, input: { kind: "feature", title, spec, install_deps: install } } })).id);
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -37,6 +39,7 @@ export default function FeaturePage() {
             <div className="space-y-3">
               <Field label="Title"><input name="feature-title" className={inputClass} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Add CSV export" /></Field>
               <Field label="Specification"><textarea name="feature-spec" rows={6} className={inputClass} value={spec} onChange={(e) => setSpec(e.target.value)} /></Field>
+              <ModelPicker value={model} onChange={setModel} />
               <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1" checked={install} onChange={(e) => setInstall(e.target.checked)} /><span>Install repository dependencies before testing. <span className="text-amber-500">This runs the repository&apos;s install scripts on this machine.</span></span></label>
               <ErrorNote message={error} />
               <Button busy={busy} onClick={start} disabled={!title.trim() || !spec.trim()}><Hammer className="h-4 w-4" /> Build feature</Button>

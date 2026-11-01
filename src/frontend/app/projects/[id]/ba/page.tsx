@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useProject } from "../../../../components/ProjectShell";
 import { RunDocuments, RunList, RunPanel } from "../../../../components/RunPanel";
+import { ModelPicker } from "../../../../components/ModelPicker";
 import { Badge, Button, Card, ErrorNote, Field, inputClass, PageTitle, useToast } from "../../../../components/ui";
 import { api, upload } from "../../../../lib/api";
 
@@ -16,6 +17,7 @@ export default function BAPage() {
   const [selected, setSelected] = useState<string[]>([]);
   const [brief, setBrief] = useState("");
   const [title, setTitle] = useState("");
+  const [model, setModel] = useState("");
   const [runId, setRunId] = useState<string | null>(null);
   const [docs, setDocs] = useState<any[]>([]);
   const [busy, setBusy] = useState(false);
@@ -48,7 +50,7 @@ export default function BAPage() {
     setBusy(true);
     setError("");
     try {
-      const run = await api(`/projects/${project.id}/runs`, { json: { workflow: "ba", input: { brief, title: title || template?.name, template_id: templateId, source_ids: selected } } });
+      const run = await api(`/projects/${project.id}/runs`, { json: { workflow: "ba", model, input: { brief, title: title || template?.name, template_id: templateId, source_ids: selected } } });
       setRunId(run.id);
     } catch (e: any) {
       setError(e.message);
@@ -99,6 +101,7 @@ export default function BAPage() {
               {template && <p className="text-xs text-slate-500">Sections: {template.headings.join(" · ")}</p>}
               <label className="flex w-fit cursor-pointer items-center gap-1.5 text-xs font-semibold text-indigo-500"><Upload className="h-3.5 w-3.5" /> Upload your own template (.md, .docx)<input type="file" name="template-file" accept=".md,.txt,.docx" className="hidden" onChange={(e) => addTemplate(e.target.files?.[0])} /></label>
               <ErrorNote message={error} />
+              <ModelPicker value={model} onChange={setModel} compact />
               <Button onClick={start} busy={busy} disabled={!brief.trim() && !selected.length}><Play className="h-4 w-4" /> Generate document</Button>
             </div>
           </Card>

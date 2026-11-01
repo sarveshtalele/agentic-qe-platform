@@ -447,7 +447,7 @@ def test_15e_admin_creates_user_who_sees_only_their_own_work(page):
     page.goto(f"{UI}/users")
     page.locator('input[name="new-username"]').fill(name)
     page.locator('input[name="new-password"]').fill(secret)
-    page.locator('input[name="new-model"]').fill("deepseek-v4-flash-global")
+    page.get_by_label("Allow deepseek-v4-flash-global").check()  # the configured model is in the list; a user can run only ticked models
     page.locator('input[name="new-tokens"]').fill("50000")
     page.locator('input[name="new-until"]').fill("2099-01-31")
     page.get_by_role("button", name="Create user").click()

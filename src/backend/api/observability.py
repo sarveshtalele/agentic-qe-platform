@@ -35,7 +35,7 @@ def get_errors(project_id: str | None = None):
     if project_id:
         where.append("r.project_id=:project")
     if owner:
-        where.append("r.project_id IN (SELECT id FROM projects WHERE owner_id=:owner AND id!=:eval)")
+        where.append("r.project_id IN (SELECT id FROM projects WHERE (owner_id=:owner OR id IN (SELECT project_id FROM project_members WHERE user_id=:owner)) AND id!=:eval)")
     params = {"project": project_id, "owner": owner, "eval": auth.EVAL_PROJECT}
     with db() as con:
         groups = rows(con.execute(f"""

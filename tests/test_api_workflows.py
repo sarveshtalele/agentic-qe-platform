@@ -1020,6 +1020,13 @@ USER_PASSWORD = secrets.token_urlsafe(15)
 
 
 def make_user(admin, name="priya.tester", **extra):
+    """A user may use only ticked models, so tests give each one the listed test models unless they say otherwise."""
+    from backend.core import models
+
+    for listed in ("test-model", extra.get("model")):
+        if listed:
+            models.add(listed, enabled=True)
+    extra = {"models": ["test-model", *([extra["model"]] if extra.get("model") else [])], **extra}
     made = admin.post("/api/users", json={"username": name, "password": USER_PASSWORD, **extra})
     assert made.status_code == 201, made.text
     return made.json()
@@ -1133,7 +1140,7 @@ def test_allocation_dates_and_model_limit_a_users_work(client):
     assert auth.model_for(project["id"]) == "small-model" and other.get("/api/settings/llm").json()["model"] == "small-model"
     auth.check_allowance(project["id"])
     with db() as con:
-        con.execute("INSERT INTO agent_calls (agent, project_id, source, prompt_ref, tokens_in, tokens_out, latency_ms, tool_calls, status, created_at) VALUES ('project-copilot', ?, 'chat', 'x', 80, 30, 1, 0, 'ok', ?)", (project["id"], now()))
+        con.execute("INSERT INTO agent_calls (agent, project_id, source, prompt_ref, tokens_in, tokens_out, latency_ms, tool_calls, status, created_at, user_id) VALUES ('project-copilot', ?, 'chat', 'x', 80, 30, 1, 0, 'ok', ?, ?)", (project["id"], now(), user["id"]))
     assert other.get("/api/auth/me").json()["tokens_used"] == 110
     llm.set_client_override(ScriptedClient([("x", "ok")]))
     with pytest.raises(auth.AllowanceError, match="allocation"):

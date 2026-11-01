@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 
 from backend.config import project_dir, repo_dir
 from backend.core import documents
+from backend.core.errors import AllowanceError
 from backend.core.security import (
     PathEscape,
     safe_path,
@@ -124,6 +125,8 @@ async def _fix_file_by_file(rc: RunContext, state: dict, worktree: Path) -> dict
                 if not refused:
                     break
                 prompt = f"These edits were refused: {refused}. Send only corrected edits. Each search must match the file exactly.\n\nCURRENT FILE:\n{code_pack(rc.project_id, worktree, [name], 60_000)}"
+        except AllowanceError:
+            raise
         except RuntimeError as exc:
             rc.log(f"Could not fix {name}: {exc}", kind="warning")
         (fixed if applied else missed).append(name)

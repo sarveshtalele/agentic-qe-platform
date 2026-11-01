@@ -37,7 +37,9 @@ flowchart LR
 
 | Store | Contents |
 |---|---|
-| `data/atlas.sqlite3` | Projects, documents and versions, templates, prompts, runs and events, approvals, gates, ledger, findings, chats, memories, encrypted credentials, evals, agent settings, agent calls, guardrail events |
+| `data/atlas.sqlite3` | Projects, documents and versions, templates, prompts, runs and events, run failures, approvals, gates, ledger, findings, chats, memories, encrypted credentials, evals, agent settings, agent calls, guardrail events, users, models, user model ticks and limits, project members, sessions, auth events |
+| `data/logs/app-YYYY-MM-DD.jsonl` | Daily application log: one line per request, warning, or error |
+| `data/runs/<run>/parts/`, `data/runs/<run>/failures/` | Finished batches, and rejected model replies with secrets masked |
 | `data/projects/<id>/repo` | Cloned or unpacked code |
 | `data/projects/<id>/worktrees/<run>` | Isolated branch per change or QE run |
 | `data/projects/<id>/documents/<kind>/<doc>/vNNNN.*` | Every document version as a readable file |
@@ -148,6 +150,24 @@ A GitHub fine-grained token is validated against GitHub, encrypted at rest, and 
 
 CopilotKit's headless hooks in the browser call a Next.js runtime route, which reaches `/agui/{agent}` over AG-UI. The server finds the project from the thread row, so a client cannot reach another project through a thread id. Threads and messages are stored in SQLite. Project memory is injected by a MAF context provider. Tools read documents and code, report status, remember facts, and start workflows. Gates still need a human on the app pages. The chat also opens in its own window at `/chat/{project}`.
 
+## Access, models, errors, and logs
+
+Where each rule lives. Every row names the code that enforces it.
+
+| Feature | Code | Stored in |
+|---|---|---|
+| Roles, project members, ownership transfer | `core/auth.py` `access_problem`, `project_role`, `can_write`, `transfer_project` | `users.role`, `project_members`, `projects.owner_id` |
+| Gate signing by role | `core/auth.py` `gate_signing_problem`, `set_gate_roles`; `engine.decide` | `settings` (`gate_roles`) |
+| Allowed models, default, and the model list | `core/models.py` `allowed`, `check_allowed`, `set_allowed`; `api/settings.py` (`load_models` uses `maf/llm.py` `proxy_models`) | `models`, `user_models`, `users.model` |
+| Which model a call uses | `core/auth.py` `model_for`, `permit_model` | `runs.model`, `agent_settings.model`, `agent_calls.model` |
+| Daily, weekly, monthly, and per-model limits | `core/models.py` `bounds`, `limit_problem`, `usage_rows`; `core/auth.py` `check_allowance` | `user_limits`, `agent_calls`, `settings` (`timezone`) |
+| Typed errors | `core/errors.py` (`AqeError` and subclasses), `classify` | Raised in code |
+| Failure records and saved replies | `maf/engine.py` `record_failure` | `run_failures`, `data/runs/<run>/failures/` |
+| Retry and partial results | `maf/engine.py` `retry`; `maf/workflows/qe.py` `PARTIAL_AFTER`, `settle` | `runs`, `data/runs/<run>/parts/` |
+| One active run per kind | `maf/engine.py` `start`, `retry`, `RunActive` (409) | `runs` |
+| Daily application log and retention | `core/logs.py` `DailyJsonHandler`, `prune`; `api/logs.py` | `data/logs/app-YYYY-MM-DD.jsonl` |
+| Proxy cache control | `config.MODEL_NO_CACHE`, `maf/runtime.py` `build` | Environment (`ATLAS_MODEL_NO_CACHE`) |
+
 ## Agent governance
 
 `src/backend/maf/governance.py` holds the registry of 11 agents: risk tier, tools, token limit. The Agents page shows policy, eval scores, calls, tokens, latency, errors, and guardrail events from stored data, and lets a named person disable an agent. Text from briefs, sources, and repositories passes secret and injection filters before the model sees it. Model providers can reject such text, which would otherwise fail a whole run.
@@ -158,6 +178,6 @@ CopilotKit's headless hooks in the browser call a Next.js runtime route, which r
 - Target test code runs with host permissions, in a scrubbed environment, after G4 approval. There is no OS sandbox.
 - Keyword document search has no embeddings.
 - JavaScript static rules are line patterns; JS depth comes from agent review.
-- CI ran green on Windows, macOS, and Linux at commit 34f6dda. CI runs the offline tests only. The end-to-end suite needs the real model, so it runs by hand.
+- CI status for the current commit is not yet confirmed. The last confirmed run was green on Windows, macOS, and Linux at commit 34f6dda. CI runs the offline tests only. The end-to-end suite needs the real model, so it runs by hand.
 - Injection detection uses patterns, so it reduces risk and does not eliminate it. Worktree isolation, human gates, and path guards are the real boundary.
 - A secret split across two streamed chat chunks can appear in the live stream. The final snapshot and stored copy are clean.

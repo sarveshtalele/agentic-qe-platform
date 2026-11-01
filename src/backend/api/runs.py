@@ -27,6 +27,7 @@ router = APIRouter()
 class RunIn(BaseModel):
     workflow: str
     input: dict = Field(default_factory=dict)
+    model: str = ""
 
 
 class DecisionIn(BaseModel):
@@ -39,7 +40,7 @@ class DecisionIn(BaseModel):
 async def start_run(project_id: str, body: RunIn):
     _project(project_id)
     try:
-        return await engine.start(project_id, body.workflow, body.input)
+        return await engine.start(project_id, body.workflow, body.input, body.model)
     except engine.RunActive as exc:
         raise HTTPException(409, str(exc)) from exc
     except ValueError as exc:
@@ -145,5 +146,7 @@ async def merge_pr(run_id: str):
 async def decide(approval_id: str, body: DecisionIn):
     try:
         return await engine.decide(approval_id, body.approved, auth.signer(), body.feedback, {"open_pr": body.open_pr})
+    except auth.Forbidden:
+        raise  # a role refusal is 403, not a bad request
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc

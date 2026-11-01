@@ -95,5 +95,29 @@ async def test_connection(base_url: str | None = None, model: str | None = None,
     latency = int((time.perf_counter() - started) * 1000)
     if response.status_code != 200:
         return {"ok": False, "error": f"HTTP {response.status_code}: {response.text[:300]}", "latency_ms": latency}
-    message = response.json()["choices"][0]["message"]
-    return {"ok": True, "model": name, "latency_ms": latency, "reply": (message.get("content") or message.get("reasoning_content") or "")[:80]}
+    body = response.json()
+    choice = (body.get("choices") or [{}])[0]
+    message = choice.get("message") or {}
+    reply = (message.get("content") or message.get("reasoning_content") or "").strip()
+    usage = body.get("usage") or {}
+    result = {"model": name, "latency_ms": latency, "reply": reply[:80], "finish_reason": choice.get("finish_reason") or "", "tokens": (usage.get("prompt_tokens") or 0) + (usage.get("completion_tokens") or 0)}
+    if not reply:  # a name the proxy lists is not proof that it answers
+        return {**result, "ok": False, "error": f"{name} answered with nothing (finish reason: {result['finish_reason'] or 'none'}). It is listed but does not work here with a short reply."}
+    return {**result, "ok": True}
+
+
+async def proxy_models() -> list[str]:
+    """Names the configured endpoint lists at /models. A * entry stands for a pattern, not a model, so it is dropped. Listing a name does not mean it works."""
+    cfg = current()
+    if not cfg["api_key"]:
+        raise LLMNotConfigured("No API key configured. Save the base URL and API key first.")
+    base = (cfg["base_url"] or "https://api.openai.com/v1").rstrip("/")
+    try:
+        async with httpx.AsyncClient(timeout=30) as http:
+            response = await http.get(f"{base}/models", headers={"Authorization": f"Bearer {cfg['api_key']}"})
+    except httpx.HTTPError as exc:
+        raise ModelEndpointError(f"Cannot reach {base}: {str(exc) or type(exc).__name__}") from exc
+    if response.status_code != 200:
+        raise ModelEndpointError(f"The endpoint answered HTTP {response.status_code} for /models: {response.text[:200]}")
+    found = {str(item.get("id") or "").strip() for item in response.json().get("data", []) if isinstance(item, dict)}
+    return sorted(name for name in found if name and "*" not in name)

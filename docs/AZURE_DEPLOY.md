@@ -86,6 +86,8 @@ Open each app, then **Settings > Environment variables**. Add these, choose **Ap
 | `ATLAS_ADMIN_PASSWORD` | A long, unique password. Azure encrypts this setting at rest |
 | `WEBSITES_CONTAINER_START_TIME_LIMIT` | `1800` |
 | `SCM_DO_BUILD_DURING_DEPLOYMENT` | `false` |
+| `ATLAS_SESSION_IDLE_MINUTES` | Optional. Minutes without activity before a session ends. Default 480 |
+| `ATLAS_LOG_RETENTION_DAYS` | Optional. Days of daily log files to keep. Default 30 |
 
 **Frontend**
 
@@ -179,8 +181,8 @@ Check that the backend's address now refuses your browser and that the frontend 
 ## 9. First run checks
 
 1. Open the frontend address and sign in as the admin.
-2. Open **Users** and create the first user.
-3. Open **Settings**, enter the model details, and choose **Test connection**.
+2. Open **Settings**, enter the model details, and choose **Test connection**. Under **Models**, choose **Load from proxy**, and test each model before you switch it on.
+3. Open **Users**, create the first user, and tick the models that user may use.
 4. Check that **System health** shows Git and Ruff as ready. *Check on first use: Git and Node.js come from Azure's Python image.*
 5. Create a project from a small public repository and run a bug scan.
 
@@ -194,13 +196,13 @@ To roll back, upload your previous ZIP files, so keep them.
 
 ## Backup
 
-All state is in `/home/atlas/data`, including `.secret.key`, which decrypts stored keys. Download it from Kudu's File Manager, or use **Settings > Backups** on higher tiers. Basic has no automated backup. Keep the backup private.
+All state is in `/home/atlas/data`, including `.secret.key`, which decrypts stored keys, and the daily logs in `/home/atlas/data/logs`. Download it from Kudu's File Manager, or use **Settings > Backups** on higher tiers. Basic has no automated backup. Keep the backup private.
 
 ## Known limits
 
 | Limit | Effect | Fix when it matters |
 |---|---|---|
-| One instance, one worker | Workflows run inside the API process, and a restart marks running ones as interrupted. Start them again | Move runs to a queue before scaling out |
+| One instance, one worker | Workflows run inside the API process, and a restart marks running ones as interrupted. Choose Retry failed stage on each one | Move runs to a queue before scaling out |
 | SQLite on the `/home` network share | Works for one user. It is slower than a local disk | Move to Azure SQL or PostgreSQL for several users |
 | Azure closes requests after about 230 seconds with no response | A very long clone or chat reply can fail. Run progress uses a stream with keep-alives | Use smaller repositories. A higher tier does not change this limit |
 | Repository install scripts run on this server | A hostile repository could reach your data | Tick install dependencies only for repositories you trust |

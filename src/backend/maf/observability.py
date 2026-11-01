@@ -41,7 +41,7 @@ _SKILL_PARAMS = {f"sk{i}": f"{w}/{st}" for i, (w, st) in enumerate(SKILLS)}
 
 
 def _where(project: str, run: str, owner: str) -> str:
-    owned = "IN (SELECT id FROM projects WHERE owner_id=:owner AND id!=:eval)"
+    owned = "IN (SELECT id FROM projects WHERE (owner_id=:owner OR id IN (SELECT project_id FROM project_members WHERE user_id=:owner)) AND id!=:eval)"
     return "".join(f" AND {clause}" for clause in (project, run, f"{owner} {owned}" if owner else "") if clause)
 
 
@@ -122,7 +122,7 @@ def _hydrate(con, keys: list[dict]) -> list[dict]:
 def query(project_id: str | None = None, run_id: str | None = None, kind: str = "", text: str = "", limit: int = 300, before: str = "", owner_id: str | None = None) -> dict:
     """Newest first, one page. `before` is the `key` of the last item already shown; `next` is the key to ask for the page after this one.
 
-    owner_id limits everything to the projects that account owns (None means all projects).
+    owner_id limits everything to the projects that account owns or is a member of (None means all projects).
     """
     sources, params = _sources(project_id, run_id, owner_id)
     params |= {"n": limit + 1, "kind": kind, "q": text}
@@ -141,9 +141,9 @@ def query(project_id: str | None = None, run_id: str | None = None, kind: str = 
         # totals ignore the cursor, so the numbers do not change as pages are loaded
         total = con.execute(f"SELECT COUNT(*) FROM ({union}) WHERE 1=1{''.join(where[:2])}", params).fetchone()[0]
         grouped = rows(con.execute(f"SELECT kind, COUNT(*) AS n, SUM(level='error') AS errors, SUM(tokens) AS tokens FROM ({union}) GROUP BY kind", params))
-        scope = " WHERE owner_id=:owner AND id!=:eval" if owner_id else ""
+        scope = " WHERE (owner_id=:owner OR id IN (SELECT project_id FROM project_members WHERE user_id=:owner)) AND id!=:eval" if owner_id else ""
         names = {p["id"]: p["name"] for p in rows(con.execute(f"SELECT id, name FROM projects{scope}", params))}
-        run_clause = [c for c in ("project_id=:project" if project_id else "", "project_id IN (SELECT id FROM projects WHERE owner_id=:owner AND id!=:eval)" if owner_id else "") if c]
+        run_clause = [c for c in ("project_id=:project" if project_id else "", "project_id IN (SELECT id FROM projects WHERE (owner_id=:owner OR id IN (SELECT project_id FROM project_members WHERE user_id=:owner)) AND id!=:eval)" if owner_id else "") if c]
         runs = rows(con.execute(f"SELECT id, project_id, workflow, status, tokens_in, tokens_out, started_at, ended_at, error FROM runs{' WHERE ' + ' AND '.join(run_clause) if run_clause else ''} ORDER BY started_at DESC LIMIT 200",
                                 {k: params[k] for k in ("project", "owner", "eval")}))
     counts = {k: next((g["n"] for g in grouped if g["kind"] == k), 0) for k in KINDS}

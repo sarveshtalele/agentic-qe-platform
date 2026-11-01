@@ -19,11 +19,13 @@ router = APIRouter()
 class ThreadIn(BaseModel):
     agent: str = "project-copilot"
     title: str = "New chat"
+    model: str = ""
 
 
 class ThreadPatch(BaseModel):
     title: str | None = None
     agent: str | None = None
+    model: str | None = None
 
 
 class MemoryIn(BaseModel):
@@ -45,7 +47,7 @@ def list_chats(project_id: str):
 def create_chat(project_id: str, body: ThreadIn):
     _project(project_id)
     try:
-        return agui.create_thread(project_id, body.agent, body.title)
+        return agui.create_thread(project_id, body.agent, body.title, body.model)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
 
@@ -63,7 +65,11 @@ def get_chat(thread_id: str):
 def patch_chat(thread_id: str, body: ThreadPatch):
     if body.agent and body.agent not in agents.CHAT_AGENTS:
         raise HTTPException(400, "Unknown agent")
+    if body.model:
+        auth.permit_model(auth.signer(), body.model)  # refused and logged here, as it would be when a call starts
     with db() as con:
+        if body.model is not None:
+            con.execute("UPDATE chat_threads SET model=? WHERE id=?", (body.model, thread_id))
         if body.title:
             con.execute("UPDATE chat_threads SET title=? WHERE id=?", (body.title[:120], thread_id))
         if body.agent:

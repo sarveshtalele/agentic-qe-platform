@@ -32,6 +32,7 @@ class GateIn(BaseModel):
 @router.post("/api/projects/{project_id}/gates/{gate}/decision")
 def decide_gate(project_id: str, gate: int, body: GateIn):
     _project(project_id)
+    auth.require_gate_signer(project_id, gate)
     gates.decide(project_id, gate, body.approved, auth.signer(), body.reason)
     return _named(gates.status(project_id))
 
@@ -83,6 +84,7 @@ class AgentSettingsIn(BaseModel):
     enabled: bool
     max_tokens: int | None = None
     reason: str = ""
+    model: str = ""
 
 
 @router.get("/api/agents")
@@ -113,7 +115,7 @@ def agent_detail(agent: str):
 @router.put("/api/agents/{agent}/settings")
 def agent_settings(agent: str, body: AgentSettingsIn):
     try:
-        governance.update_settings(agent, body.enabled, body.max_tokens, auth.signer(), body.reason)
+        governance.update_settings(agent, body.enabled, body.max_tokens, auth.signer(), body.reason, body.model)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
     return agent_detail(agent)

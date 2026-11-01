@@ -113,7 +113,11 @@ export function ApprovalCard({ approval, projectId, onDecided }: { approval: any
   const [openPr, setOpenPr] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [project, setProject] = useState<any>(null);
+  useEffect(() => { api(`/projects/${projectId}`).then(setProject).catch(() => {}); }, [projectId]);
   const payload = approval.payload || {};
+  // The server is the real check; this only hides what it would refuse
+  const allowed = !project || (approval.gate === null || approval.gate === undefined ? project.can_write : project.can_sign.includes(approval.gate));
   const decide = async (approved: boolean) => {
     setBusy(true);
     setError("");
@@ -164,9 +168,10 @@ export function ApprovalCard({ approval, projectId, onDecided }: { approval: any
       </div>
       {payload.can_open_pr && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={openPr} onChange={(e) => setOpenPr(e.target.checked)} /> Push the branch and open a pull request</label>}
       <ErrorNote message={error} />
+      {!allowed && <p className="text-xs text-slate-500" data-testid="cannot-sign">Your role cannot {approval.gate == null ? "approve here" : `sign gate G${approval.gate}`}. Ask the project owner or an administrator.</p>}
       <div className="flex gap-2">
-        <Button variant="success" busy={busy} disabled={!!payload.partial} onClick={() => decide(true)}>Approve</Button>
-        <Button variant="danger" busy={busy} disabled={!feedback.trim()} onClick={() => decide(false)}>Send back</Button>
+        <Button variant="success" busy={busy} disabled={!!payload.partial || !allowed} onClick={() => decide(true)}>Approve</Button>
+        <Button variant="danger" busy={busy} disabled={!feedback.trim() || !allowed} onClick={() => decide(false)}>Send back</Button>
       </div>
     </div>
   );

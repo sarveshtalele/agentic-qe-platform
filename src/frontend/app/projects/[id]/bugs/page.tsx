@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useProject } from "../../../../components/ProjectShell";
 import { RunDocuments, RunList, RunPanel } from "../../../../components/RunPanel";
+import { ModelPicker } from "../../../../components/ModelPicker";
 import { Badge, Button, Card, Empty, ErrorNote, Field, inputClass, PageTitle } from "../../../../components/ui";
 import { api } from "../../../../lib/api";
 
@@ -15,6 +16,7 @@ export default function BugsPage() {
   const [runId, setRunId] = useState<string | null>(null);
   const [trace, setTrace] = useState("");
   const [error, setError] = useState("");
+  const [model, setModel] = useState("");
   const load = useCallback(() => api(`/projects/${project.id}/findings`).then(setFindings), [project.id]);
   useEffect(() => {
     load();
@@ -23,7 +25,7 @@ export default function BugsPage() {
   const start = async (workflow: string, input: object) => {
     setError("");
     try {
-      setRunId((await api(`/projects/${project.id}/runs`, { json: { workflow, input } })).id);
+      setRunId((await api(`/projects/${project.id}/runs`, { json: { workflow, input, model } })).id);
     } catch (e: any) {
       setError(e.message);
     }
@@ -38,6 +40,7 @@ export default function BugsPage() {
     <>
       <PageTitle title="Bug Scan" subtitle="Static scanners and an agent review of every source file in the project sandbox. An agent finding is kept only if its quote exists in the file." actions={
         <div className="flex items-center gap-2">
+          <ModelPicker value={model} onChange={setModel} compact />
           <Button onClick={() => start("bug_scan", {})}><Radar className="h-4 w-4" /> Scan repository</Button>
           {findings.length > 0 && <Button variant="secondary" onClick={() => start("change", { kind: "bugfix", fix_all: true })} title="Fixes up to 15 of the most severe open findings on one branch"><Wrench className="h-4 w-4" /> Fix all</Button>}
         </div>

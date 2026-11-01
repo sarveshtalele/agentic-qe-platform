@@ -10,7 +10,7 @@ Which MAF features Agentic QE Platform uses, where, and why. Packages: `agent-fr
 |---|---|---|---|---|
 | Model client | `OpenAIChatCompletionClient` | `src/backend/maf/llm.py` | One client for any OpenAI-compatible endpoint, from Settings or `.env` | 34, 439 |
 | Tool loop limits | `function_invocation_configuration` (`max_iterations`, `max_function_calls`) | `src/backend/maf/llm.py` | 10 rounds and 30 calls instead of the default 100 rounds. MAF then forces a final answer with tools off | 277 |
-| Chat middleware | `@chat_middleware` | `src/backend/maf/governance.py` `telemetry` | Records tokens, latency, tool calls, and status for each model round, streamed or not | 92 |
+| Chat middleware | `@chat_middleware` | `src/backend/maf/governance.py` `telemetry` | Before each model round it checks the account's token limits (`auth.check_allowance`), so a tool loop stops at a limit. After it, records tokens, latency, tool calls, status, the model, and the account for each round, streamed or not | 92 |
 | Agents | `Agent` | `src/backend/maf/runtime.py` `build` | 13 specialists, each with a versioned prompt from the database | 6, 24 |
 | Structured edits | `Agent` plus a pydantic schema | `src/backend/maf/workflows/edits.py` `ChangeSet`, `guarded_apply` | Edit agents get code in the message, have no tools, and reply with edits. Agentic QE Platform code applies them through path, secret, and scope guards | 323 |
 | Function tools | `@tool` | `src/backend/maf/tools/` (one file per tool) | Repository, document, memory, and workflow tools, closed over one project | 8, 277 |

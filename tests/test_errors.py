@@ -317,3 +317,25 @@ def test_model_calls_carry_the_no_cache_control(client, project, monkeypatch):
     assert AgentCall(None, project["id"], "confidence-reviewer").agent.default_options["extra_body"] == {"cache": {"no-cache": True}}
     monkeypatch.setattr(runtime, "MODEL_NO_CACHE", False)
     assert "extra_body" not in AgentCall(None, project["id"], "confidence-reviewer").agent.default_options
+
+
+def test_a_broken_reply_is_retried_with_the_text_that_broke(client):
+    """A real failure: the model wrote "/api/nav?q=" + ' ' * 81 inside a JSON string list."""
+    import asyncio
+
+    from pydantic import BaseModel
+
+    from backend.maf.runtime import AgentCall, format_rule
+    from tests.scripted_client import ScriptedClient
+
+    class Steps(BaseModel):
+        steps: list[str]
+
+    assert "never code or an expression" in format_rule(Steps)
+    project = client.post("/api/projects", json={"name": "Broken reply"}).json()
+    replies = iter(["""{"steps": ["GET /api/nav?q=" + ' ' * 81]}""", '{"steps": ["GET /api/nav with a query of 81 spaces"]}'])
+    scripted = ScriptedClient([("Steps", lambda _: next(replies)), ("rejected", lambda _: next(replies))])
+    llm.set_client_override(scripted)
+    result = asyncio.run(AgentCall(None, project["id"], "test-design-architect").typed("Design", Steps))
+    assert result.steps == ["GET /api/nav with a query of 81 spaces"]
+    assert "The problem is here:" in scripted.calls[-1] and "* 81" in scripted.calls[-1]

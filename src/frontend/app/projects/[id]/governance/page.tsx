@@ -23,6 +23,7 @@ export default function GovernancePage() {
   useEffect(() => {
     load();
   }, [load]);
+  const canSign = (project.can_sign || []).includes(gate); // the server is the real check
   const decide = async (approved: boolean) => {
     setError("");
     try {
@@ -61,8 +62,9 @@ export default function GovernancePage() {
           <Field label="Gate"><select className={inputClass} value={gate} onChange={(e) => setGate(Number(e.target.value))}>{gates.map((g) => <option key={g.gate} value={g.gate}>G{g.gate} {g.name}</option>)}</select></Field>
           <Field label="Signing as"><p className="py-2 text-sm font-semibold" data-testid="signing-as">{user.username}</p></Field>
           <Field label="Reason"><input className={inputClass} value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
-          <div className="flex items-end gap-2"><Button variant="success" onClick={() => decide(true)}>Approve</Button><Button variant="danger" disabled={!reason.trim()} onClick={() => decide(false)}>Reject</Button></div>
+          <div className="flex items-end gap-2"><Button variant="success" disabled={!canSign} onClick={() => decide(true)}>Approve</Button><Button variant="danger" disabled={!reason.trim() || !canSign} onClick={() => decide(false)}>Reject</Button></div>
         </div>
+        {!canSign && <p className="mt-2 text-xs text-slate-500" data-testid="cannot-sign">Your role cannot sign gate G{gate}. Ask the project owner or an administrator.</p>}
         <ErrorNote message={error} />
       </Card>
       <Card className="mt-4" title={<span className="flex items-center gap-2">Audit ledger {check.valid ? <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400" data-testid="ledger-valid"><ShieldCheck className="h-4 w-4" /> Chain valid, {check.entries} entries</span> : <span className="flex items-center gap-1 text-rose-500"><ShieldAlert className="h-4 w-4" /> Tampering detected at entry {check.broken_at}</span>}</span>}>

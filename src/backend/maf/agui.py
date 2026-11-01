@@ -26,12 +26,14 @@ from backend.maf import runtime as agents
 router = APIRouter()
 
 
-def create_thread(project_id: str, agent: str, title: str = "New chat") -> dict:
+def create_thread(project_id: str, agent: str, title: str = "New chat", model: str = "") -> dict:
     if agent not in agents.CHAT_AGENTS:
         raise ValueError(f"Unknown agent {agent}")
-    thread = {"id": new_id("thr"), "project_id": project_id, "title": title, "agent": agent, "created_at": now(), "updated_at": now()}
+    if model:
+        auth.permit_model(auth.signer(), model)
+    thread = {"id": new_id("thr"), "project_id": project_id, "title": title, "agent": agent, "created_at": now(), "updated_at": now(), "model": model}
     with db() as con:
-        con.execute("INSERT INTO chat_threads VALUES (:id,:project_id,:title,:agent,:created_at,:updated_at)", thread)
+        con.execute("INSERT INTO chat_threads (id, project_id, title, agent, created_at, updated_at, model) VALUES (:id,:project_id,:title,:agent,:created_at,:updated_at,:model)", thread)
     return thread
 
 
@@ -71,6 +73,8 @@ async def agui(agent_key: str, request: Request):
     project_id = thread["project_id"]
     if not auth.can_see_project(project_id):
         raise HTTPException(404, "Unknown thread. Create one first")
+    if not auth.can_write(project_id):
+        raise HTTPException(403, "Your role is viewer. A viewer can read but not chat with the agents")
     incoming = body.get("messages") or []
     last_user = next((m for m in reversed(incoming) if m.get("role") == "user"), None)
     if last_user:
@@ -85,7 +89,7 @@ async def agui(agent_key: str, request: Request):
         agents.set_emitter(None)
         try:
             chat_tools = tools.document_tools(project_id) + tools.chat_tools(project_id, thread_id, engine.start)
-            agent = agents.build(agent_key, project_id, chat_tools, chat=True, source="chat")
+            agent = agents.build(agent_key, project_id, chat_tools, chat=True, source="chat", choice=thread["model"])
             wrapped = AgentFrameworkAgent(agent, require_confirmation=False)
             payload = {"messages": incoming, "thread_id": thread_id, "run_id": body.get("runId") or new_id("rn"),
                        "state": body.get("state") or {}, "tools": body.get("tools") or [], "context": body.get("context") or [],

@@ -3,75 +3,75 @@ medium risk
 Answers from project data and starts workflows on request
 enabled
 v1
-evals 1/2
-6 calls · 10,324 tokens · 0 errors
+evals 2/2
+6 calls · 10,325 tokens · 0 errors
 Bug reviewer
 medium risk
 Finds defects in code it is given
 enabled
 v1
 evals 3/3
-5 calls · 2,919 tokens · 0 errors
+5 calls · 2,872 tokens · 0 errors
 Business analyst
 low risk
 Writes requirements documents from a brief and sources, and converts them to validated Gherkin
 enabled
 v1
 evals 5/5
-12 calls · 12,218 tokens · 0 errors
+13 calls · 16,165 tokens · 0 errors
 Confidence reviewer
 low risk
 Scores requirements documents, plans, and releases from evidence
 enabled
 v1
 evals 5/5
-18 calls · 35,588 tokens · 0 errors
+19 calls · 34,457 tokens · 0 errors
 Defect diagnostician
 Impact: changes code
 Fixes defects and test drift on a branch
 enabled
 v1
 evals 2/2
-4 calls · 3,721 tokens · 0 errors
+3 calls · 1,738 tokens · 0 errors
 Feature engineer
 Impact: changes code
 Implements features on a branch
 enabled
 v1
 evals 1/1
-2 calls · 1,556 tokens · 0 errors
+2 calls · 1,581 tokens · 0 errors
 Test architect
 low risk
 Plans tests by risk and level
 enabled
 v1
 evals 2/2
-4 calls · 5,022 tokens · 0 errors
+4 calls · 4,800 tokens · 0 errors
 Repository analyst
 medium risk
 Summarizes a repository from scan facts and code
 enabled
 v1
 evals 2/2
-4 calls · 7,002 tokens · 0 errors
+3 calls · 2,857 tokens · 0 errors
 Requirements analyst
 medium risk
 Derives testable requirements with quoted evidence
 enabled
 v1
 evals 2/2
-3 calls · 3,266 tokens · 0 errors
+4 calls · 5,983 tokens · 0 errors
 Test automation
 medium risk
 Generates executable tests for approved cases
 enabled
 v1
 evals 1/1
-4 calls · 9,725 tokens · 0 errors
+3 calls · 7,156 tokens · 0 errors
 Test designer
 low risk
 Designs test cases with oracles
 enabled
 v1
 evals 1/1
-3 calls · 9,549 tokens · 0 errors
+6 calls · 18,125 tokens · 0 errors

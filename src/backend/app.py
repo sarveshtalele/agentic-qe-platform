@@ -21,7 +21,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from backend import config
 from backend import db as database
 from backend.api import ROUTERS
-from backend.core import auth, documents, files, gates, logs, prompts
+from backend.core import auth, documents, files, gates, logs, models, prompts
 from backend.core.errors import AqeError, classify, stack_of
 from backend.core.security import install_log_mask, redact, PathEscape
 from backend.db import new_id
@@ -51,6 +51,7 @@ async def lifespan(_: FastAPI):
     database.migrate()
     prompts.seed()
     files.seed_templates()
+    models.seed_from_config(llm.current()["model"])
     engine.recover()
     if os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT"):
         from agent_framework.observability import configure_otel_providers
@@ -77,8 +78,8 @@ async def session_guard(request: Request, call_next):
     user = auth.session_user(request.cookies.get(auth.COOKIE))
     if not user:
         return fail(request, 401, "Sign in first", action="Sign in again.")
-    if status := auth.access_problem(request.method, path, user):
-        return fail(request, status, "Only an administrator can do this" if status == 403 else "Not found")
+    if refusal := auth.access_problem(request.method, path, user):
+        return fail(request, refusal[0], refusal[1])
     auth.current_user.set(user)
     request.state.user_id = user["id"]
     return await call_next(request)
@@ -113,7 +114,7 @@ async def request_id(request: Request, call_next):
     return response
 
 
-STATUS = {"AQE-ALLOW-001": 403, "AQE-MODEL-006": 502, "AQE-MODEL-004": 504, "AQE-REPO-001": 400}
+STATUS = {"AQE-ALLOW-001": 403, "AQE-ALLOW-002": 429, "AQE-MODEL-006": 502, "AQE-MODEL-004": 504, "AQE-REPO-001": 400}
 HINT = {401: "Sign in again.", 403: "Ask your administrator.", 404: "Check the address, or refresh the page.", 409: "Wait for the current action to finish, then try again.", 412: "Open Settings and finish the setup.", 413: "Use a smaller file."}
 
 
@@ -121,6 +122,11 @@ HINT = {401: "Sign in again.", 403: "Ask your administrator.", 404: "Check the a
 async def typed_failure(request: Request, exc: AqeError):
     status = 409 if isinstance(exc, governance.AgentDisabled) else 412 if isinstance(exc, llm.LLMNotConfigured) else STATUS.get(exc.code, 500 if exc.code == "AQE-INT-001" else 422)
     return fail(request, status, exc.message, code=exc.code, action=exc.action)
+
+
+@app.exception_handler(auth.Forbidden)
+async def forbidden(request: Request, exc: auth.Forbidden):
+    return fail(request, 403, str(exc), action="Ask your administrator or the project owner.")
 
 
 @app.exception_handler(StarletteHTTPException)

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import (
     Response,
 )
@@ -43,7 +43,9 @@ def _project_summary(item: dict) -> dict:
         ).fetchone()
         repo = con.execute("SELECT kind, url, commit_sha, analysis FROM repo_sources WHERE project_id=?", (item["id"],)).fetchone()
     analysis = json.loads(repo["analysis"]) if repo else {}
-    return {**item, **dict(counts), "archived": bool(item["archived"]),
+    mine = auth.project_role(item["id"])
+    can_sign = [g for g in range(6) if not auth.gate_signing_problem(item["id"], g)]
+    return {**item, "my_role": mine, "can_write": auth.can_write(item["id"]), "can_sign": can_sign, **dict(counts), "archived": bool(item["archived"]),
             "repo": {"kind": repo["kind"], "url": repo["url"], "commit": repo["commit_sha"][:10], "languages": list(analysis.get("languages", {}))[:4]} if repo else None}
 
 
@@ -88,6 +90,51 @@ def delete_project(project_id: str):
         ingest._rm_tree(safe_path(RUNS, run_id, for_write=True))
     ingest._rm_tree(project_dir(project_id))
     return Response(status_code=204)
+
+
+class MemberIn(BaseModel):
+    username: str = Field(min_length=1, max_length=60)
+    role: str = "developer"
+
+
+class TransferIn(BaseModel):
+    username: str = Field(min_length=1, max_length=60)
+
+
+@router.get("/api/projects/{project_id}/members")
+def list_members(project_id: str):
+    _project(project_id)
+    return auth.members(project_id)
+
+
+@router.post("/api/projects/{project_id}/members", status_code=201)
+def add_member(project_id: str, body: MemberIn):
+    """The owner types the exact username. The answer is added or not found, and nothing else about the account."""
+    _project(project_id)
+    try:
+        auth.add_member(project_id, body.username, body.role)
+    except auth.AuthError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except KeyError as exc:
+        raise HTTPException(404, "No account has that username") from exc
+    return auth.members(project_id)
+
+
+@router.delete("/api/projects/{project_id}/members/{user_id}", status_code=204)
+def remove_member(project_id: str, user_id: str):
+    _project(project_id)
+    auth.remove_member(project_id, user_id)
+    return Response(status_code=204)
+
+
+@router.post("/api/projects/{project_id}/transfer")
+def transfer(project_id: str, body: TransferIn):
+    _project(project_id)
+    try:
+        auth.transfer_project(project_id, body.username)
+    except KeyError as exc:
+        raise HTTPException(404, "No account has that username") from exc
+    return get_project(project_id)
 
 
 @router.get("/api/projects/{project_id}/overview")

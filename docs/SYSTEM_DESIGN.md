@@ -24,7 +24,7 @@ src/backend/
   app.py                 App creation, security middleware, router includes
   config.py, db.py       Settings, SQLite, migrations
   api/                   REST routers
-    projects, repository, documents, templates, runs, findings, governance, settings, chat
+    auth (sign-in, users, account), projects (with members and transfer), repository, documents, templates, runs, findings, governance, settings (models, limits, usage, gate roles), observability, logs, chat
   maf/
     agents/              One file per agent, holding its policy. Scanned into POLICIES, keyed by the file name with hyphens (plugin names)
     tools/               One file per tool, assembled into project-scoped sets
@@ -33,7 +33,7 @@ src/backend/
     engine.py            MAF WorkflowBuilder wrapper: stages, gates, checkpoints, events
     governance.py        Tool policy, kill switch, guardrails, telemetry
     evals.py, agui.py, llm.py
-  core/                  Documents, gates, ledger, prompts, security, Gherkin, files
+  core/                  Auth and access, models and limits, typed errors, logs, documents, gates, ledger, prompts, security, Gherkin, files
   repos/                 Git, GitHub, ingest, scan, static analysis
   qe/                    Plan and case validators, runners, traceability
 prompts/  evals/  templates/   Versioned text, one file per agent or template
@@ -115,21 +115,41 @@ Source: [Harness Patterns](https://ashishpatel26.github.io/agent-harness-enginee
 | Test code | Cannot see platform secrets | `clean_env` |
 | Approvals | Named person only | `gates`, `decide` |
 | Network | Loopback locally. On Azure, the backend sits behind an access restriction | Host and origin guard, `session_guard`, App Service |
+| Model choice | Must be enabled and ticked for the account doing the work, checked on every call | `auth.permit_model`, `auth.model_for` |
+| Roles and members | A viewer cannot write. A gate is signed only by the roles set for it, from the signed-in account | `auth.access_problem`, `auth.gate_signing_problem` |
 
 ## Failure handling
 
 | Failure | Behavior |
 |---|---|
-| Model hangs | The call fails after `ATLAS_MODEL_TIMEOUT` and one retry. The run fails with a clear error |
-| Reply cut off | Asked again for a shorter answer. Three failures fail the run |
-| Provider content filter | The error names the block, and text is neutralized before sending |
-| Run over budget | Stops at `ATLAS_RUN_TOKEN_LIMIT` |
-| Server restart | Waiting runs resume from checkpoints. Running ones are marked interrupted |
+| Model hangs | The call fails after `ATLAS_MODEL_TIMEOUT` and one retry (`AQE-MODEL-004`). The run fails with a clear error |
+| Reply is not valid JSON, or has the wrong fields | `AQE-MODEL-001` or `AQE-MODEL-003`. The rejected reply is saved with the run, and the stage can be retried |
+| Reply cut off | Asked again for a shorter answer, up to three attempts. If the last is still cut off, `AQE-MODEL-002` fails the stage |
+| Provider content filter | `AQE-MODEL-005`. The error names the block, and text is neutralized before sending |
+| Endpoint rejects the key, or is busy or down | `AQE-MODEL-006`. A busy or failing endpoint can be retried |
+| Run over budget | Stops at `ATLAS_RUN_TOKEN_LIMIT` (`AQE-ALLOW-001`) |
+| Account limit reached | `AQE-ALLOW-002`. The run stops at its next model call and keeps finished batches. Retry failed stage continues after the reset |
+| Model not allowed for the account | `AQE-ALLOW-001`. Refused before any call, and the attempt is logged against the account |
+| Second run of the same kind in a project | Refused with 409 while one is running or waiting for approval. The message names that run |
+| Stage keeps failing | After two earlier failures, `qe_design` and `qe_generate` end with a partial result, which cannot be approved |
+| Server restart | Waiting runs resume from checkpoints. Running ones are marked interrupted, and Retry failed stage resumes them |
 | No tests ran | The verdict is `INCONCLUSIVE`, never `PASS` |
 
 ## Accounts and access
 
-Every API and chat path passes `session_guard` in `app.py`, which denies by default. `core/auth.py` holds the rules: an unknown session gets 401, another owner's item gets 404, and admin areas get 403. Runs and chats use the project owner's model, token allocation, and active dates, so background work is limited the same way as page requests. Passwords are salted scrypt hashes, usernames are encrypted, and sessions are stored only as hashes. Every log line passes through `redact()`.
+Every API and chat path passes `session_guard` in `app.py`, which denies by default. `core/auth.py` holds the rules: an unknown session gets 401, another owner's item gets 404, and admin areas get 403. Work is charged to the account that starts it. A run keeps its starter, and a chat uses the person who sends the message. Each model call checks that account's dates, allocation, and limits, and that the model is ticked for it. Passwords are salted scrypt hashes, usernames are encrypted, and sessions are stored only as hashes. Every log line passes through `redact()`.
+
+## Models and limits
+
+- Each model is a row in `models`, enabled or not, with one default. Loaded names start disabled, and each has a Test.
+- Each account has ticked models (`user_models`) and a default (`users.model`) that must be one of them.
+- A call's model is the first of: the run's or chat's choice, the agent's model, the account's default, and the system default. The result must be enabled and ticked for the account.
+- Token limits (`user_limits`) apply per account: total allocation, then daily, weekly, and monthly, then per model. Days reset at midnight, weeks on Monday, and months on the 1st, in the zone set in Settings (default Asia/Kolkata).
+- Usage is counted from `agent_calls` by the account that started each call. Admin work is never counted against a user.
+
+## Logs
+
+One JSON line per API request, and per warning or error, goes to `data/logs/app-YYYY-MM-DD.jsonl`. A new file starts each day, and files older than `ATLAS_LOG_RETENTION_DAYS` (30 by default) are deleted at start-up and when a new day starts. A line never holds a request body, query string, cookie, or username. The administrator downloads one day with `GET /api/logs?date=YYYY-MM-DD`. `ATLAS_MODEL_NO_CACHE`, on by default, asks the model proxy not to answer from its cache, so a retry is a real retry.
 
 ## Accuracy controls
 

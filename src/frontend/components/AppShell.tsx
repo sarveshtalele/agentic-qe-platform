@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, BookOpen, UsersRound, Bot, CheckSquare, FileText, FolderKanban, Settings, ShieldCheck } from "lucide-react";
+import { Activity, BarChart3, BookOpen, UsersRound, Bot, CheckSquare, FileText, FolderKanban, Settings, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ReactNode, useEffect, useState } from "react";
@@ -16,6 +16,7 @@ const nav = [
   { href: "/templates", label: "Templates", icon: FileText },
   { href: "/docs", label: "Documentation", icon: BookOpen },
   { href: "/users", label: "Users", icon: UsersRound, admin: true },
+  { href: "/usage", label: "Usage", icon: BarChart3, admin: true },
   { href: "/settings", label: "Settings", icon: Settings, admin: true },
 ];
 

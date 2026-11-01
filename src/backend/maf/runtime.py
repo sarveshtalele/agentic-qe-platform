@@ -99,19 +99,24 @@ def tool_audit(agent_key: str, project_id: str, run_id: str | None, source: str)
     return audit
 
 
-def build(agent_key: str, project_id: str, tool_list=None, *, root=None, chat: bool = False, run_id: str | None = None, source: str = "workflow") -> Agent:
+def build(agent_key: str, project_id: str, tool_list=None, *, root=None, chat: bool = False, run_id: str | None = None, source: str = "workflow",
+          user_id: str | None = None, model: str | None = None, choice: str = "") -> Agent:
+    """`model` and `user_id` come from the caller when it already resolved them (AgentCall does). Chat passes `choice`, the thread's picked model."""
     governance.require_enabled(agent_key)
-    auth.check_allowance(project_id)
+    user_id = user_id or auth.acting_user(project_id, run_id)
+    if model is None:
+        model = auth.model_for(project_id, agent_key, run_id, user_id, choice)
+    auth.check_allowance(project_id, user_id, model)
     instructions = prompts.active(agent_key)["body"]
     # deny by default: a tool reaches the model only if this agent's policy lists it
     tool_list = governance.allowed(agent_key, tools.repo_tools(project_id, root) + list(tool_list or []), chat)
     options = {"max_tokens": governance.token_limit(agent_key)}
     if MODEL_NO_CACHE:  # LiteLLM's proxy cache would answer a retried prompt with the same bad reply
         options["extra_body"] = {"cache": {"no-cache": True}}
-    middleware = [tool_audit(agent_key, project_id, run_id, source), governance.telemetry(agent_key, project_id, run_id, source)]
+    middleware = [tool_audit(agent_key, project_id, run_id, source), governance.telemetry(agent_key, project_id, run_id, source, model, user_id)]
     providers = [ProjectContext(project_id, full=chat)]
     return Agent(
-        client=llm.client(auth.model_for(project_id)), name=agent_key, instructions=instructions, tools=tool_list, context_providers=providers, middleware=middleware,
+        client=llm.client(model), name=agent_key, instructions=instructions, tools=tool_list, context_providers=providers, middleware=middleware,
         compaction_strategy=SlidingWindowStrategy(keep_last_groups=30), default_options=options,
     )
 
@@ -188,7 +193,8 @@ def _fit_schema(found, schema: type[BaseModel]):
 
 
 def format_rule(schema: type[BaseModel]) -> str:
-    return f"Reply with only one JSON object matching this schema:\n{json.dumps(schema.model_json_schema())}"
+    return ("Reply with only one JSON object matching this schema. Every value must be a plain JSON value, never code or an expression: "
+            f"describe long or repeated data in words, as in \"a string of 81 spaces\".\n{json.dumps(schema.model_json_schema())}")
 
 
 class AgentCall:
@@ -196,7 +202,9 @@ class AgentCall:
 
     def __init__(self, run_id: str | None, project_id: str, agent_key: str, *, root: Path | None = None, tool_list=None, source: str = "workflow", chat: bool = False):
         self.run_id, self.project_id, self.key = run_id, project_id, agent_key
-        self.agent = build(agent_key, project_id, tool_list, root=root, run_id=run_id, source=source, chat=chat)
+        self.user_id = auth.acting_user(project_id, run_id)
+        self.model = auth.model_for(project_id, agent_key, run_id, self.user_id)  # refused here when this account may not use it
+        self.agent = build(agent_key, project_id, tool_list, root=root, run_id=run_id, source=source, chat=chat, user_id=self.user_id, model=self.model)
         self.prompt_ref = prompts.ref(agent_key)
         # one session per call, so retries keep the conversation
         self.session = self.agent.create_session()
@@ -206,7 +214,7 @@ class AgentCall:
 
     def _facts(self, **more) -> dict:
         """What a failure record needs to prove what was asked of which model."""
-        return {"agent": self.key, "prompt_ref": self.prompt_ref, "model": str(getattr(self.agent.client, "model", "") or ""), **self.last_call, **more}
+        return {"agent": self.key, "prompt_ref": self.prompt_ref, "model": self.model or str(getattr(self.agent.client, "model", "") or ""), **self.last_call, **more}
 
     async def text(self, message: str, tools_allowed: bool = True, *, cut_off_ok: bool = False) -> str:
         if self.run_id:
@@ -214,7 +222,7 @@ class AgentCall:
                 used = con.execute("SELECT tokens_in+tokens_out FROM runs WHERE id=?", (self.run_id,)).fetchone()[0]
             if used >= RUN_TOKEN_LIMIT:
                 raise AllowanceError(f"Run stopped: it used {used} tokens, over the limit of {RUN_TOKEN_LIMIT}.", action="Raise ATLAS_RUN_TOKEN_LIMIT, or ask your administrator, then retry the stage.", agent=self.key)
-        auth.check_allowance(self.project_id)  # long runs can reach a limit part way through
+        auth.check_allowance(self.project_id, self.user_id, self.model)  # long runs can reach a limit part way through
         options = {"tool_choice": "none"} if not tools_allowed and self.has_tools else {}
         emit = _emit.get()
         if emit:
@@ -273,7 +281,8 @@ class AgentCall:
             except ReplyError as exc:
                 where = {"parse_pos": exc.pos, "parse_context": redact(reply[max(0, exc.pos - 80) : exc.pos + 80])} if exc.pos is not None else {}
                 failure = (ModelSchemaError if exc.kind == "shape" else ModelJsonError)(f"Agent {self.key} sent a reply that is {exc}.", technical=str(exc), **where, **facts)
-                error = str(exc)
+                # the position alone means little to a model, so it sees the text that broke
+                error = f"{exc}. The problem is here: {where['parse_context']}" if where else str(exc)
             except ValidationError as exc:
                 fields = "; ".join(f"{'.'.join(map(str, e['loc'])) or 'reply'}: {e['msg']}" for e in exc.errors()[:5])
                 failure = ModelSchemaError(f"Agent {self.key} sent JSON that does not match {schema.__name__}: {fields}.", technical=str(exc)[:1500], **facts)

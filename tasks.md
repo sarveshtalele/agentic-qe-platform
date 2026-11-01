@@ -108,7 +108,7 @@
 
 ## Next, after your approval
 
-- [ ] `docs/PLUGIN_AND_UI_PLAN.md`: 15 phases, approved 2026-11-01. Phases 1 and 2 done, phase 3 next
+- [ ] `docs/PLUGIN_AND_UI_PLAN.md`: 15 phases, approved 2026-11-01. Phases 1 to 3 done, phase 4 next
 - [x] Phase 1, agent names: agents use the plugin's hyphenated keys; `doc_reviewer` merged into `confidence-reviewer` and `gherkin_author` into `business-analyst`; migration `006_agent_plugin_names.sql` moves stored history (checked by `test_migration_006_*`)
 - [ ] Phase 1, agent names: live evals of the merged prompts on the real model not yet run
 - [ ] Phase 1, `qa-execution-engineer` arrives with phase 5
@@ -141,3 +141,29 @@
 - [ ] Migrate old `data/sdlc.sqlite3` projects
 - [x] A change review cannot show above 60 beside a failing test verdict; discovery accepts paths the repository itself mentions
 - [x] A generated test file that cannot import no longer stops the other tests from running
+
+## Phase 3a: models, allowed models, and limits (MDL), 2026-11-01
+
+- [x] specs.md MDL-1 to MDL-5
+- [x] Migration 009: `models`, `user_models`, `user_limits`, `agent_calls.model/user_id`, `agent_settings.model`, `runs.user_id/model`, `chat_threads.model`
+- [x] `core/models.py`, `auth.check_allowance` / `auth.model_for`, `llm.test_connection` per model, `AQE-ALLOW-002`
+- [x] Limit during a run: batch code re-raises it instead of splitting or swallowing it
+- [x] Model, time zone, and usage endpoints in `api/settings.py`; users API in `api/auth.py`
+- [x] UI: Users, Settings models, model picker on run forms and chat, header tokens, usage page
+- [x] Tests (ScriptedClient)
+- [x] Real two-model run through the proxy (`deepseek-v4-flash-global`, `kimi-k2.6`): each `agent_calls` row holds its model
+- [ ] Not verified: Windows `tzdata`, the browser UI, e2e
+- [ ] Next task, not built: roles and project members
+
+## Phase 3b: roles, gate signing, members, account page (ROL), 2026-11-01
+
+- [x] specs.md ROL-1 to ROL-8
+- [x] Migration 010 (`users.role`, `sessions.last_seen`, `project_members`)
+- [x] `core/auth.py`: roles, rules, members, gate signers, password change, idle timeout
+- [x] API: members, transfer, gate roles, account password; role on users; project `my_role`, `can_sign`
+- [x] Observability SQL includes member projects
+- [x] UI (type-checked only): Account page, role select, gate roles, Members card, Approve hidden when not allowed
+- [x] Tests: `tests/test_access.py`
+- [ ] Not verified: browser UI, e2e
+- [ ] Cost in rupees per user, deferred until the proxy reports cost per call
+- [x] Agents page chooses a model per agent, and saving other controls keeps it

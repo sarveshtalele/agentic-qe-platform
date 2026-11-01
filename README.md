@@ -14,10 +14,12 @@ A governed workspace for business analysts and developers, built on Microsoft Ag
 | Feature Builder | Changes on a branch, checked against a test baseline. You review the diff and verdict before commit |
 | QE Studio | Requirements, plan, design, generated tests, execution, healing, and traceability, through gates G0 to G5, shown live |
 | Copilot | AG-UI and CopilotKit chat with saved threads, project memory, and selectable agents |
-| Accounts | Admin login from `.env`. Users have their own password, model, token allocation, and active dates, and see only their own projects |
+| Accounts | Admin login from `.env`. Each user has a password, a role (QE lead, BA, developer, or viewer), the models they may use, token limits, active dates, and project members. Users see only their own projects and the ones they are added to |
+| Models and limits | Several models on one endpoint, each with a test. Daily, weekly, monthly, and per-model token limits reset on a schedule in one time zone |
+| Errors and recovery | Typed error codes, each with the action to take. Retry failed stage resumes from saved batches. Rejected model replies are saved for diagnosis |
 | Confidence review | An independent review runs beside each stage. Code can lower the score. A code change's review is capped at 60 when its tests fail |
 | Agents | 11 agents, named as in the agentic-qe plugin, shown as cards, each with its own page: tool policy, kill switch, token limits, guardrails, and evaluations |
-| Observability | Skills, agents, tools, workflow steps, approvals, guardrails, and the audit ledger, by run, project, or all projects |
+| Observability | Skills, agents, tools, workflow steps, approvals, guardrails, and the audit ledger, by run, project, or all projects. A daily application log that the admin can download |
 | Documentation | A built-in docs site at `/docs`, with search |
 
 ## Quick start
@@ -39,7 +41,7 @@ ATLAS_ADMIN_USERNAME=your-admin-name
 ATLAS_ADMIN_PASSWORD=a-long-unique-password
 ```
 
-Then sign in, open **Settings**, enter the model details, and choose **Test connection**. Create users under **Users**. You can put them in `.env` instead.
+Then sign in, open **Settings**, enter the model details, and choose **Test connection**. Under **Models**, choose **Load from proxy**, then test each model before you switch it on. Create users under **Users**, and tick the models each one may use.
 
 ### Development with live reload
 
@@ -112,16 +114,18 @@ python scripts/dev.py e2e
 
 | Check | Result |
 |---|---|
-| Offline tests | 183 passed |
+| Offline tests | 261 passed |
 | End-to-end tests (real model, repository, browser) | 33 of 33 passed |
-| CI at commit 34f6dda | Green on Windows, macOS, and Linux |
-| QE run on the finance repository | 86 tests executed, 64 passed, 22 failed, coverage 85%, verdict FAIL |
+| Agent evaluations (real model) | 26 of 26 passed |
+| QE run on the finance repository | 64 tests executed, 16 passed, 48 failed, coverage 50%, verdict FAIL |
 
-The end-to-end suite checks that the platform runs every stage. It does not mean the generated tests all pass. The 22 failures stay reported as failures.
+CI status for this commit: not yet confirmed.
+
+The end-to-end suite checks that the platform runs every stage. It does not mean the generated tests all pass. The 48 failures stay reported as failures. Generated tests vary a lot between runs, so these numbers move. Improving them is phase 5 of `docs/PLUGIN_AND_UI_PLAN.md`.
 
 ## Roadmap
 
-Planned, and not built. Phase 1 is starting. `docs/PLUGIN_AND_UI_PLAN.md` has the approved plan.
+Phases 1 to 3 of `docs/PLUGIN_AND_UI_PLAN.md` are done: names and integrity, errors and logs, and models, limits, and access. Phase 4, Skills, is next. Everything below is planned, and not built.
 
 | Item | Purpose |
 |---|---|
@@ -148,7 +152,7 @@ Azure has not been deployed for real yet. This makes separate backend and fronte
 | `docs/AZURE_DEPLOY.md` | Azure deployment with the portal and ZIPs |
 | `docs/AZURE_SYSTEM_DESIGN.md` | Multi-user Azure design: storage, sandboxes, and costs in East US 2 |
 | `docs/ARCHITECTURE.md` | Plugin mapping and workflow details |
-| `docs/PLUGIN_AND_UI_PLAN.md` | Approved roadmap, not built yet |
+| `docs/PLUGIN_AND_UI_PLAN.md` | Approved plan. Phases 1 to 3 are built, and the rest is not built yet |
 | `maf-guide.md` | MAF features used, by file |
 | `plan.md`, `specs.md`, `tasks.md` | Decisions, requirements, status |
 | `Design.md` | UI design rules |

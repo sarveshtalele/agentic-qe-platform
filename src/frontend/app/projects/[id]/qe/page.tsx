@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useProject } from "../../../../components/ProjectShell";
 import { RunDocuments, RunList, RunPanel } from "../../../../components/RunPanel";
+import { ModelPicker } from "../../../../components/ModelPicker";
 import { Badge, Button, Card, ErrorNote, PageTitle } from "../../../../components/ui";
 import { api } from "../../../../lib/api";
 
@@ -14,6 +15,7 @@ export default function QEPage() {
   const { project, gates, refresh } = useProject();
   const [runId, setRunId] = useState<string | null>(null);
   const [install, setInstall] = useState(false);
+  const [model, setModel] = useState("");
   const [docs, setDocs] = useState<any[]>([]);
   const [error, setError] = useState("");
   const load = useCallback(() => api(`/projects/${project.id}/documents`).then(setDocs), [project.id]);
@@ -27,7 +29,7 @@ export default function QEPage() {
   const start = async () => {
     setError("");
     try {
-      setRunId((await api(`/projects/${project.id}/runs`, { json: { workflow: "qe", input: { install_deps: install } } })).id);
+      setRunId((await api(`/projects/${project.id}/runs`, { json: { workflow: "qe", model, input: { install_deps: install } } })).id);
     } catch (e: any) {
       setError(e.message);
     }
@@ -46,6 +48,7 @@ export default function QEPage() {
         </ol>
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <Button onClick={start}><Play className="h-4 w-4" /> Start QE lifecycle</Button>
+          <ModelPicker value={model} onChange={setModel} compact />
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={install} onChange={(e) => setInstall(e.target.checked)} /> Install repository dependencies before running tests <span className="text-amber-500">(runs its install scripts)</span></label>
         </div>
         <ErrorNote message={error} />

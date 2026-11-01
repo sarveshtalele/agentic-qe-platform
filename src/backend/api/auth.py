@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Request, Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from backend.core import auth
 
@@ -15,18 +15,36 @@ class LoginIn(BaseModel):
     password: str = Field(max_length=500)
 
 
+class ModelLimit(BaseModel):
+    model: str
+    period: str
+    tokens: int = Field(ge=0)
+
+
 class UserIn(BaseModel):
     username: str = Field(max_length=60)
     password: str = Field(max_length=500)
     model: str = ""
+    models: list[str] | None = None
+    role: str = "developer"
     token_limit: int | None = Field(default=None, ge=0)
     active_from: str | None = Field(default=None, pattern=DATE)
     active_until: str | None = Field(default=None, pattern=DATE)
 
 
+class PasswordIn(BaseModel):
+    current_password: str = Field(max_length=500)
+    new_password: str = Field(max_length=500)
+
+
 class UserPatch(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())  # model_limits is a field of ours, not a pydantic setting
     password: str | None = Field(default=None, max_length=500)
+    role: str | None = None
     model: str | None = None
+    models: list[str] | None = None
+    limits: dict[str, int | None] | None = None
+    model_limits: list[ModelLimit] | None = None
     token_limit: int | None = Field(default=None, ge=0)
     active_from: str | None = Field(default=None, pattern=DATE)
     active_until: str | None = Field(default=None, pattern=DATE)
@@ -76,7 +94,7 @@ def list_users():
 @router.post("/api/users", status_code=201)
 def create_user(body: UserIn):
     try:
-        return auth.create_user(body.username, body.password, body.model, body.token_limit, body.active_from, body.active_until)
+        return auth.create_user(body.username, body.password, body.model, body.token_limit, body.active_from, body.active_until, body.models, body.role)
     except auth.AuthError as exc:
         raise HTTPException(400, str(exc)) from exc
 
@@ -84,6 +102,18 @@ def create_user(body: UserIn):
 @router.patch("/api/users/{user_id}")
 def update_user(user_id: str, body: UserPatch):
     try:
-        return auth.update_user(user_id, body.model_dump(exclude_unset=True))
+        return auth.update_user(user_id, body.model_dump(exclude_unset=True))  # model_limits become plain dicts
     except auth.AuthError as exc:
         raise HTTPException(400, str(exc)) from exc
+
+
+@router.post("/api/account/password", status_code=204)
+def change_password(body: PasswordIn, request: Request):
+    """Needs the current password. Other sessions of this account end. The body is never logged."""
+    try:
+        auth.change_password(auth.signer(), body.current_password, body.new_password, request.cookies.get(auth.COOKIE))
+    except auth.Forbidden:
+        raise
+    except auth.AuthError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return Response(status_code=204)

@@ -32,6 +32,8 @@ function Detail({ agentKey }: { agentKey: string }) {
   const [item, setItem] = useState<any>(null);
   const [reason, setReason] = useState("");
   const [limit, setLimit] = useState("");
+  const [model, setModel] = useState("");
+  const [choices, setChoices] = useState<string[]>([]);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState("");
   const toast = useToast();
@@ -39,15 +41,19 @@ function Detail({ agentKey }: { agentKey: string }) {
     const data = await api(`/agents/${agentKey}`);
     setItem(data);
     setLimit(String(data.token_limit));
+    setModel(data.model || "");
   }, [agentKey]);
   useEffect(() => {
     load();
   }, [load]);
+  useEffect(() => {
+    if (user?.role === "admin") api("/models").then((all: any[]) => setChoices(all.filter((m) => m.enabled).map((m) => m.name))).catch(() => setChoices([]));
+  }, [user?.role]);
   if (!item) return <Spinner />;
   const save = async (enabled: boolean) => {
     setError("");
     try {
-      await api(`/agents/${agentKey}/settings`, { method: "PUT", json: { enabled, max_tokens: Number(limit) || null, reason } });
+      await api(`/agents/${agentKey}/settings`, { method: "PUT", json: { enabled, max_tokens: Number(limit) || null, reason, model } });
       setReason("");
       await load();
       onChange();
@@ -93,10 +99,11 @@ function Detail({ agentKey }: { agentKey: string }) {
         </tbody></table>
       </Card>
       {admin && <Card title="Controls">
-        <div className="mt-3 grid gap-2 md:grid-cols-3">
+        <div className="mt-3 grid gap-2 md:grid-cols-4">
           <Field label="Signing as"><p className="py-2 text-sm font-semibold" data-testid="signing-as">{user.username}</p></Field>
           <Field label="Reason"><input className={inputClass} value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
           <Field label="Tokens per model call"><input type="number" min={500} max={64000} className={inputClass} value={limit} onChange={(e) => setLimit(e.target.value)} /></Field>
+          <Field label="Model"><select className={inputClass} value={model} onChange={(e) => setModel(e.target.value)} data-testid="agent-model"><option value="">Each user&apos;s default</option>{[...new Set([...choices, ...(model ? [model] : [])])].map((m) => <option key={m} value={m}>{m}</option>)}</select></Field>
         </div>
         <ErrorNote message={error} />
         <div className="mt-2 flex gap-2">

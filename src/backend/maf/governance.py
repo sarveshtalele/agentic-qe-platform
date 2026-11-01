@@ -7,8 +7,8 @@ from dataclasses import asdict
 
 from agent_framework import chat_middleware
 
-from backend.core import ledger, prompts
-from backend.core.errors import AllowanceError, AqeError, classify
+from backend.core import auth, ledger, models, prompts
+from backend.core.errors import AqeError, classify
 from backend.core.security import redact, scan_secrets
 from backend.db import db, now, row, rows
 from backend.maf import observability
@@ -25,28 +25,32 @@ INJECTION = re.compile(
 )
 
 
-class AgentDisabled(AllowanceError):
+class AgentDisabled(AqeError):  # not an AllowanceError: a disabled reviewer may be skipped, but an account that is out of tokens must stop the run
+    code = "AQE-ALLOW-001"
     action = "Ask your administrator to enable the agent on the Agents page, then retry the stage."
 
 
 def settings(agent: str) -> dict:
     with db() as con:
         found = row(con.execute("SELECT * FROM agent_settings WHERE agent=?", (agent,)))
-    return found or {"agent": agent, "enabled": 1, "max_tokens": None, "updated_by": "", "reason": "", "updated_at": None}
+    return found or {"agent": agent, "enabled": 1, "max_tokens": None, "model": "", "updated_by": "", "reason": "", "updated_at": None}
 
 
-def update_settings(agent: str, enabled: bool, max_tokens: int | None, by: str, reason: str) -> dict:
+def update_settings(agent: str, enabled: bool, max_tokens: int | None, by: str, reason: str, model: str = "") -> dict:
     if agent not in POLICIES:
         raise KeyError(agent)
     if not by.strip():
         raise ValueError("A named person is required to change agent settings")
     if max_tokens is not None and not 500 <= max_tokens <= 64_000:
         raise ValueError("Token limit must be between 500 and 64000")
+    model = model.strip()
+    if model and not models.is_enabled(model):
+        raise ValueError(f"{model} is not an enabled model. Add and enable it in Settings first")
     with db() as con:
-        con.execute("INSERT OR REPLACE INTO agent_settings VALUES (?,?,?,?,?,?)", (agent, int(enabled), max_tokens, by, reason, now()))
+        con.execute("INSERT OR REPLACE INTO agent_settings (agent, enabled, max_tokens, model, updated_by, reason, updated_at) VALUES (?,?,?,?,?,?,?)", (agent, int(enabled), max_tokens, model, by, reason, now()))
         projects = rows(con.execute("SELECT id FROM projects"))
     for project in projects:  # the agent is shared, so each project's audit trail records the change
-        ledger.append(project["id"], by, "agent.settings", agent, {"enabled": enabled, "max_tokens": max_tokens, "reason": reason})
+        ledger.append(project["id"], by, "agent.settings", agent, {"enabled": enabled, "max_tokens": max_tokens, "model": model, "reason": reason})
     return settings(agent)
 
 
@@ -117,36 +121,37 @@ def guard_tool_result(agent: str, tool: str, result, project_id: str | None, run
     return result
 
 
-def record_call(agent: str, project_id: str | None, run_id: str | None, source: str, usage: dict, latency_ms: int, tool_calls: int, status: str, error: str = "") -> None:
+def record_call(agent: str, project_id: str | None, run_id: str | None, source: str, usage: dict, latency_ms: int, tool_calls: int, status: str, error: str = "", model: str = "", user_id: str | None = None) -> None:
     with db() as con:
         con.execute(
-            "INSERT INTO agent_calls (agent, project_id, run_id, source, prompt_ref, tokens_in, tokens_out, latency_ms, tool_calls, status, error, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-            (agent, project_id, run_id, source, prompts.ref(agent), usage.get("input_token_count") or 0, usage.get("output_token_count") or 0, latency_ms, tool_calls, status, redact(error)[:400], now()),
+            "INSERT INTO agent_calls (agent, project_id, run_id, source, prompt_ref, tokens_in, tokens_out, latency_ms, tool_calls, status, error, created_at, model, user_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (agent, project_id, run_id, source, prompts.ref(agent), usage.get("input_token_count") or 0, usage.get("output_token_count") or 0, latency_ms, tool_calls, status, redact(error)[:400], now(), model, user_id),
         )
 
 
-def telemetry(agent: str, project_id: str | None, run_id: str | None, source: str):
-    """MAF chat middleware: records each model round, streamed or not."""
+def telemetry(agent: str, project_id: str | None, run_id: str | None, source: str, model: str = "", user_id: str | None = None):
+    """MAF chat middleware: stops a round when a limit is reached, and records each model round, streamed or not, with the model and account."""
 
     @chat_middleware
     async def record(context, call_next) -> None:
+        auth.check_allowance(project_id or "", user_id, model)  # a tool loop makes many rounds, so the limit is checked before each one
         started = time.perf_counter()
         try:
             await call_next()
         except Exception as exc:
-            record_call(agent, project_id, run_id, source, {}, int((time.perf_counter() - started) * 1000), 0, "error", str(exc))
+            record_call(agent, project_id, run_id, source, {}, int((time.perf_counter() - started) * 1000), 0, "error", str(exc), model, user_id)
             raise
         if context.stream:
             def finished(response):
                 _record_refused_tools(agent, project_id, run_id, source, response)
-                record_call(agent, project_id, run_id, source, dict(response.usage_details or {}), int((time.perf_counter() - started) * 1000), _tool_count(response), "ok")
+                record_call(agent, project_id, run_id, source, dict(response.usage_details or {}), int((time.perf_counter() - started) * 1000), _tool_count(response), "ok", "", model, user_id)
                 return response
 
             context.stream_result_transforms = [*context.stream_result_transforms, finished]
             return
         response = context.result
         _record_refused_tools(agent, project_id, run_id, source, response)
-        record_call(agent, project_id, run_id, source, dict(response.usage_details or {}), int((time.perf_counter() - started) * 1000), _tool_count(response), "ok")
+        record_call(agent, project_id, run_id, source, dict(response.usage_details or {}), int((time.perf_counter() - started) * 1000), _tool_count(response), "ok", "", model, user_id)
 
     return record
 
@@ -183,7 +188,7 @@ def overview() -> list[dict]:
         result.append({
             "key": key, **{k: v for k, v in asdict(policy).items() if k not in {"workflow_tools", "chat_tools"}},
             "workflow_tools": sorted(policy.workflow_tools), "chat_tools": sorted(policy.chat_tools or []), "in_chat": policy.chat_tools is not None,
-            "enabled": bool(current["enabled"]), "token_limit": token_limit(key), "settings_by": current["updated_by"], "settings_reason": current["reason"],
+            "enabled": bool(current["enabled"]), "model": current.get("model", ""), "token_limit": token_limit(key), "settings_by": current["updated_by"], "settings_reason": current["reason"],
             "prompt_ref": active,
             "calls": stored.get("calls", 0), "tokens": (stored.get("tokens_in") or 0) + (stored.get("tokens_out") or 0), "avg_latency_ms": stored.get("avg_latency_ms"),
             "tool_calls": stored.get("tool_calls") or 0, "errors": stored.get("errors") or 0, "last_call": stored.get("last_call"), "guardrail_events": events.get(key, 0),
