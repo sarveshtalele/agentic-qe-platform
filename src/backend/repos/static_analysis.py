@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import shutil
@@ -25,6 +26,9 @@ JS_RULES = [
 JS_SUFFIXES = {".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".vue", ".svelte", ".astro"}
 
 
+LOG = logging.getLogger(__name__)
+
+
 def _ruff() -> list[str]:
     binary = shutil.which("ruff") or shutil.which("ruff", path=str(Path(sys.executable).parent))
     return [binary] if binary else [sys.executable, "-m", "ruff"]
@@ -33,6 +37,8 @@ def _ruff() -> list[str]:
 def run_ruff(root: Path) -> list[dict]:
     command = [*_ruff(), "check", ".", "--isolated", "--exit-zero", "--output-format", "json", "--select", "F,E9,B,S,PLE", "--ignore", "S101,S311", "--exclude", "tests,test,**/test_*.py"]
     done = subprocess.run(command, cwd=root.resolve(), capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=300, env={**os.environ, "NO_COLOR": "1"})
+    if done.stderr.strip():
+        LOG.warning("ruff: %s", done.stderr.strip()[:500])
     if done.returncode != 0 or not done.stdout.strip():
         return []
     findings = []
