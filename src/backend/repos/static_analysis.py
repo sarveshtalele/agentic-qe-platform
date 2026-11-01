@@ -32,7 +32,7 @@ def _ruff() -> list[str]:
 
 def run_ruff(root: Path) -> list[dict]:
     command = [*_ruff(), "check", ".", "--isolated", "--exit-zero", "--output-format", "json", "--select", "F,E9,B,S,PLE", "--ignore", "S101,S311", "--exclude", "tests,test,**/test_*.py"]
-    done = subprocess.run(command, cwd=root, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=300, env={**os.environ, "NO_COLOR": "1"})
+    done = subprocess.run(command, cwd=root.resolve(), capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=300, env={**os.environ, "NO_COLOR": "1"})
     if done.returncode != 0 or not done.stdout.strip():
         return []
     findings = []

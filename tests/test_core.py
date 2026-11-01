@@ -697,3 +697,11 @@ def test_bare_list_replies_fit_a_single_list_schema():
     with pytest.raises(ValueError):
         _fit_schema(extract_json(reply), Two)
     assert extract_json('See [FR-001] and [1, 2]. {"a": 1}') == {"a": 1}
+
+
+def test_test_runs_leave_no_bytecode_in_the_worktree(tmp_path, monkeypatch):
+    monkeypatch.delenv("PYTHONDONTWRITEBYTECODE", raising=False)
+    (tmp_path / "calc.py").write_text("def add(a, b):\n    return a + b\n")
+    (tmp_path / "test_calc.py").write_text("from calc import add\n\n\ndef test_add():\n    assert add(1, 1) == 2\n")
+    result = execution.run_suite("pytest", tmp_path, ".", tmp_path.parent / "results")
+    assert result["passed"] == 1 and not list(tmp_path.rglob("__pycache__"))

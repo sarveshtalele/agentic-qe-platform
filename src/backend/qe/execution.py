@@ -96,7 +96,8 @@ def run_suite(runner: str, worktree: Path, target: str, results_dir: Path, timeo
         return {"runner": runner, "target": target, "verdict": "INCONCLUSIVE", "reason": "Node.js tooling not found on PATH", "exit_code": None, "total": 0, "passed": 0, "failed": 0, "skipped": 0, "cases": [], "output": ""}
     started = time.time()
     try:
-        done = subprocess.run(command, cwd=worktree, env=clean_env(env), capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout)
+        # no bytecode: a same-size edit within a second could otherwise run stale code, and cache files would enter the reviewed diff
+        done = subprocess.run(command, cwd=worktree, env=clean_env({**env, "PYTHONDONTWRITEBYTECODE": "1"}), capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout)
         exit_code, output, reason = done.returncode, done.stdout + done.stderr, ""
     except subprocess.TimeoutExpired as exc:
         exit_code, output, reason = None, str(exc.stdout or ""), f"Timed out after {timeout}s"

@@ -1,0 +1,5 @@
+# Launchers must keep their own line endings on every system, or they fail to start
+*.bat text eol=crlf
+*.command text eol=lf
+*.sh text eol=lf
+*.png binary
